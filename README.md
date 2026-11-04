@@ -51,6 +51,42 @@ The pause menu opens photo mode, the Island Passport and the Contracts board, an
 
 The game itself is one file, `index.html`. The only library is [three.js](https://threejs.org/) r128 (MIT licence), loaded from cdnjs with a Subresource Integrity hash so the browser rejects a modified copy. Terrain, roads, buildings, vegetation, cars, textures and sound effects are all generated procedurally. The only asset files are the three music tracks in `audio/` (about 2 MB each), which are loaded only when needed and looped on the Web Audio clock. Two backup tracks composed in code play if the files can't load. A Content Security Policy in the page only lets it load scripts from itself and cdnjs, fonts from Google Fonts and music from its own folder.
 
+## Testing
+
+The game has an automated test suite that plays it in a real browser (Chromium, through [Playwright](https://playwright.dev/)). Node.js and the packages in `package.json` are only needed to run the tests; the game itself still needs no build or install.
+
+```
+npm ci                                  # once: installs Playwright, ESLint and the test copy of three.js
+npx playwright install --with-deps chromium   # once: the browser Playwright drives
+npm test                                # runs every test (serves this folder on http://127.0.0.1:4173)
+npx playwright test tests/contracts.spec.js   # one file
+npx playwright test -g "photo"          # tests whose name matches
+npm run test:report                     # opens the HTML report of the last run
+npm run lint                            # static checks (ESLint) on the game's script
+```
+
+`npm start` serves the folder on the same address for playing locally with the full soundtrack.
+
+The tests run against the real `index.html`, read fresh on every run. For tests that need to look inside the game, `tests/support/instrument.js` adds read-only hooks to an in-memory copy; the file on disk is never changed. three.js is served from the npm package (the page's integrity hash is still checked) and web fonts are stubbed, so runs don't depend on outside sites. They cover:
+
+- **Smoke**: the untouched page loads, START, the garage, driving, pause and home; site files and the 404 page.
+- **Driving**: throttle, brakes, reverse, steering, handbrake, the sea reset, R to reset, map travel, keys held while menus are open.
+- **Garage and dealership**: buying (charged once), not enough credits, the 12-car limit, selling, test drives, paint.
+- **Races and time trials**: rewards paid once, checkpoints in order, the finish line, quitting and restarting.
+- **Map and GPS**: waypoints and routes, mouse and touch zoom and pan, turning a phone, travelling from a marker.
+- **Photo Mode**: where it opens, the world standing still, camera and looks, a real PNG capture, everything restored.
+- **Island Passport** and **Contracts**: every landmark and all 9 contracts, each paid once, failures and cancellations.
+- **Saves**: reloads, a save from the first release, corrupt and malformed saves, storage being refused.
+- **Phones**: touch controls, and layouts at six screen sizes (including 360 px tall phones held sideways), and turning the device.
+- **Rendering**: real WebGL drawing by day and night and at each graphics setting.
+- **Stability and performance**: no leftovers after many screen changes, long frame gaps, a hidden tab, memory over a long drive, and measurements of frame cost, GPU load, load time and memory.
+
+GitHub Actions (`.github/workflows/test.yml`) runs ESLint and then the suite on every push to `main` and every pull request. A failing test fails the run, and the HTML report, with screenshots and traces of any failure, is attached to it.
+
+The tests come in two Playwright projects. `chromium` runs the logic and interaction tests with 3D drawing switched off, which is many times faster. `webgl` runs the tests tagged `@webgl`, which draw with real WebGL. Run one with `npx playwright test --project=webgl`.
+
+Limits: on machines without a GPU, CI runners included, Chrome draws with its software renderer (SwiftShader). The rendering tests prove the scene builds and draws, and the performance numbers are comparisons between runs, not frame rates on real devices. Phones are emulated screen sizes with emulated touch in desktop Chromium. Firefox and Safari aren't covered by the automated tests yet.
+
 ## Privacy
 
 The game has no accounts, analytics, ads, cookies or tracking, and sends no data anywhere. The feedback links only open Google Forms or GitHub in a new tab when you click them; the form collects no email addresses. Progress is saved only in your own browser's `localStorage` (key `white-isle-drive-v1`); clearing site data resets it.

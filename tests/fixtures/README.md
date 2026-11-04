@@ -1,0 +1,3 @@
+# Test fixtures
+
+- `save-2026-10-27.json`: a real save written by the first public release (commit `498afd3`, 27 Oct 2026). It was made by playing that release in Chromium (in a small 320 x 180 window, so the software GPU kept up) through its own buttons (it opened straight into the garage): the next car, a paint swatch, DRIVE, then in the pause menu driving assist off, the time of day moved on four steps, and sound off. `raw` is exactly the string that release stored under `white-isle-drive-v1` (`save` is the same, parsed). `save-system.spec.js` loads it in the current game to check that progress from the first release carries over.

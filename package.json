@@ -1,0 +1,20 @@
+{
+  "name": "white-isle-drive",
+  "private": true,
+  "description": "Development and test tooling only. The game itself is index.html and needs no build or install.",
+  "scripts": {
+    "start": "node tests/support/server.js",
+    "lint": "node tests/support/lint.js",
+    "test": "playwright test",
+    "test:report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "eslint": "9.39.4",
+    "globals": "15.15.0",
+    "three": "0.128.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

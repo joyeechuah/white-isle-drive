@@ -1,0 +1,59 @@
+# Runs the automated browser tests on every push to main and on every pull request.
+# The game itself needs no build; Node and Playwright are only used here, for testing.
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  chromium:
+    name: Playwright (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install test dependencies
+        run: npm ci
+
+      - name: Check the game's code (ESLint)
+        run: npm run lint
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      # Playwright starts the local server itself (tests/support/server.js, see playwright.config.js),
+      # and the job fails if any test fails
+      - name: Run the tests
+        run: npx playwright test
+
+      - name: Summarise the results
+        if: ${{ !cancelled() }}
+        run: node tests/support/summary.js | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # the HTML report, with screenshots and traces for any test that failed
+      - name: Upload the report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
