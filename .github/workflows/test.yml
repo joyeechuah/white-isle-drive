@@ -45,7 +45,7 @@ jobs:
 
       - name: Summarise the results
         if: ${{ !cancelled() }}
-        run: node tests/support/summary.js >> "$GITHUB_STEP_SUMMARY"
+        run: node tests/support/summary.js | tee -a "$GITHUB_STEP_SUMMARY"
 
       # the HTML report, with screenshots and traces for any test that failed
       - name: Upload the report

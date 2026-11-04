@@ -40,6 +40,7 @@ module.exports = defineConfig({
       // smaller window, since a software GPU's time grows with the number of pixels
       name: "webgl",
       grep: /@webgl/,
+      timeout: 600_000,
       use: { browserName: "chromium", viewport: { width: 800, height: 450 }, launchOptions: { args: GL_ARGS } },
     },
   ],

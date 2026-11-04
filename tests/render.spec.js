@@ -2,9 +2,26 @@
 // software renderer, SwiftShader: this proves the scene builds and draws, not how fast a real GPU runs it.
 const { test, expect } = require("./support/game");
 
-// brightness statistics of what is on screen, read back from a real screenshot
+// brightness statistics of what is on screen, read back from a real screenshot. Drawing pauses while the picture is
+// decoded in the page, so a slow software GPU doesn't hold the decoding up
 async function picture(page) {
   const png = await page.screenshot();
+  await page.evaluate(() => {
+    const R = __T.renderer;
+    R.__resume = R.render;
+    R.render = function () {};
+  });
+  try {
+    return await decode(page, png);
+  } finally {
+    await page.evaluate(() => {
+      const R = __T.renderer;
+      R.render = R.__resume;
+    });
+  }
+}
+
+function decode(page, png) {
   return page.evaluate(async (b64) => {
     const img = new Image();
     img.src = "data:image/png;base64," + b64;
