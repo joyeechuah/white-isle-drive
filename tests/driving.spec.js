@@ -74,6 +74,8 @@ test.describe("driving", () => {
       expect(t.seconds, `visit ${visit}: seconds in the water`).toBeGreaterThan(0.55);
       expect(t.seconds, `visit ${visit}: seconds in the water`).toBeLessThan(0.75);
       await game.waitState("DRIVE");
+      // the car's water flag is refreshed at the start of its next physics step, before anything reads it
+      await game.steps(1, {});
       const after = await game.eval(() => {
         const nr = __T.nearestRoad(__T.P.x, __T.P.z, 10);
         return { water: __T.P.water, onRoad: !!nr && nr.d < 3, kph: Math.hypot(__T.P.vx, __T.P.vz) * 3.6 };
