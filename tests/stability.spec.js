@@ -105,6 +105,16 @@ test.describe("stability", () => {
     await game.open({ render: true });
     await game.driveOut();
     await game.park();
+    // traffic out of the way: a traffic car seen for the first time partway through adds its geometries once
+    // (about 11), which a starting count taken before it came into view would mistake for a leak
+    await game.eval(() => {
+      for (const t of __T.TRAFFIC) {
+        t.e = null;
+        t.c.G.visible = false;
+        t.wx = 1e6;
+        t.wz = 1e6;
+      }
+    });
     const gpu = () => game.eval(() => ({ ...__T.renderer.info.memory }));
     const round = async () => {
       for (const [k, st] of [
