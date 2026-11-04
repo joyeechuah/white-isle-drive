@@ -1,0 +1,28 @@
+{
+  "made_with": "the first public release, commit 498afd3 (27 Oct 2026), played in Chromium; see README.md here",
+  "key": "white-isle-drive-v1",
+  "raw": "{\"v\":2,\"cr\":120000,\"xp\":0,\"owned\":[\"golf\",\"mx5\",\"mustang\",\"rrsport\",\"gtr\"],\"cur\":\"mx5\",\"paint\":{\"mx5\":5923176},\"rec\":{},\"radar\":{},\"auto\":false,\"assist\":false,\"sound\":false,\"todMode\":4,\"tod\":22.5}",
+  "save": {
+    "v": 2,
+    "cr": 120000,
+    "xp": 0,
+    "owned": [
+      "golf",
+      "mx5",
+      "mustang",
+      "rrsport",
+      "gtr"
+    ],
+    "cur": "mx5",
+    "paint": {
+      "mx5": 5923176
+    },
+    "rec": {},
+    "radar": {},
+    "auto": false,
+    "assist": false,
+    "sound": false,
+    "todMode": 4,
+    "tod": 22.5
+  }
+}

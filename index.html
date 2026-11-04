@@ -194,6 +194,8 @@ body.touch #speedo{bottom:auto;top:calc(60px + var(--st))}
 body.touch #toasts{top:calc(196px + var(--st))}
 /* short landscape phones: the touch pads fill the lower right, so toasts sit in the clear band under the top bar */
 @media (max-height:520px){body.touch #toasts{top:calc(130px + var(--st));right:auto;left:50%;transform:translateX(-50%);align-items:center;width:min(300px,40vw)}}
+/* and on the shortest (360 px tall), the smaller minimap and its GPS line sit higher, clear of the steering buttons */
+@media (max-height:400px){body.touch #minWrap{top:calc(124px + var(--st))}}
 body.touch #prompt{bottom:calc(150px + var(--sb))}
 body.touch #keys,body.touch #prompt kbd,body.touch #mapClose kbd{display:none}
 @media (max-width:980px){#evhud{top:calc(60px + var(--st))}#streak{top:calc(60px + var(--st))}}
@@ -2906,7 +2908,9 @@ const spc=$("speedo"),spx=spc.getContext("2d"),mm=$("mini"),mmx=mm.getContext("2
 let SPS=220,MMS=184;
 function fitCanvas(cv,css){const d=Math.min(devicePixelRatio,2);cv.width=css*d;cv.height=css*d;cv.style.width=css+"px";cv.style.height=css+"px";return d}
 let spD=1,mmD=1;
-function layoutHUD(){const small=isTouch||W<700;SPS=small?128:220;MMS=small?118:184;spD=fitCanvas(spc,SPS);mmD=fitCanvas(mm,MMS)}
+// very short touch screens (a phone held sideways, 360 px tall on many Androids) get a smaller dial and minimap,
+// so neither runs into the pedals and steering buttons below them
+function layoutHUD(){const small=isTouch||W<700,short=isTouch&&H<=400;SPS=small?(short?104:128):220;MMS=small?(short?100:118):184;spD=fitCanvas(spc,SPS);mmD=fitCanvas(mm,MMS)}
 const RATIOS=[0,.2,.36,.52,.68,.84,1.05];
 function gearInfo(kph,top,rev){
   if(rev)return{g:"R",n:1,rpm:clamp(kph/40,.12,.9)};
