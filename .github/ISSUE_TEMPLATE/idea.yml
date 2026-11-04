@@ -1,0 +1,38 @@
+name: Idea or feedback
+description: Suggest a feature, a car, a place, or tell me what you think
+title: "[Idea] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Every suggestion is read. Tell me what would make the game more fun.
+  - type: dropdown
+    id: rating
+    attributes:
+      label: How much did you enjoy the game?
+      options:
+        - "⭐⭐⭐⭐⭐ Loved it"
+        - "⭐⭐⭐⭐ Liked it"
+        - "⭐⭐⭐ It's OK"
+        - "⭐⭐ Not really"
+        - "⭐ Didn't enjoy it"
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea or feedback
+      placeholder: "A rain mode would be great, and..."
+    validations:
+      required: true
+  - type: textarea
+    id: liked
+    attributes:
+      label: What did you like most?
+  - type: dropdown
+    id: device
+    attributes:
+      label: What did you play on?
+      options:
+        - Computer
+        - Phone
+        - Tablet

@@ -1,0 +1,48 @@
+name: Bug report
+description: Something in the game is broken or looks wrong
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for playing White Isle Drive and taking the time to report this! A screenshot helps a lot.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Describe what went wrong and what you expected to happen instead.
+      placeholder: "When I reversed out of the garage at night, the car went through the wall..."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How can I make it happen again?
+      description: The steps that lead to the problem, if you know them.
+      placeholder: |
+        1. Open the map and travel to Sant Antoni Loop
+        2. Start the race
+        3. ...
+  - type: dropdown
+    id: device
+    attributes:
+      label: Device
+      options:
+        - Computer (keyboard)
+        - Phone
+        - Tablet
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      placeholder: "Chrome on Windows, Safari on iPhone..."
+    validations:
+      required: true
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot or video
+      description: Drag an image or video in here if you have one.

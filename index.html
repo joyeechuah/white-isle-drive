@@ -5,6 +5,19 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="description" content="Free-roam open-world driving game on a Mediterranean island, built with three.js. Runs in the browser, no install.">
 <meta name="theme-color" content="#07090c">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<link rel="canonical" href="https://joyeechuah.github.io/white-isle-drive/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2307090c'/%3E%3Cpath d='M12 58 27 10h10l15 48z' fill='%23f2b33d'/%3E%3Cpath d='M31 14h2v7h-2zM30.5 27h3v9h-3zM30 43h4v11h-4z' fill='%2307090c'/%3E%3C/svg%3E">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="White Isle Drive">
+<meta property="og:title" content="White Isle Drive">
+<meta property="og:description" content="Free-roam open-world driving game on a Mediterranean island, built with three.js. Runs in the browser, no install.">
+<meta property="og:url" content="https://joyeechuah.github.io/white-isle-drive/">
+<meta property="og:image" content="https://joyeechuah.github.io/white-isle-drive/docs/social-preview.jpg">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="A red open-top car on a coastal highway at dusk, under the title White Isle Drive">
+<meta name="twitter:card" content="summary_large_image">
 <title>White Isle Drive</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -38,6 +51,9 @@ kbd{font-family:var(--f-num);font-size:12px;border:1px solid rgba(255,255,255,.3
 #load .bar{width:200px;height:2px;background:var(--line);overflow:hidden;margin-top:12px}
 #load .fill{height:100%;width:0;background:var(--ink);transition:width .25s}
 #lmsg{font-size:12px;color:var(--mute);min-height:16px;text-align:center;max-width:300px}
+#lstart{margin-top:18px;min-width:180px}
+#lhint{font-size:11px;color:var(--mute);letter-spacing:.08em}
+body.touch #lhint{display:none}
 
 /* garage */
 #gui{position:fixed;inset:0;z-index:30;pointer-events:none}
@@ -47,6 +63,8 @@ kbd{font-family:var(--f-num);font-size:12px;border:1px solid rgba(255,255,255,.3
 .pill{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:12px;backdrop-filter:blur(8px)}
 .pill b{color:var(--acc);font-family:var(--f-num);font-size:16px;margin-left:4px}
 #gcr,#gcr2{position:absolute;top:calc(20px + var(--st));right:calc(22px + var(--sr))}
+#gMus{position:absolute;top:calc(64px + var(--st));right:calc(22px + var(--sr));pointer-events:auto;cursor:pointer;font-size:10px;font-weight:700;letter-spacing:.16em;color:var(--ink)}
+#gMus:hover{border-color:#fff}
 #ghint{font-size:10px;letter-spacing:.2em;color:rgba(255,255,255,.78);text-transform:uppercase;margin-top:4px;text-shadow:0 1px 3px #000,0 0 10px rgba(0,0,0,.8)}
 #gpick{position:absolute;left:50%;top:calc(20px + var(--st));transform:translateX(-50%);display:flex;align-items:center;gap:12px;pointer-events:auto;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:4px;backdrop-filter:blur(8px)}
 #gpick .gnav{width:36px;height:36px;font-size:14px;border:0;background:transparent}
@@ -142,10 +160,11 @@ kbd{font-family:var(--f-num);font-size:12px;border:1px solid rgba(255,255,255,.3
 .mbtn{display:block;width:100%;background:transparent;border:1px solid var(--line);padding:12px;margin-top:8px;font-size:11px;letter-spacing:.22em;border-radius:4px;cursor:pointer;font-weight:700;text-align:center}
 .mbtn:hover{border-color:#fff;background:rgba(255,255,255,.05)}
 .mbtn.pri{background:#fff;color:#0b0c0e;border-color:#fff}
+a.mbtn{color:inherit;text-decoration:none;box-sizing:border-box}
 
 /* map */
 #map{position:fixed;inset:0;z-index:55;background:#163450}
-#mapc{position:absolute;inset:0;width:100%;height:100%;cursor:crosshair}
+#mapc{position:absolute;inset:0;width:100%;height:100%;cursor:crosshair;touch-action:none}
 #mapSide{position:absolute;top:calc(16px + var(--st));left:calc(16px + var(--sl));background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:14px 16px;width:220px;font-size:12px}
 #mapSide h3{margin:0 0 8px;font-size:10px;letter-spacing:.45em;color:var(--mute)}
 #mapSide .lg{display:flex;align-items:center;gap:8px;padding:3px 0;color:#d8dbde}
@@ -202,6 +221,9 @@ body.touch #keys,body.touch #prompt kbd,body.touch #mapClose kbd{display:none}
   #gtitle .k,#ghint{max-width:calc(100vw - 220px);letter-spacing:.3em;line-height:1.5}
   #ghint{letter-spacing:.12em}
 }
+/* short portrait phones: there's no room for a prompt (house, dealer, an event) under the band below the minimap,
+   so while one shows, the band (contract, streak, test drive time) steps aside; it's back as soon as you move on */
+@media (max-width:560px) and (max-height:740px){#hud:has(>#prompt:not(.hide)) :is(#jobhud,#streak,#tdPill){visibility:hidden}}
 .sw{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;max-width:280px}
 .swb{width:19px;height:19px;border-radius:50%;border:2px solid rgba(255,255,255,.28);cursor:pointer;padding:0;flex:none}
 .swb:hover{border-color:rgba(255,255,255,.7)}
@@ -214,9 +236,9 @@ body.touch #keys,body.touch #prompt kbd,body.touch #mapClose kbd{display:none}
 @media (max-height:520px){
   /* two columns so the whole pause menu fits a landscape phone without scrolling */
   #pause .card{width:min(600px,100%);display:grid;grid-template-columns:1fr 1fr;column-gap:10px;padding:18px 22px}
-  #pause .card h3,#pause .card h2,#pRes{grid-column:1/-1}
+  #pause .card h3,#pause .card h2,#pRes,#pFb.wide{grid-column:1/-1}
   #pause .card h2{margin-bottom:6px;font-size:24px}
-  #pause .mbtn{padding:11px 8px}
+  #pause .mbtn{padding:9px 8px;margin-top:6px}
   #gbar,#dBar{padding-top:34px;padding-bottom:calc(12px + var(--sb));gap:8px 18px}
   .stats{display:none}
   .cname .md{font-size:22px}
@@ -234,6 +256,76 @@ body.touch #keys,body.touch #prompt kbd,body.touch #mapClose kbd{display:none}
   #gdots{display:none}
   #gpick .gnav{pointer-events:auto;width:44px;height:44px;background:var(--panel);border:1px solid var(--line)}
 }
+/* photo mode: a gesture layer over the whole screen, the controls along the top and bottom edges */
+#photo{position:fixed;inset:0;z-index:58;pointer-events:none}
+#phPad{position:absolute;inset:0;pointer-events:auto;touch-action:none;cursor:grab}
+#phPad:active{cursor:grabbing}
+#phTop{position:absolute;top:calc(14px + var(--st));left:calc(16px + var(--sl));right:calc(16px + var(--sr));display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+#phTop .k{font-size:11px;letter-spacing:.45em;font-weight:800;text-shadow:0 1px 4px #000}
+#phHint{font-size:11px;color:rgba(255,255,255,.8);margin-top:4px;max-width:520px;line-height:1.4;text-shadow:0 1px 4px #000}
+#phExit{pointer-events:auto;padding:10px 18px;background:var(--panel)}
+#phLow{position:absolute;left:0;right:0;bottom:0;padding:12px max(16px,var(--sr)) calc(14px + var(--sb)) max(16px,var(--sl));display:flex;flex-direction:column;align-items:center;gap:10px;background:linear-gradient(transparent,rgba(0,0,0,.55))}
+#phLooks{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;pointer-events:auto}
+#phLooks .chip.on{background:#fff;color:#0b0c0e;border-color:#fff}
+#phCtl{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:10px 18px;pointer-events:auto}
+.phs{display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:.2em;font-weight:700;background:var(--panel);padding:6px 12px;border-radius:999px}
+.phs input{width:120px;accent-color:var(--acc)}
+#phCtl .btn{padding:12px 22px}
+#phMsg{position:absolute;z-index:3;top:calc(84px + var(--st));left:50%;transform:translateX(-50%);background:var(--panel2);border-left:3px solid #fff;padding:8px 14px;font-size:12px;max-width:min(420px,calc(100% - 32px))}
+#phMsg.bad{border-color:var(--bad)}
+#photo.shot #phTop,#photo.shot #phLow{visibility:hidden}
+/* island passport */
+#passport{z-index:62}
+.pzc{width:min(520px,100%);max-height:calc(100% - 8px);display:flex;flex-direction:column}
+#pzCount{font-size:20px;font-weight:800;letter-spacing:.02em}
+.pzbar{height:4px;background:rgba(255,255,255,.14);border-radius:2px;overflow:hidden;margin:8px 0}
+.pzbar i{display:block;height:100%;width:0;background:var(--acc)}
+#pzNote{font-size:12px;color:var(--mute)}
+#pzMsg{font-size:12px;color:var(--acc);min-height:0;margin-top:6px}
+#pzMsg:empty{display:none}
+#pzList{overflow:auto;margin-top:10px;flex:1;min-height:80px}
+.pzr{display:flex;align-items:center;gap:12px;padding:8px 0;border-top:1px solid var(--line)}
+.pzr>div{flex:1;min-width:0}
+.pzr b{display:block;font-size:13px}
+.pzr span{display:block;font-size:12px;color:var(--mute);margin-top:2px}
+.pzr:not(.found) b{color:var(--mute);font-weight:600}
+.pzr .mbtn{width:auto;margin:0;padding:8px 12px;flex:none}
+#mapSide .mbtn{margin-top:10px}
+#mapPop .note{display:block;color:var(--acc);margin-top:6px}
+/* contracts */
+#jobs{z-index:62}
+.jbc{width:min(560px,100%);max-height:calc(100% - 8px);display:flex;flex-direction:column}
+#jbStats{font-size:12px;color:var(--mute)}
+#jbNote{font-size:12px;color:var(--acc);margin-top:6px}
+#jbNote:empty{display:none}
+#jbCur{margin-top:10px;padding:10px 12px;border:1px solid var(--acc);border-radius:6px}
+#jbCur b{display:block;font-size:13px}
+#jbCur span{display:block;font-size:12px;color:var(--mute);margin-top:2px}
+.jbacts{display:flex;gap:8px;margin-top:8px}.jbacts .mbtn{margin:0}
+#jbList{overflow:auto;margin-top:10px;flex:1;min-height:80px}
+.jbr{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--line)}
+.jbr>div{flex:1;min-width:0}
+.jbr i{display:block;font-style:normal;font-size:9px;letter-spacing:.3em;color:var(--acc);font-weight:700}
+.jbr b{display:block;font-size:13px;margin-top:2px}
+.jbr span{display:block;font-size:12px;color:var(--mute);margin-top:2px}
+.jbr .mbtn{width:auto;margin:0;padding:8px 14px;flex:none}
+.mbtn:disabled{opacity:.4;cursor:not-allowed}
+#jobhud{position:absolute;top:calc(14px + var(--st));left:50%;transform:translateX(-50%);background:var(--panel2);padding:8px 16px;text-align:center;min-width:240px;max-width:min(440px,calc(100% - 32px));filter:drop-shadow(0 3px 10px rgba(0,0,0,.5))}
+#jbType{font-size:9px;letter-spacing:.3em;color:var(--acc);font-weight:700}
+#jbObj{font-size:13px;font-weight:700;margin-top:2px}
+#jobhud .jm{display:flex;justify-content:center;gap:14px;margin-top:2px}
+#jobhud .jm b{font-size:18px}#jobhud .jm b:empty{display:none}
+#jbTime.low{color:var(--bad)}
+@media (max-width:980px){#jobhud{top:calc(60px + var(--st))}}
+@media (max-width:560px){#jobhud{top:calc(318px + var(--st))}}
+#phShot{position:absolute;inset:0;pointer-events:auto;background:rgba(5,6,8,.78);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px}
+#phImg{max-width:min(860px,100%);max-height:calc(100% - 130px);border:1px solid var(--line);border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.6);-webkit-touch-callout:default;user-select:auto;-webkit-user-select:auto}
+#phShot .acts{justify-content:center}
+#phShot .btn{padding:12px 22px;text-decoration:none}
+#phTip{font-size:11px;color:var(--mute);text-align:center}
+body.touch #phExit kbd{display:none}
+@media (max-height:520px){#phHint{display:none}#phLow{gap:6px;padding-top:6px}.phs input{width:96px}#phCtl .btn{padding:10px 16px}}
+@media (max-width:560px){.phs input{width:90px}#phTop .k{letter-spacing:.3em}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -245,14 +337,17 @@ body.touch #keys,body.touch #prompt kbd,body.touch #mapClose kbd{display:none}
   <div class="t">IBIZA</div>
   <div class="bar"><div class="fill" id="lf"></div></div>
   <div id="lmsg">Loading</div>
+  <button id="lstart" class="btn gold hide">START</button>
+  <div id="lhint" class="hide">or press any key</div>
 </div>
 
 <div id="gui" class="hide">
   <div id="gtitle"><div class="k">HOME · SANTA EULÀRIA HILLS · <span id="gcount"></span></div><div class="t">MY GARAGE</div><div id="ghint">Click a car to select it, click it again to drive</div></div>
   <div id="gcr" class="pill">Credits<b class="num" id="gcrv">0</b></div>
+  <button id="gMus" class="pill">MUSIC: ON</button>
   <div id="gpick"><button class="gnav" id="gprev" aria-label="Previous car">&#10094;</button><div id="gdots"></div><button class="gnav" id="gnext" aria-label="Next car">&#10095;</button></div>
   <div id="gbar">
-    <div class="cname"><div class="mk" id="gmk"></div><div class="md" id="gmd"></div><div class="yr" id="gyr"></div><div class="sw" id="gSw" aria-label="Paint colour"></div></div>
+    <div class="cname"><div class="mk" id="gmk"></div><div class="md" id="gmd"></div><div class="yr" id="gyr"></div><div class="sw" id="gSw" role="group" aria-label="Paint colour"></div></div>
     <div class="stats">
       <div class="sr"><span class="n">Top speed</span><div class="t"><div class="f" id="f1"></div></div><span class="v" id="v1"></span></div>
       <div class="sr"><span class="n">Accel</span><div class="t"><div class="f" id="f2"></div></div><span class="v" id="v2"></span></div>
@@ -278,18 +373,20 @@ body.touch #keys,body.touch #prompt kbd,body.touch #mapClose kbd{display:none}
     <div><span>TIME</span><b id="evTime">0:00.00</b></div>
     <div><span>CHECKPOINT</span><b id="evCp">0/0</b></div>
   </div>
+  <div id="jobhud" class="hide"><div id="jbType"></div><div id="jbObj"></div><div class="jm"><b id="jbTime" class="num"></b><b id="jbPay" class="num"></b></div></div>
   <div id="wrong" class="hide">WRONG WAY</div>
   <div id="count" class="hide"></div>
   <div id="toasts"></div>
   <div id="minWrap"><canvas id="mini"></canvas><div id="gpsTxt"></div></div>
   <canvas id="speedo"></canvas>
   <button id="prompt" class="hide"><kbd>E</kbd> <span id="promptTxt"></span></button>
-  <div id="keys"><kbd>W</kbd><kbd>S</kbd> gas / brake &nbsp; <kbd>A</kbd><kbd>D</kbd> steer &nbsp; <kbd>Space</kbd> handbrake &nbsp; <kbd>M</kbd> map &nbsp; <kbd>C</kbd> camera &nbsp; <kbd>R</kbd> back to road &nbsp; <kbd>Esc</kbd> pause</div>
+  <div id="keys"><kbd>W</kbd><kbd>S</kbd> gas / brake &nbsp; <kbd>A</kbd><kbd>D</kbd> steer &nbsp; <kbd>Space</kbd> handbrake &nbsp; <kbd>M</kbd> map &nbsp; <kbd>C</kbd> camera &nbsp; <kbd>V</kbd> photo &nbsp; <kbd>R</kbd> back to road &nbsp; <kbd>Esc</kbd> pause</div>
 </div>
 
 <div id="chips" class="hide">
   <button class="chip" id="chMap">MAP</button>
   <button class="chip" id="chCam">CAM</button>
+  <button class="chip" id="chPhoto">PHOTO</button>
   <button class="chip" id="chPause">PAUSE</button>
 </div>
 
@@ -303,12 +400,18 @@ body.touch #keys,body.touch #prompt kbd,body.touch #mapClose kbd{display:none}
   <h3>PAUSED</h3><h2 id="pTitle">Free ride</h2>
   <button class="mbtn pri" id="pRes">RESUME</button>
   <button class="mbtn" id="pMap">MAP &amp; GPS</button>
+  <button class="mbtn" id="pPhoto">PHOTO MODE</button>
+  <button class="mbtn" id="pPass">ISLAND PASSPORT</button>
+  <button class="mbtn" id="pJobs">CONTRACTS</button>
   <button class="mbtn" id="pQuit">QUIT EVENT</button>
   <button class="mbtn" id="pHome">GO HOME</button>
   <button class="mbtn" id="pTime">TIME OF DAY: AUTO</button>
   <button class="mbtn" id="pAssist">DRIVING ASSIST: ON</button>
   <button class="mbtn" id="pAuto">AUTO GAS: OFF</button>
-  <button class="mbtn" id="pSnd">SOUND: ON</button>
+  <button class="mbtn" id="pSnd">SOUND FX: ON</button>
+  <button class="mbtn" id="pMus">MUSIC: ON</button>
+  <button class="mbtn" id="pGfx">GRAPHICS: AUTO</button>
+  <a class="mbtn" id="pFb" href="https://forms.gle/bPk18BbmhaGLNJtD9" target="_blank" rel="noopener">SEND FEEDBACK &#8599;</a>
 </div></div>
 
 <div id="map" class="hide">
@@ -319,6 +422,8 @@ body.touch #keys,body.touch #prompt kbd,body.touch #mapClose kbd{display:none}
     <div class="lg"><i style="background:#f2b33d"></i>Car dealership</div>
     <div class="lg"><i style="background:#ffffff;border:3px solid #0d1a22;box-shadow:0 0 0 1px #fff"></i>Events</div>
     <div class="lg"><i style="background:#9aa1a8;border-radius:2px"></i>Speed radars</div>
+    <div class="lg"><i style="background:#7fd1c7;border-radius:2px;transform:rotate(45deg) scale(.8)"></i>Landmarks you've found</div>
+    <button class="mbtn" id="mapPass">ISLAND PASSPORT</button>
     <p>Drag to move. Scroll, pinch or use + and − to zoom. Click a marker to set the GPS or travel there, or click a road to drop a waypoint.</p>
   </div>
   <button class="btn ghost" id="mapClose">CLOSE <kbd>M</kbd></button>
@@ -331,7 +436,7 @@ body.touch #keys,body.touch #prompt kbd,body.touch #mapClose kbd{display:none}
   <div id="gcr2" class="pill">Credits<b class="num" id="dcr">0</b></div>
   <div id="dList"></div>
   <div id="dBar">
-    <div class="cname"><div class="mk" id="dmk"></div><div class="md" id="dmd"></div><div class="yr" id="dyr"></div><div class="sw" id="dSw" aria-label="Paint colour"></div></div>
+    <div class="cname"><div class="mk" id="dmk"></div><div class="md" id="dmd"></div><div class="yr" id="dyr"></div><div class="sw" id="dSw" role="group" aria-label="Paint colour"></div></div>
     <div class="stats">
       <div class="sr"><span class="n">Top speed</span><div class="t"><div class="f" id="df1"></div></div><span class="v" id="dv1"></span></div>
       <div class="sr"><span class="n">Accel</span><div class="t"><div class="f" id="df2"></div></div><span class="v" id="dv2"></span></div>
@@ -350,6 +455,22 @@ body.touch #keys,body.touch #prompt kbd,body.touch #mapClose kbd{display:none}
   </div>
 </div>
 
+<div id="passport" class="ov hide"><div class="card pzc" role="dialog" aria-labelledby="pzTitle">
+  <h3>EXPLORE</h3><h2 id="pzTitle">Island Passport</h2>
+  <div id="pzCount" class="num"></div><div class="pzbar"><i id="pzBar"></i></div><div id="pzNote"></div>
+  <div id="pzMsg" role="status"></div>
+  <div id="pzList"></div>
+  <button class="mbtn pri" id="pzClose">CLOSE</button>
+</div></div>
+
+<div id="jobs" class="ov hide"><div class="card jbc" role="dialog" aria-labelledby="jbTitle">
+  <h3>WORK</h3><h2 id="jbTitle">Contracts</h2>
+  <div id="jbStats"></div><div id="jbNote" role="status"></div>
+  <div id="jbCur" class="hide"></div>
+  <div id="jbList"></div>
+  <button class="mbtn pri" id="jbClose">CLOSE</button>
+</div></div>
+
 <div id="intro" class="ov hide"><div class="card">
   <h3 id="iType">TIME TRIAL</h3><h2 id="iName"></h2>
   <div id="iRows"></div>
@@ -361,6 +482,28 @@ body.touch #keys,body.touch #prompt kbd,body.touch #mapClose kbd{display:none}
   <div id="rRows"></div>
   <div class="acts"><button class="btn" id="rOk">CONTINUE</button></div>
 </div></div>
+
+<div id="photo" class="hide">
+  <div id="phPad"></div>
+  <div id="phTop">
+    <div><div class="k">PHOTO MODE</div><div id="phHint">Drag or use the arrow keys to move around the car. Scroll or press + and &minus; to move closer. Enter takes the picture, Esc closes.</div></div>
+    <button class="btn ghost" id="phExit">EXIT <kbd>V</kbd></button>
+  </div>
+  <div id="phLow">
+    <div id="phLooks" role="group" aria-label="Look"></div>
+    <div id="phCtl">
+      <label class="phs"><span>ZOOM</span><input type="range" id="phZoom" min="0" max="60" step="1" aria-label="Zoom"></label>
+      <label class="phs"><span>DISTANCE</span><input type="range" id="phDist" min="30" max="160" step="1" aria-label="Distance from the car"></label>
+      <div class="acts"><button class="btn ghost" id="phReset">RESET CAMERA</button><button class="btn gold" id="phSnap">CAPTURE</button></div>
+    </div>
+  </div>
+  <div id="phMsg" class="hide" role="status"></div>
+  <div id="phShot" class="hide" role="dialog" aria-label="Your photo">
+    <img id="phImg" alt="Your photo">
+    <div class="acts"><a class="btn gold" id="phDl" download>DOWNLOAD PNG</a><button class="btn ghost hide" id="phShare">SHARE</button><button class="btn ghost" id="phBack">BACK</button></div>
+    <div id="phTip">If nothing downloads, right-click or press and hold the picture to save it.</div>
+  </div>
+</div>
 
 <div id="fade"></div>
 
@@ -379,9 +522,12 @@ const rnd=(i,k)=>{const x=Math.sin(i*12.9898+k*78.233)*43758.5453;return x-Math.
 const isTouch=matchMedia("(pointer:coarse)").matches;
 if(isTouch){document.body.classList.add("touch");document.getElementById("ghint").textContent="Tap a car to select it, tap it again to drive"}
 if(typeof THREE==="undefined"){$("lmsg").textContent="The 3D engine didn't load. Check your connection and reload the page.";return}
+{let gl=null;try{const t=document.createElement("canvas");gl=t.getContext("webgl2")||t.getContext("webgl");const lc=gl&&gl.getExtension("WEBGL_lose_context");if(lc)lc.loseContext()}catch(e){}
+ if(!gl){$("lmsg").textContent="This browser or device can't show 3D graphics (WebGL is off or not supported). Try an up-to-date Chrome, Edge, Firefox or Safari, or turn on hardware acceleration.";return}}
 const V3=THREE.Vector3;
 const fmtCr=n=>Math.round(n).toLocaleString("en-US");
-const fmtT=t=>{const m=Math.floor(t/60),s=t-m*60;return m+":"+(s<10?"0":"")+s.toFixed(2)};
+// rounded once to hundredths, then split, so 59.999 reads 1:00.00 rather than 0:60.00
+const fmtT=t=>{const c=Math.round(Math.max(0,t)*100),m=Math.floor(c/6000),s=Math.floor(c/100)%60,h=c%100;return m+":"+String(s).padStart(2,"0")+"."+String(h).padStart(2,"0")};
 
 /* ================================================================ CARS
    Classes run from A1 (slowest) to A7 (hypercars).
@@ -419,12 +565,13 @@ const GARAGE_CAP=12;
 
 /* ================================================================ SAVE */
 const SAVE_KEY="white-isle-drive-v1";
-const save={v:2,cr:120000,xp:0,owned:STARTERS.slice(),cur:"golf",paint:{},rec:{},radar:{},auto:isTouch,assist:true,sound:true,todMode:0,tod:16.6};
+const save={v:2,cr:120000,xp:0,owned:STARTERS.slice(),cur:"golf",paint:{},rec:{},radar:{},auto:false,assist:true,sound:true,music:true,gfx:0,todMode:0,tod:16.6,found:{},passBonus:false,jobs:{},jobActive:null};
+let loadedV=0;
 try{
   const s=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
   if(s&&typeof s==="object"&&!Array.isArray(s)){
     // only the fields the game knows, so stray keys in storage can't add anything to the save
-    const old=!s.v;for(const k of Object.keys(save))if(Object.prototype.hasOwnProperty.call(s,k))save[k]=s[k];
+    const old=!s.v;loadedV=+s.v||0;for(const k of Object.keys(save))if(Object.prototype.hasOwnProperty.call(s,k))save[k]=s[k];
     if(old&&Array.isArray(save.owned)){save.v=2;STARTERS.forEach(id=>{if(!save.owned.includes(id))save.owned.push(id)});save.cr=Math.max(+save.cr||0,60000)}
   }
 }catch(e){}
@@ -432,27 +579,48 @@ try{
 {
   const num=(v,d,lo,hi)=>typeof v==="number"&&Number.isFinite(v)?clamp(v,lo,hi):d;
   const dict=(v,ok)=>{const o={};if(v&&typeof v==="object"&&!Array.isArray(v))for(const k of Object.keys(v))if(ok(v[k]))o[k]=v[k];return o};
-  save.v=2;
+  save.v=3;
   save.cr=num(save.cr,120000,0,1e12);save.xp=num(save.xp,0,0,1e12);
   save.todMode=Math.round(num(save.todMode,0,0,4));save.tod=num(save.tod,16.6,0,23.99);
   save.paint=dict(save.paint,c=>Number.isInteger(c)&&c>=0&&c<=0xffffff);
   save.rec=dict(save.rec,t=>typeof t==="number"&&t>0&&Number.isFinite(t));
   save.radar=dict(save.radar,v=>typeof v==="number"&&v>0&&Number.isFinite(v));
-  if(typeof save.auto!=="boolean")save.auto=isTouch;
+  // auto gas starts off on every device; saves from before version 3 had it on by default on touch screens
+  if(typeof save.auto!=="boolean"||loadedV<3)save.auto=false;
   if(typeof save.assist!=="boolean")save.assist=true;
   if(typeof save.sound!=="boolean")save.sound=true;
+  if(typeof save.music!=="boolean")save.music=true;
+  save.gfx=Math.round(num(save.gfx,0,0,2));
+  // Island Passport: landmarks found, by stable id (ids not in this version are kept, so nothing is lost), and the one-time bonus
+  save.found=dict(save.found,v=>v===1||v===true);for(const k in save.found)save.found[k]=1;
+  if(typeof save.passBonus!=="boolean")save.passBonus=false;
+  // Contracts: completed runs by type and by contract id, failed and abandoned runs, credits earned; and a note
+  // that one was under way (so a reload can say it was cancelled)
+  {const j=save.jobs&&typeof save.jobs==="object"&&!Array.isArray(save.jobs)?save.jobs:{},n=v=>Math.round(num(v,0,0,1e9));
+   save.jobs={parcel:n(j.parcel),courier:n(j.courier),tour:n(j.tour),failed:n(j.failed),abandoned:n(j.abandoned),earned:n(j.earned),runs:dict(j.runs,v=>Number.isInteger(v)&&v>0)}}
+  save.jobActive=save.jobActive&&typeof save.jobActive==="object"&&typeof save.jobActive.id==="string"?{id:save.jobActive.id}:null;
   if(!Array.isArray(save.owned))save.owned=[];
 }
 save.owned=[...new Set(save.owned.filter(id=>CARS.some(c=>c.id===id)))].slice(0,GARAGE_CAP);
 if(!save.owned.length)save.owned=STARTERS.slice();
 if(!save.owned.includes(save.cur))save.cur=save.owned[0];
-function persist(){try{localStorage.setItem(SAVE_KEY,JSON.stringify(save))}catch(e){}}
+// if the browser refuses to store the save (private mode, storage full) the game carries on, and says so once
+let saveWarned=false;
+function persist(){try{localStorage.setItem(SAVE_KEY,JSON.stringify(save))}catch(e){if(!saveWarned&&typeof toast==="function"){saveWarned=true;toast("PROGRESS NOT SAVED","This browser isn't letting the game store your progress","bad")}}}
 const paintOf=id=>save.paint[id]!==undefined?save.paint[id]:carById(id).body;
 
 /* ================================================================ RENDERER */
 let W=innerWidth,H=innerHeight;
-const renderer=new THREE.WebGLRenderer({canvas:$("c"),antialias:!isTouch,powerPreference:"high-performance"});
-renderer.setPixelRatio(Math.min(devicePixelRatio,isTouch?1.35:1.75));
+// sharp on high-density phone screens too: up to 2 rendered pixels per CSS pixel, with edge smoothing
+// (multisampling is cheap on the tile-based GPUs in phones). adaptRes lowers this if frames run slow.
+// GRAPHICS setting: AUTO keeps it sharp and only eases off (never below 1.5) when frames get slow;
+// SHARP always renders at the screen's full sharpness; SMOOTH renders at 1 for weak phones and long battery
+const PR_DEV=Math.min(devicePixelRatio||1,2);let PR_MAX=PR_DEV,PR_MIN=PR_DEV;
+function gfxLimits(){const g=save.gfx;PR_MAX=g===2?Math.min(PR_DEV,1):PR_DEV;PR_MIN=g===0?Math.min(PR_DEV,1.5):PR_MAX}
+gfxLimits();
+let prNow=PR_MAX;
+const renderer=new THREE.WebGLRenderer({canvas:$("c"),antialias:true,powerPreference:"high-performance"});
+renderer.setPixelRatio(prNow);
 renderer.setSize(W,H,false);
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 // Light in linear space, filmic tone mapping, sRGB on screen. Colours in this
@@ -523,15 +691,21 @@ SKYK.forEach(k=>{for(const f of ["top","hor","sun","lc","hs","hg","fog","sea","c
 const SUN=new V3(),MOON=new V3();let night=0;
 function mixKey(f,a,b,t,out){return out.copy(a[f]).lerp(b[f],t)}
 let water=null,lampMat=null,townMat=null,poolMat=null;
+// a photo-mode look: lights the scene as at its own hour, with a little exposure and colour of its own, without
+// changing save.tod. Everything below is worked out afresh every frame, so the island's own light is back the
+// moment the look is cleared
+let photoLook=null;
+// the clouds' clock: real time since the page opened, less the time spent in photo mode (frame() advances it)
+let skyClock=0;
 function applyDayNight(){
-  const th=(save.tod-6)/24*TAU;
+  const L=photoLook,th=((L&&L.tod!==undefined?L.tod:save.tod)-6)/24*TAU;
   SUN.set(Math.cos(th),Math.sin(th),.42).normalize();
   const e=SUN.y;
   let i=0;while(i<SKYK.length-2&&e>SKYK[i+1].e)i++;
   const a=SKYK[i],b=SKYK[i+1],t=clamp((e-a.e)/(b.e-a.e),0,1);
   mixKey("top",a,b,t,skyU.top.value);mixKey("hor",a,b,t,skyU.hor.value);mixKey("sun",a,b,t,skyU.sunCol.value);
   skyU.sunDir.value.copy(SUN);skyU.sunVis.value=smooth(-.12,.02,e);
-  mixKey("cl",a,b,t,skyU.cLit.value);mixKey("cs",a,b,t,skyU.cShade.value);skyU.cT.value=performance.now()/1000;
+  mixKey("cl",a,b,t,skyU.cLit.value);mixKey("cs",a,b,t,skyU.cShade.value);skyU.cT.value=skyClock;
   mixKey("lc",a,b,t,sun.color);sun.intensity=lerp(a.li,b.li,t);
   hemi.intensity=lerp(a.hi,b.hi,t);mixKey("hs",a,b,t,hemi.color);mixKey("hg",a,b,t,hemi.groundColor);
   mixKey("fog",a,b,t,scene.fog.color);
@@ -545,6 +719,7 @@ function applyDayNight(){
   if(townMat)townMat.emissiveIntensity=night*1.1;
   if(e>-.06)MOON.copy(SUN);else MOON.copy(SUN).negate();
   if(MOON.y<.25){MOON.y=.25;MOON.normalize()}
+  if(L&&L.col){renderer.toneMappingExposure*=L.exp;scene.fog.color.lerp(L.col,L.k);sun.color.lerp(L.col,L.k*.5)}
 }
 
 /* ================================================================ TERRAIN
@@ -847,10 +1022,21 @@ function buildNetwork(){
     }
     // 9. no stretch steeper than MAXG: where a plateau sits well above or below the road's own
     // profile, the road ramps to it over a longer distance instead of dropping off its edge
-    const g=Math.max(MAXG,Math.abs(e.a.y-e.b.y)/e.len*1.05),ys=e.ys,c=e.cum;
-    for(let pass=0;pass<2;pass++){
-      for(let k=1;k<=m;k++){const d=g*(c[k]-c[k-1]);ys[k]=clamp(ys[k],ys[k-1]-d,ys[k-1]+d)}
-      for(let k=m-1;k>=0;k--){const d=g*(c[k+1]-c[k]);ys[k]=clamp(ys[k],ys[k+1]-d,ys[k+1]+d)}
+    // Both ends stay exactly at their junction heights (the junction pad and the car's surface use them):
+    // first keep every point inside the slope cone from both ends, then smooth the inside points only.
+    // The level area round each junction is locked (the junction pad and the car's surface sit at the
+    // junction height there); only the road between the two level areas is reshaped, inside the slope
+    // cone from both, so it can't climb straight out of a junction.
+    const ys=e.ys,c=e.cum,short=e.len<Ra+Rb+BL,Pa=short?0:Ra,Pb=short?0:Rb,span=e.len-Pa-Pb;
+    const g=Math.max(MAXG,Math.abs(e.a.y-e.b.y)/Math.max(span,1)*1.05);
+    const fixed=k=>c[k]<=Pa||c[k]>=e.len-Pb;
+    for(let k=0;k<=m;k++){
+      if(c[k]<=Pa){ys[k]=e.a.y;continue}if(c[k]>=e.len-Pb){ys[k]=e.b.y;continue}
+      const s=c[k]-Pa,r=e.len-Pb-c[k];ys[k]=clamp(ys[k],Math.max(e.a.y-g*s,e.b.y-g*r),Math.min(e.a.y+g*s,e.b.y+g*r));
+    }
+    for(let pass=0;pass<3;pass++){
+      for(let k=1;k<=m;k++){if(fixed(k))continue;const d=g*(c[k]-c[k-1]);ys[k]=clamp(ys[k],ys[k-1]-d,ys[k-1]+d)}
+      for(let k=m-1;k>=0;k--){if(fixed(k))continue;const d=g*(c[k+1]-c[k]);ys[k]=clamp(ys[k],ys[k+1]-d,ys[k+1]+d)}
     }
   }
 }
@@ -2043,6 +2229,13 @@ function drawGauges(kph,rpm,gear){
 const darkInM=new THREE.MeshPhongMaterial({color:0x2a2c30,shininess:30});
 const seatM=new THREE.MeshPhongMaterial({color:0x1c1d20,shininess:20});
 const headlinerM=new THREE.MeshLambertMaterial({color:0x2c2e31});
+// frees what a car model owns; the wheels, tyres and cockpit materials are shared by every car and stay
+function disposeHeroCar(c){
+  const keepG=new Set(Object.values(wheelGeo)),keepM=new Set([tireM,rimM,spokeM,blurM,gaugeM,darkInM,seatM,headlinerM]);
+  c.G.traverse(o=>{if(!o.isMesh)return;if(o.geometry&&!keepG.has(o.geometry))o.geometry.dispose();
+    (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{if(m&&!keepM.has(m)){if(m.map&&m.map!==gaugeTex&&m.map!==blurM.map)m.map.dispose();m.dispose()}})});
+  if(c.G.parent)c.G.parent.remove(c.G);
+}
 function buildHeroCar(cd,color){
   const pr=PROF[cd.shape],G=new THREE.Group();
   const body=new THREE.MeshPhongMaterial({color:color===undefined?cd.body:color,shininess:120,specular:0xaaaaaa});
@@ -2168,10 +2361,20 @@ const P={x:0,y:0,z:0,h:0,vx:0,vz:0,vy:0,r:0,ty:0,air:false,airT:0,steer:0,pitch:
 let pc=null;        // current car instance
 let shake=0;
 const fwdOf=h=>({x:Math.sin(h),z:Math.cos(h)});
+// extra ride height on the low cars, so their tyres show under the body from the chase camera
+function rideH(c){return c&&c.shape==="suv"?0:.04}
+// sits a car on the ground under its four wheels: height, nose up or down and side tilt, eased so it doesn't jitter
+function seatCar(o,G,x,z,yaw,wb,tr,dt,ride){
+  const c=Math.cos(yaw),s=Math.sin(yaw),g=(lx,lz)=>surfH(x+lx*c+lz*s,z-lx*s+lz*c);
+  const fl=g(-tr,wb),fr=g(tr,wb),rl=g(-tr,-wb),rr=g(tr,-wb);
+  const pitch=-Math.atan(clamp((fl+fr-rl-rr)/(4*wb),-.2,.2)),roll=Math.atan(clamp((fr+rr-fl-rl)/(4*tr),-.13,.13));
+  if(o.pitch===undefined){o.pitch=pitch;o.roll=roll}else{const k=Math.min(1,dt*12);o.pitch+=(pitch-o.pitch)*k;o.roll+=(roll-o.roll)*k}
+  G.position.set(x,(fl+fr+rl+rr)/4+(ride||0),z);G.rotation.set(o.pitch,yaw,o.roll,"YXZ");
+}
 function speedF(){return P.vx*Math.sin(P.h)+P.vz*Math.cos(P.h)}
 function kphNow(){return Math.abs(speedF())*3.6}
 // handling tune (one place so it can be balanced against the race AI)
-const HD={latBase:1.2,latGrip:.6,latLow:.25,rUp:6,rUpHi:3.4,rBack:10,rBackHi:7,rCounter:14,expHi:1.3,
+const HD={latBase:1.2,latGrip:.6,latLow:.25,rUp:6,rUpHi:3.4,rBack:10,rBackHi:7,rCounter:14,steerEase:25,expHi:1.3,
   asK:2.6,asLim:.9,csGrip:.76,csBrake:7,thrUp:3.2,pBase:3.2,pAcc:8,offDrag:2.2,offDragV:.035,yawResp:10,rMin0:5,rMinV:.7,laneK:1.0};
 // fastest speed for a bend of curvature k: limited by grip, and in tight
 // corners by the smallest circle the car turns at that speed
@@ -2259,7 +2462,9 @@ function stepPlayer(dt){
   const tgt=(kR()?1:0)-(kL()?1:0),sp=Math.abs(vF),dirV=vF>=0?1:-1;
   const rate=!tgt?lerp(HD.rBack,HD.rBackHi,vN):(P.steer*tgt<0?HD.rCounter:lerp(HD.rUp,HD.rUpHi,vN));
   P.steer+=clamp(tgt-P.steer,-rate*dt,rate*dt);
-  const s=Math.sign(P.steer)*Math.pow(Math.abs(P.steer),lerp(1,HD.expHi,vN));
+  // a short easing on top rounds off the start and end of each key press so the turn builds and lets go smoothly
+  P.steerS=(P.steerS||0)+(P.steer-(P.steerS||0))*(1-Math.exp(-dt*HD.steerEase));
+  const s=Math.sign(P.steerS)*Math.pow(Math.abs(P.steerS),lerp(1,HD.expHi,vN));
   // at low speed a full key press would spin the car on the spot, so the
   // tightest circle grows with speed (about 12 m at 30 km/h, 20 m at 60 km/h)
   const rGeo=sp*Math.tan(.62)/2.6,rLat=aLat/Math.max(sp,2.5),rLow=sp/(HD.rMin0+sp*HD.rMinV),rCap=Math.min(rGeo,rLat,rLow);
@@ -2286,12 +2491,15 @@ function stepPlayer(dt){
     // back toward the held line (positive heading = to the left)
     if(P.laneLock||Math.abs(sideDrv)>band)want+=clamp(Math.atan2(HD.laneK*(sideDrv-laneT),Math.max(sp,6)),-.15,.15);
     const err=wrapA(want-P.h);
-    if(Math.abs(err)<(junctionAt(P.x,P.z)?.35:HD.asLim)){
-      const rA=clamp(rFF-err*HD.asK,-rCap,rCap);
+    // the assist fades out as the car points further from the road, instead of switching off at a
+    // fixed angle, so the turn rate never jumps
+    const lim=junctionAt(P.x,P.z)?.35:HD.asLim,aw=1-smooth(lim*.6,lim,Math.abs(err));
+    if(aw>0){
+      const rA=clamp(rFF-err*HD.asK,-rCap,rCap)*aw;
       if(!tgt)rT+=rA*(1-Math.abs(P.steer));
       else if(Math.sign(rA)===Math.sign(rT)&&Math.abs(rA)>Math.abs(rT))rT=rA;
-      // already on the edge at speed: steering further towards it is softened
-      else if(onRoad&&sp>15&&gap<.6&&Math.sign(rT)===Math.sign(sideDrv))rT*=.5;
+      // already on the edge at speed: steering further towards it is softened, more the closer it gets
+      else if(onRoad&&sp>15&&gap<.6&&Math.sign(rT)===Math.sign(sideDrv))rT*=lerp(1,.5,aw*(1-Math.max(0,gap)/.6));
     }
   }else if(!nr||nr.d>nr.e.half+5||sp<=4)P.laneT=null;
   P.r+=(rT-P.r)*(1-Math.exp(-dt*HD.yawResp));
@@ -2329,7 +2537,7 @@ function collidePlayer(){
     });
     for(const t of TRAFFIC){if(Math.abs(t.wx-cx)>7||Math.abs(t.wz-cz)>7)continue;
       if(boxHit(cx,cz,r,t.wx,t.wz,.95,t.c.len,Math.cos(t.yaw),Math.sin(t.yaw))){if(t.hitT<=0)t.v*=.6;t.hitT=1.5}}
-    if(ev)for(const a of ev.ai){if(Math.abs(a.x-cx)>7||Math.abs(a.z-cz)>7)continue;
+    if(ev)for(const a of ev.ai){if(a.fin)continue;if(Math.abs(a.x-cx)>7||Math.abs(a.z-cz)>7)continue;
       if(boxHit(cx,cz,r,a.x,a.z,1.0,2.3,Math.cos(a.yaw),Math.sin(a.yaw))){a.v*=.97;a.lat+=Math.sign(a.lat-P.lat||1)*.05}}
   }
   if(impact>3){P.r*=.6;const f=1-.3*Math.min(1,(impact-3)/17);P.vx*=f;P.vz*=f}else if(impact>0)P.r*=.92;
@@ -2393,7 +2601,8 @@ function updateTraffic(dt){
     t.wx=q.x-uz*t.offCur;t.wz=q.z+ux*t.offCur;t.yaw=Math.atan2(ux,uz);
     const dpx=t.wx-P.x,dpz=t.wz-P.z,d=Math.hypot(dpx,dpz);
     t.c.G.visible=d<560;
-    if(t.c.G.visible){t.c.G.position.set(t.wx,edgeY(t.e,t.s)+YO,t.wz);t.c.G.rotation.y=t.yaw;for(const w of t.c.wheels)w.rotation.x+=t.v*dt/.36}
+    // nose up or down with the road, so a car on a hill sits on all four wheels
+    if(t.c.G.visible){const yF=edgeY(t.e,t.s+1.3*t.dir),yB=edgeY(t.e,t.s-1.3*t.dir);t.c.G.position.set(t.wx,(yF+yB)/2+YO,t.wz);t.c.G.rotation.set(-Math.atan((yF-yB)/2.6),t.yaw,0,"YXZ");for(const w of t.c.wheels)w.rotation.x+=t.v*dt/.36}
     // near miss: the car passes beside you without touching
     if(d<14){const along=dpx*pf.x+dpz*pf.z,side=Math.abs(dpx*-pf.z+dpz*pf.x);
       if(t.pa!==null&&((t.pa>0&&along<=0)||(t.pa<0&&along>=0))&&side>2.05&&side<4.2&&kph>70&&t.hitT<=0&&P.hitT<=0)streakAction("NEAR MISS",Math.round(150+kph*1.6),true);
@@ -2408,13 +2617,14 @@ function updateTraffic(dt){
    and a crash loses it. */
 const FR={pts:0,mult:1,timer:0,label:"",flash:0};
 function streakAction(label,pts,discrete){
-  if(ev||testDrive||state!=="DRIVE")return;
+  if(ev||testDrive||job||state!=="DRIVE")return;
   FR.pts+=pts*FR.mult;FR.label=label;FR.flash=1;
   if(discrete){FR.mult=Math.min(5,FR.mult+.25);FR.timer=4}else FR.timer=Math.max(FR.timer,3.2);
 }
-function streakCrash(){if(FR.pts>200)toast("STREAK LOST","Crashed with "+fmtCr(FR.pts)+" pts on the line","bad");FR.pts=0;FR.mult=1;FR.timer=0}
+function streakReset(){FR.pts=0;FR.mult=1;FR.timer=0}
+function streakCrash(){if(FR.pts>200)toast("STREAK LOST","Crashed with "+fmtCr(FR.pts)+" pts on the line","bad");streakReset()}
 function updateStreak(dt){
-  if(ev){FR.pts=0;FR.timer=0;return}
+  if(ev||job){streakReset();return}
   const kph=kphNow();
   if(kph>150&&!P.air)streakAction("SPEED",(kph-150)*.9*dt,false);
   const nr=P.nr;
@@ -2488,22 +2698,51 @@ function trackRoute(route,x,z,hint){
   const t=clamp(((x-p.x)*sx+(z-p.z)*sz)/(L*L),0,1);
   return{i:bi,s:route.cum[bi]+t*L,d:Math.sqrt(bd),side:((x-p.x)*-sz+(z-p.z)*sx)/L};
 }
+// nearest point on the whole route (used when the car has strayed beyond the local search), not past maxS
+// projected onto every segment up to maxS, the last one cut off at maxS, so the answer can never lie beyond it
+function trackRouteFull(route,x,z,maxS){
+  const P=route.pts,C=route.cum,n=P.length;let best=null;
+  for(let i=0;i<n-1&&C[i]<=maxS;i++){
+    const p=P[i],q=P[i+1],sx=q.x-p.x,sz=q.z-p.z,L=Math.hypot(sx,sz)||1;
+    const tMax=clamp((maxS-C[i])/L,0,1),t=clamp(((x-p.x)*sx+(z-p.z)*sz)/(L*L),0,tMax);
+    const px=p.x+sx*t,pz=p.z+sz*t,d=Math.hypot(x-px,z-pz);
+    if(!best||d<best.d)best={i,s:C[i]+t*L,d,side:((x-p.x)*-sz+(z-p.z)*sx)/L};
+  }
+  return best;
+}
+// a checkpoint counts only when the car drives through its gate: forwards, between the posts
+function gateOf(R,s){const p=edgePos(R,s),nr=nearestRoad(p.x,p.z,20);return{x:p.x,z:p.z,dx:p.dx,dz:p.dz,hw:(nr?nr.e.half:6)+1.2}}
+function crossedGate(g,x0,z0,x1,z1){
+  const a0=(x0-g.x)*g.dx+(z0-g.z)*g.dz,a1=(x1-g.x)*g.dx+(z1-g.z)*g.dz;
+  if(!(a0<0&&a1>=0))return false;
+  const t=a0/(a0-a1),xi=x0+(x1-x0)*t,zi=z0+(z1-z0)*t;
+  return Math.abs((xi-g.x)*-g.dz+(zi-g.z)*g.dx)<=g.hw+1;
+}
+const AIC=new Map();   // rival car models (by car id, and which copy when two rivals drive the same car), most recently used last; at most 6 kept
+function rivalModel(cd,key){
+  let m=AIC.get(key);
+  if(m)AIC.delete(key);else{m=buildHeroCar(cd);m.id=key;scene.add(m.G)}
+  AIC.set(key,m);
+  while(AIC.size>6){const[id,old]=AIC.entries().next().value;if(AIM.includes(old))break;AIC.delete(id);disposeHeroCar(old)}
+  return m;
+}
 function startEvent(E){
   const R=E.route,me=curCar(),idx=CARS.indexOf(me);
-  ev={E,R,t:-3,phase:"count",cp:0,hint:0,s:14,sNow:14,d:99,ai:[],done:false,wrongT:0,last:4};
+  ev={E,R,t:-3,phase:"count",cp:0,hint:0,s:14,sNow:14,d:99,ai:[],done:false,wrongT:0,last:4,px:null,pz:null,gate:gateOf(R,E.cps[0]),reT:0,missT:0};
   const p=edgePos(R,14);
-  P.x=p.x-p.dz*-1.7;P.z=p.z+p.dx*-1.7;P.h=Math.atan2(p.dx,p.dz);P.vx=P.vz=0;P.r=0;P.steer=0;P.ty=surfH(P.x,P.z);P.y=P.ty;P.air=false;
+  P.x=p.x-p.dz*-1.7;P.z=p.z+p.dx*-1.7;P.h=Math.atan2(p.dx,p.dz);P.vx=P.vz=0;P.r=0;P.steer=0;P.steerS=0;P.ty=surfH(P.x,P.z);P.y=P.ty;P.air=false;
   if(E.type==="race"){
     // second row far enough back that the chase camera is not inside the car behind you
-    const grid=[[14,1.9],[3,-1.7],[3,1.9]];
+    const grid=[[14,1.9],[3,-1.7],[3,1.9]],used=new Set();AIM.forEach(m=>m&&(m.G.visible=false));
     for(let i=0;i<3;i++){
       const pick=CARS[clamp(idx+[1,-1,0][i],0,CARS.length-1)];
-      let m=AIM[i];if(!m||m.id!==pick.id){if(m)scene.remove(m.G);m=buildHeroCar(pick);m.id=pick.id;scene.add(m.G);AIM[i]=m}
+      let key,k=0;do key=pick.id+"#"+(k++);while(used.has(key));used.add(key);
+      const m=rivalModel(pick,key);AIM[i]=m;
       m.G.visible=true;
       ev.ai.push({m,s:grid[i][0],lat:grid[i][1],lane:grid[i][1],v:0,sk:[.95,.91,.98][i],vmax:pick.top/3.6*[.91,.88,.94][i],acc:3.2+pick.acc*8,fin:0,x:0,z:0,yaw:0,name:pick.mk+" "+pick.md});
     }
   }
-  FR.pts=0;FR.timer=0;snapCam();
+  streakReset();snapCam();
 }
 function endEvent(){ev=null;AIM.forEach(m=>m&&(m.G.visible=false));gates.forEach(g=>g.g.visible=false);$("evhud").classList.add("hide");$("wrong").classList.add("hide");$("count").classList.add("hide");locked=false}
 function updateEvent(dt){
@@ -2515,9 +2754,14 @@ function updateEvent(dt){
     if(c!==ev.last){ev.last=c;beep(c>0?520:880)}
     if(ev.t>=0){ev.phase="run";locked=false;setTimeout(()=>$("count").classList.add("hide"),600)}
   }
-  const tr=trackRoute(R,P.x,P.z,ev.hint);
+  let tr=trackRoute(R,P.x,P.z,ev.hint);
+  // strayed beyond the local search (a long detour): look along the whole route, but never past the next
+  // checkpoint still to be driven through, so a shortcut can't move you up the order
+  ev.reT-=dt;
+  if(tr.d>=40&&ev.reT<=0){ev.reT=.4;const f=trackRouteFull(R,P.x,P.z,E.cps[Math.min(ev.cp,E.cps.length-1)]+30);if(f&&f.d<tr.d)tr=f}
   ev.d=tr.d;ev.sNow=tr.s;
-  if(tr.d<40){ev.hint=tr.i;ev.s=Math.max(ev.s,tr.s);P.lat=tr.side}
+  // race position and rival pacing follow progress, which stops at the next gate until the car drives through it
+  if(tr.d<40){ev.hint=tr.i;ev.s=Math.max(ev.s,Math.min(tr.s,E.cps[Math.min(ev.cp,E.cps.length-1)]+2));P.lat=tr.side}
   // wrong way
   const dir=edgePos(R,ev.s),along=(P.vx*dir.dx+P.vz*dir.dz);
   ev.wrongT=along<-2?ev.wrongT+dt:0;$("wrong").classList.toggle("hide",ev.wrongT<1.2);
@@ -2528,25 +2772,33 @@ function updateEvent(dt){
       const lead=a.s-ev.s,rb=lead>120?.9:lead<-150?1.07:1;
       const vt=Math.min(a.vmax,E.vp[i]*a.sk)*rb;
       a.v+=clamp(vt-a.v,-11*dt,a.acc*Math.max(.15,1-(a.v/a.vmax)**2)*dt);
-      if(!a.fin){a.s+=a.v*dt;if(a.s>=R.len){a.fin=ev.t;a.s=R.len}}
-      else a.v=Math.max(0,a.v-8*dt);
+      // past the line a rival rolls on and slows gently, clearing the finish for the cars behind
+      if(!a.fin){a.s+=a.v*dt;if(a.s>=R.len)a.fin=ev.t}
+      else{a.v=Math.max(0,a.v-2.5*dt);a.s+=a.v*dt}
       // keep out of the player's way
       const ds=ev.s-a.s;
       if(ds>-3&&ds<9&&Math.abs(P.lat-a.lat)<2.4)a.lat+=Math.sign(a.lat-P.lat||1)*3*dt;
       else a.lat+=clamp(a.lane-a.lat,-.8*dt,.8*dt);
       a.lat=clamp(a.lat,-3.2,3.2);
     }
-    const q=edgePos(R,a.s);a.x=q.x-q.dz*a.lat;a.z=q.z+q.dx*a.lat;a.yaw=Math.atan2(q.dx,q.dz);
-    a.m.G.position.set(a.x,surfH(a.x,a.z),a.z);a.m.G.rotation.set(0,a.yaw,0);
+    const q=edgePos(R,Math.min(a.s,R.len)),over=Math.max(0,a.s-R.len);a.x=q.x-q.dz*a.lat+q.dx*over;a.z=q.z+q.dx*a.lat+q.dz*over;a.yaw=Math.atan2(q.dx,q.dz);
+    // on all four wheels on hills and crests (they used to sit level, nose in the road and tail in the air)
+    seatCar(a,a.m.G,a.x,a.z,a.yaw,a.m.wb||1.45,a.m.tr||.92,dt,0);
     for(const w of a.m.wheels)w.rotation.x+=a.v*dt/.36;
   }
   // checkpoints
   const cps=E.cps;
-  if(ev.phase==="run"&&ev.cp<cps.length&&ev.s>=cps[ev.cp]-4){
-    ev.cp++;
+  if(ev.phase==="run"&&ev.cp<cps.length&&ev.px!==null&&crossedGate(ev.gate,ev.px,ev.pz,P.x,P.z)){
+    ev.cp++;ev.missT=0;
     if(ev.cp>=cps.length){finishEvent();return}
-    beep(700);
+    ev.gate=gateOf(R,cps[ev.cp]);beep(700);
+  }else if(ev.phase==="run"&&ev.cp<cps.length&&(ev.sNow>cps[ev.cp]+25||
+      // the finish is the route's end, so progress can't run past it: there, being 25 m beyond the line counts
+      (ev.cp===cps.length-1&&ev.sNow>=cps[ev.cp]-5&&(P.x-ev.gate.x)*ev.gate.dx+(P.z-ev.gate.z)*ev.gate.dz>25))){
+    // went past a gate without driving through it: say so, once every few seconds
+    ev.missT-=dt;if(ev.missT<=0){ev.missT=5;toast("MISSED CHECKPOINT","Drive back through "+(ev.cp===cps.length-1?"the finish line":"gate "+(ev.cp+1))+" to continue","bad")}
   }
+  ev.px=P.x;ev.pz=P.z;
   placeGate(gates[0],R,cps[Math.min(ev.cp,cps.length-1)],ev.cp>=cps.length-1);
   if(ev.cp+1<cps.length)placeGate(gates[1],R,cps[ev.cp+1],ev.cp+1===cps.length-1);else gates[1].g.visible=false;
   // HUD
@@ -2607,7 +2859,8 @@ function updateRadars(){
     const dx=P.x-r.x,dz=P.z-r.z,al=dx*r.dx+dz*r.dz,side=Math.abs(dx*-r.dz+dz*r.dx);
     if(r.prev!==null&&Math.sign(al)!==Math.sign(r.prev)&&side<r.half&&Math.abs(al)<15){
       const kph=Math.round(kphNow()),best=save.radar[r.id]||0;
-      if(kph>best){save.radar[r.id]=kph;const cr=Math.round(kph*(best?12:18));earn(cr);toast("SPEED RADAR · "+kph+" KM/H",(best?"New record, was "+best:"First record")+" · +"+fmtCr(cr)+" CR","gold")}
+      if(testDrive)toast("SPEED RADAR · "+kph+" KM/H","Test drive · records count in your own cars");
+      else if(kph>best){save.radar[r.id]=kph;const cr=Math.round(kph*(best?12:18));earn(cr);toast("SPEED RADAR · "+kph+" KM/H",(best?"New record, was "+best:"First record")+" · +"+fmtCr(cr)+" CR","gold")}
       else toast("SPEED RADAR · "+kph+" KM/H","Record "+best+" km/h");
     }
     r.prev=Math.abs(al)<60?al:null;
@@ -2616,8 +2869,8 @@ function updateRadars(){
 
 /* ================================================================ GPS */
 const gps={t:null,route:null,label:"",timer:0,remain:0};
-function setGPS(x,z,label){gps.t={x,z};gps.label=label;gps.timer=0;recalcGPS();if(gps.route)toast("GPS SET",label+" · "+(gps.route.len/1000).toFixed(1)+" km")}
-function clearGPS(){gps.t=null;gps.route=null;$("gpsTxt").textContent=""}
+function setGPS(x,z,label,forJob){gps.t={x,z};gps.label=label;gps.job=!!forJob;gps.timer=0;recalcGPS();if(gps.route&&!forJob)toast("GPS SET",label+" · "+(gps.route.len/1000).toFixed(1)+" km")}
+function clearGPS(){gps.t=null;gps.route=null;gps.job=false;$("gpsTxt").textContent=""}
 function recalcGPS(){if(!gps.t)return;gps.route=routeBetween(P.x,P.z,gps.t.x,gps.t.z)}
 function updateGPS(dt){
   if(!gps.t||!gps.route){$("gpsTxt").textContent="";return}
@@ -2627,7 +2880,7 @@ function updateGPS(dt){
   if(Math.sqrt(bd)>40&&gps.timer<=0){gps.timer=1.5;recalcGPS();return}
   if(bi>2){gps.route=makePath(R.pts.slice(bi))}
   gps.remain=gps.route.len;
-  if(Math.hypot(P.x-gps.t.x,P.z-gps.t.z)<28){toast("ARRIVED",gps.label);clearGPS();return}
+  if(!gps.job&&Math.hypot(P.x-gps.t.x,P.z-gps.t.z)<28){toast("ARRIVED",gps.label);clearGPS();return}
   $("gpsTxt").textContent="GPS · "+(gps.remain>=1000?(gps.remain/1000).toFixed(1)+" km":Math.round(gps.remain/10)*10+" m")+" · "+gps.label;
 }
 /* ================================================================ MONEY, LEVEL, TOASTS */
@@ -2718,6 +2971,7 @@ function icon(c,kind,x,z,scale,big){
   else if(kind==="dealer"){c.fillStyle="#f2b33d";c.beginPath();c.arc(0,0,7.5,0,TAU);c.stroke();c.fill();c.fillStyle="#0d1a22";c.font="800 9px Barlow,Arial";c.textAlign="center";c.textBaseline="middle";c.fillText("$",0,.5)}
   else if(kind==="event"){c.fillStyle="#fff";c.beginPath();c.arc(0,0,7.5,0,TAU);c.stroke();c.fill();c.fillStyle="#0d1a22";c.beginPath();c.arc(0,0,3.2,0,TAU);c.fill()}
   else if(kind==="radar"){c.fillStyle="#c9ced4";c.fillRect(-4.5,-4.5,9,9);c.strokeRect(-4.5,-4.5,9,9)}
+  else if(kind==="landmark"){c.fillStyle="#7fd1c7";c.beginPath();c.moveTo(0,-6.5);c.lineTo(6.5,0);c.lineTo(0,6.5);c.lineTo(-6.5,0);c.closePath();c.stroke();c.fill()}
   else if(kind==="flag"){c.fillStyle="#f2b33d";c.beginPath();c.moveTo(0,0);c.lineTo(0,-14);c.lineTo(9,-10);c.lineTo(0,-6);c.stroke();c.fill();c.fillRect(-1,-14,2,14)}
   c.restore();
 }
@@ -2771,6 +3025,8 @@ function mapMarkers(){
   const list=[{x:hm.x,z:hm.z,name:"Your house",desc:"Change car, paint it, or pick another",kind:"home",act:"home"},{x:DEALER_MARK.x,z:DEALER_MARK.z,name:"Auto Gallery",desc:"Buy, sell and test drive cars",kind:"dealer",act:"dealer"}];
   for(const E of EVENTS)list.push({x:E.x,z:E.z,name:E.name,desc:(E.type==="tt"?"Time trial":"Race")+" · "+(E.route.len/1000).toFixed(1)+" km"+(save.rec[E.id]?" · best "+fmtT(save.rec[E.id]):""),kind:"event",act:"event",E});
   for(const r of RADARS)list.push({x:r.x,z:r.z,name:"Speed radar",desc:save.radar[r.id]?"Record "+save.radar[r.id]+" km/h":"No record yet",kind:"radar"});
+  // landmarks show once found (the passport keeps the rest a secret)
+  for(const L of LANDMARKS)if(save.found[L.id])list.push({x:L.x,z:L.z,name:L.name,desc:"Landmark · found",kind:"landmark"});
   return list;
 }
 function drawMap(){
@@ -2798,24 +3054,37 @@ function openMapPopup(sx,sy){
   pop.innerHTML="";
   if(!best){
     const nr=nearestRoadGlobal(w.x,w.z,true);
-    if(nr&&nr.d<40/MV.s+15){setGPS(nr.x,nr.z,"Waypoint");}
+    if(nr&&nr.d<40/MV.s+15){if(job){mapPopNote(sx,sy,"The GPS is following your contract. Finish or abandon it to set a waypoint.");return}setGPS(nr.x,nr.z,"Waypoint")}
     pop.classList.add("hide");return;
   }
   const b=document.createElement("b");b.textContent=best.name;const sp=document.createElement("span");sp.textContent=best.desc;pop.append(b,sp);
-  const g=document.createElement("button");g.className="mbtn pri";g.textContent="SET GPS";g.onclick=()=>{setGPS(best.x,best.z,best.name);pop.classList.add("hide")};pop.append(g);
-  if(best.act&&!ev&&!testDrive){const t=document.createElement("button");t.className="mbtn";t.textContent="TRAVEL THERE";t.onclick=()=>{pop.classList.add("hide");fastTravel(best)};pop.append(t)}
+  if(job){const n=document.createElement("span");n.className="note";n.textContent="The GPS is following your contract.";pop.append(n)}
+  else{const g=document.createElement("button");g.className="mbtn pri";g.textContent="SET GPS";g.onclick=()=>{setGPS(best.x,best.z,best.name);pop.classList.add("hide")};pop.append(g)}
+  if(best.act&&!ev&&!testDrive&&!job){const t=document.createElement("button");t.className="mbtn";t.textContent="TRAVEL THERE";t.onclick=()=>{pop.classList.add("hide");fastTravel(best)};pop.append(t)}
   pop.style.left=Math.max(8,Math.min(innerWidth-236,sx+12))+"px";pop.style.top=Math.max(8,Math.min(innerHeight-170,sy+12))+"px";pop.classList.remove("hide");
 }
+function mapPopNote(sx,sy,text){const pop=$("mapPop");pop.innerHTML="";const n=document.createElement("span");n.className="note";n.textContent=text;pop.append(n);
+  pop.style.left=Math.max(8,Math.min(innerWidth-236,sx+12))+"px";pop.style.top=Math.max(8,Math.min(innerHeight-170,sy+12))+"px";pop.classList.remove("hide")}
 const mptr=new Map();let mDrag=null,mPinch=null;
-mapc.addEventListener("pointerdown",e=>{mapc.setPointerCapture(e.pointerId);mptr.set(e.pointerId,{x:e.clientX,y:e.clientY});
+// a pinch belongs to two particular fingers (the first two down). Its starting spread and zoom are only ever
+// compared with those same two fingers: when one of them lifts and two or more are still down, the pinch starts
+// afresh from the fingers now on the glass, so the zoom can't jump by comparing one pair's spread with another's
+function pinchStart(){const it=[...mptr.entries()];if(it.length<2){mPinch=null;return}const[[ia,a],[ib,b]]=it;mPinch={ia,ib,d:Math.max(8,Math.hypot(a.x-b.x,a.y-b.y)),z:MV.z};mDrag=null}
+mapc.addEventListener("pointerdown",e=>{try{mapc.setPointerCapture(e.pointerId)}catch(err){}mptr.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(mptr.size===1)mDrag={x:e.clientX,y:e.clientY,cx:MV.cx,cz:MV.cz,moved:0};
-  else if(mptr.size===2){const[a,b]=[...mptr.values()];mPinch={d:Math.hypot(a.x-b.x,a.y-b.y),z:MV.z};mDrag=null}});
+  else if(!mPinch)pinchStart()});
 mapc.addEventListener("pointermove",e=>{if(!mptr.has(e.pointerId))return;mptr.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  if(mPinch&&mptr.size===2){const[a,b]=[...mptr.values()],d=Math.hypot(a.x-b.x,a.y-b.y);mapZoomAt(mPinch.z*d/mPinch.d/MV.z,(a.x+b.x)/2,(a.y+b.y)/2);return}
+  if(mPinch){const a=mptr.get(mPinch.ia),b=mptr.get(mPinch.ib);if(a&&b){const d=Math.max(8,Math.hypot(a.x-b.x,a.y-b.y));mapZoomAt(mPinch.z*d/mPinch.d/MV.z,(a.x+b.x)/2,(a.y+b.y)/2)}return}
   if(mDrag){const dx=e.clientX-mDrag.x,dy=e.clientY-mDrag.y;mDrag.moved=Math.max(mDrag.moved,Math.hypot(dx,dy));if(mDrag.moved>5){MV.cx=mDrag.cx-dx/MV.s;MV.cz=mDrag.cz-dy/MV.s;clampMap();$("mapPop").classList.add("hide")}}});
-const mapUp=e=>{const had=mptr.has(e.pointerId);mptr.delete(e.pointerId);
+const mapUp=e=>{const id=e.pointerId,had=mptr.has(id);mptr.delete(id);
   if(had&&mDrag&&mDrag.moved<=5&&e.type==="pointerup")openMapPopup(e.clientX,e.clientY);
-  if(mptr.size<2)mPinch=null;if(!mptr.size)mDrag=null};
+  if(mPinch){
+    // pinch ended with one finger still down: that finger pans from here (marked as moved, so lifting it is not a tap)
+    if(mptr.size===1){const[r]=[...mptr.values()];mDrag={x:r.x,y:r.y,cx:MV.cx,cz:MV.cz,moved:6};mPinch=null}
+    else if(mptr.size>=2&&(id===mPinch.ia||id===mPinch.ib))pinchStart();
+    else if(!mptr.size)mPinch=null;
+  }
+  if(!mptr.size)mDrag=null};
 mapc.addEventListener("pointerup",mapUp);mapc.addEventListener("pointercancel",mapUp);
 mapc.addEventListener("wheel",e=>{e.preventDefault();mapZoomAt(Math.exp(-e.deltaY*.0015),e.clientX,e.clientY)},{passive:false});
 $("mapIn").onclick=()=>mapZoomAt(1.6,MV.ox,MV.oy);
@@ -2843,7 +3112,9 @@ function audioInit(){
     AU={master,o1,o2,f,eg,sg,rg,cg,scg,buf};
   }catch(e){AC=null}
 }
-function audioOn(on){if(!AU)return;if(on&&AC.state==="suspended")AC.resume();AU.master.gain.setTargetAtTime(on&&save.sound?1:0,AC.currentTime,.12)}
+// wake the audio clock: "suspended" here, or "interrupted" on an iPhone after a call, Siri or an alarm
+function acResume(){if(!AC||AC.state==="running"||AC.state==="closed")return;try{const p=AC.resume();if(p&&p.catch)p.catch(()=>{})}catch(e){}}
+function audioOn(on){if(!AU)return;if(on)acResume();AU.master.gain.setTargetAtTime(on&&save.sound?1:0,AC.currentTime,.12)}
 // surf: 0 on asphalt, 1 on the gravel verge, 2 on grass and dirt
 function audioUpd(rpm,gear,thr,slip,surf,speed,scrape){if(!AU)return;const t=AC.currentTime,base=50+rpm*175+gear*6;
   AU.o1.frequency.setTargetAtTime(base,t,.05);AU.o2.frequency.setTargetAtTime(base*.5,t,.05);
@@ -2857,6 +3128,588 @@ function playBrush(v){if(!AU||!save.sound||state!=="DRIVE")return;const s=AC.cre
 function playThump(v){if(!AU||!save.sound)return;const s=AC.createBufferSource();s.buffer=AU.buf;const f=AC.createBiquadFilter();f.type="lowpass";f.frequency.value=320;const g=AC.createGain();
   g.gain.setValueAtTime(Math.min(.6,v*.03),AC.currentTime);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+.35);s.connect(f);f.connect(g);g.connect(AU.master);s.start();s.stop(AC.currentTime+.4)}
 function beep(fq){if(!AU||!save.sound)return;const o=AC.createOscillator(),g=AC.createGain();o.frequency.value=fq;o.type="triangle";g.gain.setValueAtTime(.12,AC.currentTime);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+.25);o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+.3)}
+
+/* ================================================================ MUSIC
+   Two original tracks, composed here and played live through Web Audio, so there are no audio
+   files and nothing to license:
+     "Cala Lounge"  92 BPM, a slow electric-piano groove for the garage and the dealership
+     "Coast Road"  118 BPM, sunny Balearic house for driving, in a 32-bar arrangement
+   A small step sequencer schedules sixteenth notes a fraction of a second ahead of the audio
+   clock. makeMusic works on any audio context, so the same code can be rendered offline. */
+const mtof=n=>440*Math.pow(2,(n-69)/12);
+function makeMusic(ctx,out){
+  const noise=ctx.createBuffer(1,ctx.sampleRate,ctx.sampleRate);{const d=noise.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1}
+  // shared output: a gentle compressor keeps the peaks in check, and one short room reverb
+  const comp=ctx.createDynamicsCompressor();comp.threshold.value=-16;comp.knee.value=10;comp.ratio.value=3;comp.attack.value=.008;comp.release.value=.25;comp.connect(out);
+  const rev=ctx.createConvolver();{const n=Math.floor(ctx.sampleRate*2.1),b=ctx.createBuffer(2,n,ctx.sampleRate);
+    for(let c=0;c<2;c++){const d=b.getChannelData(c);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,3)}rev.buffer=b}
+  const revOut=ctx.createGain();revOut.gain.value=.42;rev.connect(revOut);revOut.connect(comp);
+
+  // a bus per track: its own level, a tone filter and a dotted-eighth echo
+  function makeBus(bpm){
+    const B={in:ctx.createGain(),out:ctx.createGain(),tone:ctx.createBiquadFilter(),rv:ctx.createGain(),dl:ctx.createGain()};
+    B.tone.type="lowpass";B.tone.frequency.value=18000;B.tone.Q.value=.5;
+    B.in.connect(B.tone);B.tone.connect(B.out);B.out.connect(comp);B.out.gain.value=0;
+    B.rv.connect(rev);
+    const d=ctx.createDelay(2),fb=ctx.createGain(),lp=ctx.createBiquadFilter(),dOut=ctx.createGain();
+    d.delayTime.value=60/bpm*.75;lp.type="lowpass";lp.frequency.value=2400;fb.gain.value=.36;dOut.gain.value=.5;
+    B.dl.connect(d);d.connect(lp);lp.connect(fb);fb.connect(d);lp.connect(dOut);dOut.connect(B.tone);
+    B.kill=()=>{for(const k of ["in","out","tone","rv","dl"])B[k].disconnect();d.disconnect();lp.disconnect();fb.disconnect();dOut.disconnect()};
+    return B;
+  }
+  const send=(src,dst,amt)=>{if(amt>0){const g=ctx.createGain();g.gain.value=amt;src.connect(g);g.connect(dst)}};
+
+  // ---- instruments (t is the start time on the audio clock)
+  function kick(B,t,v){const o=ctx.createOscillator(),g=ctx.createGain();
+    o.frequency.setValueAtTime(150,t);o.frequency.exponentialRampToValueAtTime(46,t+.1);
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v,t+.004);g.gain.exponentialRampToValueAtTime(.001,t+.36);
+    o.connect(g);g.connect(B.in);o.start(t);o.stop(t+.4)}
+  function hit(B,t,v,type,fq,q,dec,rv){const s=ctx.createBufferSource(),f=ctx.createBiquadFilter(),g=ctx.createGain();
+    s.buffer=noise;f.type=type;f.frequency.value=fq;f.Q.value=q;
+    g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+dec);
+    s.connect(f);f.connect(g);g.connect(B.in);send(g,B.rv,rv||0);s.start(t,Math.random()*.8);s.stop(t+dec+.02)}
+  function bass(B,t,n,dur,v,cut){const o=ctx.createOscillator(),s=ctx.createOscillator(),f=ctx.createBiquadFilter(),g=ctx.createGain(),gs=ctx.createGain();
+    o.type="sawtooth";o.frequency.value=mtof(n);s.frequency.value=mtof(n);gs.gain.value=.7;
+    f.type="lowpass";f.Q.value=3;f.frequency.setValueAtTime(cut*2.4,t);f.frequency.exponentialRampToValueAtTime(cut,t+.12);
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v,t+.008);g.gain.setValueAtTime(v,t+dur*.75);g.gain.exponentialRampToValueAtTime(.001,t+dur+.06);
+    o.connect(f);f.connect(g);s.connect(gs);gs.connect(g);g.connect(B.in);o.start(t);s.start(t);o.stop(t+dur+.1);s.stop(t+dur+.1)}
+  // two-operator FM: a bright bell-like attack that mellows out, the classic electric-piano sound
+  function epiano(B,t,n,dur,v,rv){const c=ctx.createOscillator(),m=ctx.createOscillator(),mg=ctx.createGain(),g=ctx.createGain(),f=mtof(n);
+    c.frequency.value=f;m.frequency.value=f;
+    mg.gain.setValueAtTime(f*1.4,t);mg.gain.exponentialRampToValueAtTime(f*.12,t+.5);m.connect(mg);mg.connect(c.frequency);
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v,t+.006);g.gain.exponentialRampToValueAtTime(v*.4,t+.45);
+    g.gain.setValueAtTime(v*.4,t+Math.max(.46,dur));g.gain.exponentialRampToValueAtTime(.001,t+Math.max(.46,dur)+.4);
+    c.connect(g);g.connect(B.in);send(g,B.rv,rv);const e=t+Math.max(.46,dur)+.45;c.start(t);m.start(t);c.stop(e);m.stop(e)}
+  function pad(B,t,n,dur,v,cut){const f=ctx.createBiquadFilter(),g=ctx.createGain();f.type="lowpass";f.frequency.value=cut;f.Q.value=.7;
+    const os=[-7,7].map(dt=>{const o=ctx.createOscillator();o.type="sawtooth";o.frequency.value=mtof(n);o.detune.value=dt;o.connect(f);return o});
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v,t+.5);g.gain.setValueAtTime(v,t+dur);g.gain.linearRampToValueAtTime(0,t+dur+.8);
+    f.connect(g);g.connect(B.in);send(g,B.rv,.7);os.forEach(o=>{o.start(t);o.stop(t+dur+.85)})}
+  function pluck(B,t,n,v){const o=ctx.createOscillator(),f=ctx.createBiquadFilter(),g=ctx.createGain();o.type="square";o.frequency.value=mtof(n);
+    f.type="lowpass";f.frequency.setValueAtTime(2600,t);f.frequency.exponentialRampToValueAtTime(600,t+.2);
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v,t+.004);g.gain.exponentialRampToValueAtTime(.001,t+.26);
+    o.connect(f);f.connect(g);g.connect(B.in);send(g,B.dl,.8);send(g,B.rv,.25);o.start(t);o.stop(t+.3)}
+  const chord=(B,t,notes,dur,v,rv)=>notes.forEach(n=>epiano(B,t,n,dur,v,rv));
+
+  // ---- the songs. Chords are [bass root, [voicing]], one per bar, MIDI note numbers
+  const TRACKS={
+    lounge:{bpm:92,level:1.25,
+      // ii-V-I-vi in C: Dm9, G13, Cmaj9, Am9
+      ch:[[38,[53,57,60,64]],[43,[53,59,64,69]],[36,[52,55,59,62]],[45,[55,60,64,71]]],
+      step(B,bar,s,t,q){const c=bar%16,[root,v]=this.ch[bar%4],next=this.ch[(bar+1)%4][0],late=c>=8;
+        if(s===0)kick(B,t,.42);if(s===10)kick(B,t,.26);if(bar%4===3&&s===14)kick(B,t,.18);
+        if(s===4||s===12)hit(B,t,.11,"bandpass",1800,2.5,.08,.3);
+        if(s%2===0)hit(B,t,s%4===2?.045:.028,"highpass",7500,.7,.05);else if(late)hit(B,t,.014,"highpass",8000,.7,.03);
+        if(s===14)hit(B,t,.028,"highpass",6500,.7,.2);
+        if(s===0)bass(B,t,root+12,q*5.5,.2,320);if(s===7)bass(B,t,root+12,q*1.3,.13,320);
+        if(s===10)bass(B,t,root+19,q*2.5,.15,320);if(s===14)bass(B,t,next+11,q*1.3,.12,320);
+        if(s===0)chord(B,t,v,q*5,.05,.4);if(s===6)chord(B,t,v,q*1.6,.032,.4);if(s===11&&bar%2===1)chord(B,t,v,q*3,.038,.4);
+        if(late&&s===0)v.forEach(n=>pad(B,t,n-12,q*15,.012,900));
+        if(late&&s%2===0){const pat=[0,1,2,3,2,1,3,1];pluck(B,t,v[pat[(s/2)%8]]+12,.022)}}},
+    coast:{bpm:118,level:.8,
+      // i-VI-III-VII in A minor: Am9, Fmaj7, Cmaj7, Gadd9
+      ch:[[33,[55,60,64,71]],[29,[53,57,60,64]],[36,[52,55,59,64]],[31,[55,59,62,69]]],
+      step(B,bar,s,t,q){const c=bar%32,[root,v]=this.ch[bar%4];
+        const sec=c<8?"A":c<16?"B":c<20?"brk":c<24?"build":"C",full=sec==="A"||sec==="B"||sec==="C";
+        // drums: four on the floor, claps on 2 and 4, open hats on the off-beats; the break drops the beat
+        if(full&&s%4===0)kick(B,t,.5);
+        if(sec==="build"&&(c<22?s%8===0:s%4===0))kick(B,t,.42);
+        if(sec==="build"&&c===23&&s>=8&&s%2===0)hit(B,t,.03+(s-8)*.008,"bandpass",1700,2,.07);
+        if(full&&(s===4||s===12))hit(B,t,.13,"bandpass",1500,1.6,.12,.25);
+        if(full&&s%4===2)hit(B,t,.042,"highpass",7000,.7,.12);
+        if((sec==="B"||sec==="C")&&s%2===1)hit(B,t,.016,"highpass",9000,.7,.03);
+        // octave-jumping house bass on the off-beats
+        if(full||(sec==="build"&&c>=22)){const bp={0:[0,1.5,.2],2:[12,1.4,.16],6:[12,1.4,.16],8:[0,1.2,.17],10:[12,1.4,.16],14:[12,1.2,.14]}[s];
+          if(bp)bass(B,t,root+12+bp[0],q*bp[1],bp[2],420)}
+        // electric-piano stabs, long chords in the break
+        if(full&&(s===3||s===10))chord(B,t,v,q*1.8,.036,.3);
+        if(sec==="brk"&&s===0)chord(B,t,v,q*14,.04,.5);
+        if(sec!=="A"&&s===0)v.forEach(n=>pad(B,t,n-12,q*15.5,sec==="brk"?.016:.01,sec==="brk"?1400:1000));
+        // sixteenth-note arpeggio through the echo
+        if(sec!=="A"&&(sec!=="build"||s%2===0)){const pat=[0,2,1,3,2,0,3,1,0,2,3,1,2,3,1,2];pluck(B,t,v[pat[s]]+12,sec==="brk"?.03:.024)}}}
+  };
+
+  const T={};   // playing tracks by name
+  return {
+    TRACKS,
+    // fade a track in (starting from its first bar) or out
+    set(name,level,now){
+      for(const k in T)if(k!==name&&T[k].want>0){T[k].want=0;T[k].bus.out.gain.setTargetAtTime(0,now,.45);T[k].end=now+2.5}
+      if(!name)return;
+      let p=T[name];
+      if(!p){const def=TRACKS[name];p=T[name]={def,bus:makeBus(def.bpm),bar:0,s:0,next:now+.08,want:-1}}
+      const lv=level*p.def.level;
+      if(Math.abs(p.want-lv)>.001){p.want=lv;p.end=0;p.bus.out.gain.setTargetAtTime(lv,now,lv>0?.6:.45)}
+    },
+    tone(name,hz,now){if(T[name])T[name].bus.tone.frequency.setTargetAtTime(hz,now,1.5)},
+    // schedule everything due in the next lookahead seconds
+    tick(now,ahead){
+      for(const k in T){const p=T[k];
+        if(p.end&&now>p.end){p.bus.kill();delete T[k];continue}
+        if(p.next<now-.25){p.next=now+.05}   // fell behind (tab throttled): skip ahead rather than burst
+        const q=60/p.def.bpm/4;
+        while(p.next<now+ahead){p.def.step(p.bus,p.bar,p.s,p.next,q);p.next+=q;if(++p.s===16){p.s=0;p.bar++}}
+      }
+    },
+    playing(){return Object.keys(T).filter(k=>T[k].want>0)}
+  };
+}
+
+// ---- recorded tracks: three songs made with Google Flow Music, in the audio folder. Each file plays its
+// opening once, then loops a section that starts at `offset` and lasts L seconds; every repeat fades in over
+// the X-second tail of the one before, scheduled on the audio clock so the beat never drifts.
+// The composed tracks above stand in while a file loads, and for good if files can't be fetched (a page
+// opened straight from disk can't). Only the songs in use are kept decoded, to spare memory on phones.
+const SONGS={
+  lounge:{url:"audio/showroom.mp3",offset:5.9122,L:120.0001,X:1.5,gain:.41},   // Mediterranean Showroom
+  coast:{url:"audio/cruise.mp3",offset:20.1286,L:99.9555,X:1.5,gain:.28},      // Coastal Cruise Loop
+  race:{url:"audio/highway.mp3",offset:22.09,L:107.9999,X:1.5,gain:.3}         // Island Highway Run
+};
+let MUSIC=null,songOut=null;
+function musicInit(){if(MUSIC||!AC)return;try{
+  // mixed to sit just under the engine on the road; the garage music a little fuller, with no engine to compete with
+  const g=AC.createGain();g.gain.value=.32;g.connect(AC.destination);MUSIC=makeMusic(AC,g);
+  songOut=AC.createGain();songOut.connect(AC.destination);songFetch("lounge")}catch(e){MUSIC=null}}
+function songFetch(n){const S=SONGS[n];if(S.st)return;
+  if(location.protocol==="file:"){S.st="failed";return}   // opened from disk: browsers won't fetch files, use the backup music
+  S.st="loading";S.askT=AC?AC.currentTime:null;
+  fetch(S.url).then(r=>{if(!r.ok)throw new Error(r.status);return r.arrayBuffer()}).then(b=>{S.bytes=b;S.st="fetched"}).catch(()=>{S.st="failed"})}
+function songDecode(n){const S=SONGS[n];if(S.st!=="fetched")return;S.st="decoding";
+  AC.decodeAudioData(S.bytes.slice(0),buf=>{S.buf=buf;S.st="ready";S.idle=AC.currentTime},()=>{S.st="failed"})}
+const equalPower=(up)=>{const c=new Float32Array(64);for(let i=0;i<64;i++){const t=i/63;c[i]=up?Math.sin(t*Math.PI/2):Math.cos(t*Math.PI/2)}return c};
+const FADE_IN=equalPower(true),FADE_OUT=equalPower(false);
+function songStart(n,now){const S=SONGS[n],P={bus:AC.createGain(),tone:AC.createBiquadFilter(),srcs:[],want:-1};
+  P.tone.type="lowpass";P.tone.frequency.value=18000;P.bus.gain.value=0;P.bus.connect(P.tone);P.tone.connect(songOut);
+  // first pass from the very beginning, so the opening is heard once
+  const t0=now+.05,src=AC.createBufferSource(),g=AC.createGain();src.buffer=S.buf;src.connect(g);g.connect(P.bus);src.start(t0);
+  P.srcs.push({src,g});P.next=t0+S.offset+S.L;S.p=P;return P}
+function songStop(n,now){const S=SONGS[n],P=S.p;if(!P||P.end)return;P.want=0;P.bus.gain.setTargetAtTime(0,now,.45);P.end=now+2.5}
+function songTick(n,now){const S=SONGS[n],P=S.p;if(!P)return;
+  if(P.end&&now>P.end){P.srcs.forEach(o=>{try{o.src.stop()}catch(e){}o.g.disconnect()});P.bus.disconnect();P.tone.disconnect();S.p=null;S.idle=now;return}
+  // the next repeat, a second before it is due
+  if(P.next<now+1){
+    if(P.next<now){P.next=now+.05}   // came back from a suspended tab: just carry on
+    const src=AC.createBufferSource(),g=AC.createGain(),prev=P.srcs[P.srcs.length-1];src.buffer=S.buf;src.connect(g);g.connect(P.bus);
+    // each piece plays to the end of the file, which is exactly where the next fade-in finishes, so nothing is stopped
+    g.gain.value=0;g.gain.setValueCurveAtTime(FADE_IN,P.next,S.X);src.start(P.next,S.offset);
+    prev.g.gain.setValueCurveAtTime(FADE_OUT,P.next,S.X);
+    P.srcs.push({src,g});if(P.srcs.length>2)P.srcs.shift().g.disconnect();
+    P.next+=S.L}
+}
+// which song for which screen: the lounge indoors, the road outside, the race track during events, quieter behind menus
+function musicWant(){
+  if(!save.music)return [null,0];   // SOUND FX covers engine, tyres and beeps; music has its own switch
+  if(state==="GARAGE"||state==="LOAD"||state==="DEALER")return ["lounge",1];
+  if(state==="EXIT")return ["coast",.8];
+  const road=ev?"race":"coast";
+  if(state==="PAUSE"||state==="MAP"||state==="INTRO"||state==="RESULT")return [road,.5];
+  return [road,1];
+}
+function musicTick(){
+  if(!MUSIC||!AC||AC.state!=="running")return;
+  const now=AC.currentTime,[want,lv]=musicWant();
+  // load ahead: the road song while you're in the garage, the race song when an event is offered
+  if(want){songFetch(want);if(want==="lounge")songFetch("coast");if(state==="INTRO")songFetch("race")}
+  for(const n in SONGS){const S=SONGS[n];if(S.st==="fetched"&&(n===want||(n==="coast"&&want==="lounge")||(n==="race"&&state==="INTRO")))songDecode(n)}
+  // the recorded song if it's ready; otherwise keep whichever recorded song is already playing, or fall back
+  // to the composed track
+  let file=null,comp=null;
+  if(want){
+    if(SONGS[want].st==="ready")file=want;
+    else{const W=SONGS[want],cur=Object.keys(SONGS).find(n=>SONGS[n].p&&!SONGS[n].p.end);
+      if(W.askT==null)W.askT=now;
+      if(cur&&W.st!=="failed")file=cur;
+      // give a first load up to 4 s of silence rather than starting the composed track only to swap it out
+      else if(W.st==="failed"||now-(W.askT||now)>4)comp=want==="race"?"coast":want}
+  }
+  for(const n in SONGS){const S=SONGS[n];
+    if(n===file){if(!S.p||S.p.end){if(S.p)songTick(n,now+99);songStart(n,now)}
+      const g=lv*S.gain;if(Math.abs(S.p.want-g)>.001){S.p.want=g;S.p.bus.gain.setTargetAtTime(g,now,g>0?.6:.45)}}
+    else if(S.p)songStop(n,now);
+    songTick(n,now);if(S.p)S.idle=now;
+    // free the decoded audio of a song that hasn't played for half a minute
+    if(!S.p&&S.buf&&n!==file&&!(n==="coast"&&want==="lounge")&&!(n==="race"&&state==="INTRO")&&now-(S.idle||0)>30){S.buf=null;S.st="fetched"}
+    if(S.p&&n!=="lounge")S.p.tone.frequency.setTargetAtTime(lerp(18000,2600,night),now,1.5);
+  }
+  MUSIC.set(comp,lv,now);
+  // softer and darker after sunset
+  MUSIC.tone("coast",lerp(18000,2600,night),now);
+  MUSIC.tick(now,.2);
+}
+setInterval(musicTick,50);
+// browsers only allow sound after the player interacts, so the music starts on the first click, tap or key
+// (some phones only unlock sound on the end of a tap, so every kind of input is listened to).
+// The listeners stay: if the browser later stops the sound on its own (an iPhone does on a call, Siri or an
+// alarm, and may not restart it), the next tap or key brings it back
+const GESTURES=["pointerdown","pointerup","touchend","click","keydown"];
+function firstGesture(){
+  if(document.hidden||(MUSIC&&AC&&AC.state==="running"))return;
+  // iPhone: play through the ringer's silent switch like a game or video would, instead of being muted by it
+  try{if(navigator.audioSession&&navigator.audioSession.type!=="playback")navigator.audioSession.type="playback"}catch(e){}
+  audioInit();musicInit();acResume();
+}
+GESTURES.forEach(g=>addEventListener(g,firstGesture,true));
+// the garage song downloads while the island is being built, so it can start the moment the player taps START
+songFetch("lounge");
+// nothing plays while the tab is hidden; picks up again when it comes back
+document.addEventListener("visibilitychange",()=>{if(!AC)return;if(document.hidden){try{const p=AC.suspend();if(p&&p.catch)p.catch(()=>{})}catch(e){}}else acResume()});
+
+/* ================================================================ PHOTO MODE
+   A free camera around the car, a zoom (lens) control, three looks, and a PNG of the 3D view.
+   Opened while driving (free ride, events, test drives, contracts) or from the pause menu: V, the PHOTO chip,
+   or PHOTO MODE. While it is open the game is in state PHOTO, in which the main loop runs no driving, traffic,
+   event, test-drive, streak or contract updates, so the car's speed and every timer are exactly as they were
+   when you come back. The looks only change how the scene is lit while photo mode is open (applyDayNight reads
+   photoLook); the island's clock is never changed. The picture is taken from the 3D canvas alone, so the HUD and
+   these controls can't appear in it. The pointer listeners are attached once, to a layer that only exists on
+   screen in photo mode, so opening and closing it any number of times adds nothing. */
+const PHOTO_LOOKS=[
+  {name:"AS IS"},
+  {name:"GOLDEN HOUR",tod:17.4,exp:1.08,tint:0xffa040,k:.24},
+  {name:"NIGHT DRIVE",tod:22.6,exp:1.1,tint:0x4a6aaa,k:.18},
+  {name:"COASTAL SUNSET",tod:18.08,exp:.98,tint:0xff7f8a,k:.24}];
+PHOTO_LOOKS.forEach(L=>{if(L.tint!==undefined)L.col=new THREE.Color(L.tint)});
+const PH={on:false,prev:null,look:0,yaw:0,pitch:.25,dist:7,fov:50,saved:null,ptr:new Map(),pinch:null,last:null,busy:false,shot:null};
+const PH_D=[3,16],PH_P=[.03,1.3],PH_F=[20,80];
+const phTarget=()=>{const p=pc.G.position;return new V3(p.x,p.y+(pc.shape==="suv"?1.05:.85),p.z)};
+function phSync(){$("phZoom").value=String(Math.round(PH_F[1]-PH.fov));$("phDist").value=String(Math.round(PH.dist*10))}
+function phMsg(t,kind){const m=$("phMsg");m.textContent=t;m.className=kind||"";clearTimeout(phMsg.tm);phMsg.tm=setTimeout(()=>m.classList.add("hide"),3600)}
+function photoLookSet(i){
+  PH.look=clamp(i|0,0,PHOTO_LOOKS.length-1);photoLook=PH.on&&PH.look>0?PHOTO_LOOKS[PH.look]:null;
+  [...$("phLooks").children].forEach((b,k)=>{b.classList.toggle("on",k===PH.look);b.setAttribute("aria-pressed",k===PH.look?"true":"false")});
+  // lit at once, so a picture taken straight after choosing a look already has it
+  if(PH.on){applyDayNight();updateLampLights();photoFrame(0)}
+}
+function photoReset(){if(!pc)return;PH.yaw=P.h+Math.PI*.82;PH.pitch=.22;PH.dist=7.2*(pc.shape==="suv"?1.15:1);PH.fov=50;phSync()}
+function photoEnter(){
+  if(PH.on||!pc||(state!=="DRIVE"&&state!=="PAUSE"))return false;
+  PH.prev=state;
+  PH.saved={pos:camera.position.clone(),q:camera.quaternion.clone(),fov:camera.fov,
+    inside:pc.inside.visible,glass:pc.glass.visible,shell:pc.shell.visible,
+    head:headLight?headLight.intensity:0,fill:fillLight?fillLight.intensity:0,tail:pc.tailM.color.getHex()};
+  clearInput();
+  if(PH.prev==="PAUSE")show("pause",false);else audioOn(false);
+  setState("PHOTO");hudOn(false);show("photo",true);show("phShot",false);$("phMsg").classList.add("hide");
+  pc.inside.visible=false;pc.glass.visible=true;pc.shell.visible=true;
+  // start from where the camera is, so nothing jumps
+  const t=phTarget(),d=camera.position.clone().sub(t),L=d.length()||1;
+  PH.dist=clamp(L,PH_D[0],PH_D[1]);PH.yaw=Math.atan2(d.x,d.z);PH.pitch=clamp(Math.asin(clamp(d.y/L,-1,1)),PH_P[0],PH_P[1]);
+  PH.fov=clamp(camera.fov,PH_F[0],PH_F[1]);PH.ptr.clear();PH.pinch=null;PH.last=null;
+  PH.on=true;photoLookSet(0);phSync();photoFrame(0);
+  return true;
+}
+function photoExit(){
+  if(!PH.on)return;
+  photoShotClose();PH.on=false;PH.ptr.clear();PH.pinch=null;photoLook=null;
+  show("photo",false);
+  const S=PH.saved;
+  // the zoom follows the screen's shape, which may have changed while photo mode was open (a phone turned round)
+  camera.position.copy(S.pos);camera.quaternion.copy(S.q);camera.fov=S.fov;fitZoom();camera.updateProjectionMatrix();
+  pc.inside.visible=S.inside;pc.glass.visible=S.glass;pc.shell.visible=S.shell;
+  if(headLight){headLight.intensity=S.head;fillLight.intensity=S.fill}pc.tailM.color.setHex(S.tail);
+  applyDayNight();updateLampLights();
+  clearInput();hudOn(true);
+  if(PH.prev==="PAUSE"){setState("PAUSE");show("pause",true)}else{setState("DRIVE");audioOn(true)}
+}
+// once a frame while open: keys orbit the camera, which stays above the ground and within reach of the car
+function photoFrame(dt){
+  if(!PH.on||!pc)return;
+  if(!$("phShot").classList.contains("hide"))dt=0;
+  const yaw=(keys.arrowright||keys.d?1:0)-(keys.arrowleft||keys.a?1:0),tilt=(keys.arrowup||keys.w?1:0)-(keys.arrowdown||keys.s?1:0),dz=(keys["-"]||keys._?1:0)-(keys["+"]||keys["="]?1:0);
+  if(yaw||tilt||dz){PH.yaw+=yaw*1.5*dt;PH.pitch=clamp(PH.pitch+tilt*.9*dt,PH_P[0],PH_P[1]);PH.dist=clamp(PH.dist*Math.exp(dz*1.3*dt),PH_D[0],PH_D[1]);phSync()}
+  const t=phTarget(),cp=Math.cos(PH.pitch);
+  const x=t.x+Math.sin(PH.yaw)*cp*PH.dist,z=t.z+Math.cos(PH.yaw)*cp*PH.dist;
+  const y=Math.max(t.y+Math.sin(PH.pitch)*PH.dist,Math.max(meshH(x,z),surfH(x,z))+.35);
+  camera.position.set(x,y,z);camera.lookAt(t);camera.fov=PH.fov;camera.updateProjectionMatrix();
+  // lights that normally follow the drive: on for a night look, as they would be
+  if(headLight){headLight.intensity=night*4.6;fillLight.intensity=night*.9}pc.tailM.color.setHex(night>.3?0xd01800:0x9a0e00);
+}
+// ---- pointer: drag orbits, two fingers or the wheel move closer or further away
+const phPad=$("phPad");
+function phPinchStart(){const it=[...PH.ptr.entries()];if(it.length<2){PH.pinch=null;return}const[[ia,a],[ib,b]]=it;PH.pinch={ia,ib,d:Math.max(8,Math.hypot(a.x-b.x,a.y-b.y)),dist:PH.dist}}
+phPad.addEventListener("pointerdown",e=>{if(!PH.on)return;try{phPad.setPointerCapture(e.pointerId)}catch(_){}PH.ptr.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(PH.ptr.size===1)PH.last={id:e.pointerId,x:e.clientX,y:e.clientY};else if(!PH.pinch)phPinchStart()});
+phPad.addEventListener("pointermove",e=>{if(!PH.on||!PH.ptr.has(e.pointerId))return;PH.ptr.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(PH.pinch){const a=PH.ptr.get(PH.pinch.ia),b=PH.ptr.get(PH.pinch.ib);if(a&&b){PH.dist=clamp(PH.pinch.dist*PH.pinch.d/Math.max(8,Math.hypot(a.x-b.x,a.y-b.y)),PH_D[0],PH_D[1]);phSync()}return}
+  if(PH.last&&PH.last.id===e.pointerId){const dx=e.clientX-PH.last.x,dy=e.clientY-PH.last.y;PH.last.x=e.clientX;PH.last.y=e.clientY;
+    PH.yaw-=dx*.0065;PH.pitch=clamp(PH.pitch+dy*.0055,PH_P[0],PH_P[1])}});
+const phUp=e=>{if(!PH.ptr.has(e.pointerId))return;PH.ptr.delete(e.pointerId);
+  if(PH.pinch&&(e.pointerId===PH.pinch.ia||e.pointerId===PH.pinch.ib))phPinchStart();
+  if(PH.ptr.size===1){const[[id,r]]=[...PH.ptr.entries()];PH.last={id,x:r.x,y:r.y}}else if(!PH.ptr.size)PH.last=null};
+phPad.addEventListener("pointerup",phUp);phPad.addEventListener("pointercancel",phUp);
+phPad.addEventListener("wheel",e=>{if(!PH.on)return;e.preventDefault();PH.dist=clamp(PH.dist*Math.exp(e.deltaY*.0011),PH_D[0],PH_D[1]);phSync()},{passive:false});
+$("phZoom").addEventListener("input",e=>{PH.fov=clamp(PH_F[1]-(+e.target.value),PH_F[0],PH_F[1])});
+$("phDist").addEventListener("input",e=>{PH.dist=clamp(+e.target.value/10,PH_D[0],PH_D[1])});
+PHOTO_LOOKS.forEach((L,i)=>{const b=document.createElement("button");b.className="chip";b.textContent=L.name;b.setAttribute("aria-pressed","false");b.onclick=()=>photoLookSet(i);$("phLooks").appendChild(b)});
+$("phReset").onclick=photoReset;$("phExit").onclick=photoExit;$("phSnap").onclick=()=>photoCapture();
+$("chPhoto").onclick=photoEnter;
+if(isTouch)$("phHint").textContent="Drag to move around the car, pinch to move closer.";$("pPhoto").onclick=photoEnter;
+// ---- the picture: a fresh frame, copied straight away (the 3D canvas keeps no copy once it is shown), as a PNG
+function photoName(){const d=new Date(),p=n=>String(n).padStart(2,"0");return "white-isle-drive-"+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+"-"+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds())+".png"}
+function photoCapture(){
+  if(!PH.on||PH.busy)return Promise.resolve(false);PH.busy=true;
+  return new Promise(res=>{
+    const fail=err=>{PH.busy=false;phMsg("Couldn't save the photo: "+((err&&err.message)||err||"the browser blocked it"),"bad");res(false)};
+    try{
+      applyDayNight();updateLampLights();photoFrame(0);renderer.render(scene,camera);
+      const src=renderer.domElement,c=document.createElement("canvas");c.width=src.width;c.height=src.height;
+      const x=c.getContext("2d");if(!x)throw new Error("no 2D canvas");x.drawImage(src,0,0);
+      c.toBlob(b=>{if(!PH.on){PH.busy=false;res(false);return}if(!b){fail(new Error("the browser returned no image"));return}PH.busy=false;photoShotShow(b);res(true)},"image/png");
+    }catch(err){fail(err)}
+  });
+}
+function photoShotShow(blob){
+  photoShotClose();const url=URL.createObjectURL(blob),name=photoName();PH.shot={blob,url,name};
+  $("phImg").src=url;const dl=$("phDl");dl.href=url;dl.setAttribute("download",name);
+  let canShare=false;try{canShare=isTouch&&!!navigator.canShare&&navigator.canShare({files:[new File([blob],name,{type:"image/png"})]})}catch(_){}
+  show("phShare",canShare);show("phShot",true);$("photo").classList.add("shot");
+}
+function photoShotClose(){if(PH.shot){URL.revokeObjectURL(PH.shot.url);PH.shot=null}$("phImg").removeAttribute("src");show("phShot",false);$("photo").classList.remove("shot")}
+$("phBack").onclick=photoShotClose;
+// Inside the Claude artifact viewer a plain download link is blocked, so the save goes through the viewer's own prompt.
+let phSaver=null;
+try{if(window.claude&&typeof window.claude.use==="function")Promise.resolve(window.claude.use("downloads")).then(d=>{phSaver=d||null},()=>{})}catch(_){}
+$("phDl").addEventListener("click",e=>{const s=PH.shot;if(!s||!phSaver)return;e.preventDefault();
+  phSaver.save({filename:s.name,data:s.blob}).then(()=>{},err=>{const c=err&&err.code;if(c==="declined")return;
+    phMsg(c==="rate_limited"?"A save is already waiting for your answer.":"Couldn't save the photo here. Right-click or press and hold the picture to save it.","bad")})});
+$("phShare").onclick=()=>{const s=PH.shot;if(!s)return;
+  navigator.share({files:[new File([s.blob],s.name,{type:"image/png"})],title:"White Isle Drive"}).catch(err=>{if(!err||err.name!=="AbortError")phMsg("Couldn't share: "+((err&&err.message)||"not allowed here")+". Use DOWNLOAD PNG instead.","bad")})};
+
+/* ================================================================ ISLAND PASSPORT
+   Landmarks to find by driving to them. Each one is a point on a real road, picked when the island is built
+   by a rule over the actual roads and terrain (the highest road, the road nearest Es Vedrà, the tightest bend,
+   the road nearest each place the map names, ...), kept apart from each other and from the prompts at the
+   house, the dealership and the event starts. Every landmark has a stable id; what has been found is saved
+   by id (save.found), so renaming or reordering them later keeps a player's progress.
+   A landmark counts only when the car is driven into it: within 26 m, after driving at least 25 m since it
+   was last put anywhere (a reset, map travel, an event start, leaving the dealership), so opening the map,
+   setting the GPS or being placed next to one never counts. Each pays once; finding them all pays a bonus once. */
+const LANDMARK_REWARD=2500,PASSPORT_BONUS=30000,LM_R=26;
+const LANDMARKS=[];
+const PZ={driven:0,lx:null,lz:null,from:null};
+function buildLandmarks(){
+  LANDMARKS.length=0;
+  const pts=[];
+  for(const e of EDGES){if(e.type==="drive")continue;for(let s=6;s<=e.len-6;s+=6){const p=edgePos(e,s);pts.push({e,s,x:p.x,z:p.z,y:edgeY(e,s)})}}
+  const hm=gW(0,-8),avoid=[...EVENTS.map(E=>[E.x,E.z]),[hm.x,hm.z],[DEALER_MARK.x,DEALER_MARK.z]];
+  const free=q=>avoid.every(([x,z])=>Math.hypot(x-q.x,z-q.z)>=80)&&LANDMARKS.every(L=>Math.hypot(L.x-q.x,L.z-q.z)>=160);
+  const best=(score,ok)=>{let b=null,bs=-Infinity;for(const q of pts){if(!free(q)||(ok&&!ok(q)))continue;const v=score(q);if(v>bs){bs=v;b=q}}return b};
+  const add=(id,name,hint,q)=>{if(q)LANDMARKS.push({id,name,hint,x:+q.x.toFixed(1),z:+q.z.toFixed(1),road:q.e.type})};
+  // bends: heading change over 20 m of road, away from junctions (where roads meet at an angle)
+  const head=(e,s)=>{const p=edgePos(e,s);return Math.atan2(p.dx,p.dz)};
+  const nearJn=q=>NODES.some(n=>n.adj.length>2&&Math.hypot(n.x-q.x,n.z-q.z)<35);
+  const bend=q=>q.s<10||q.s>q.e.len-10?0:Math.abs(wrapA(head(q.e,q.s+10)-head(q.e,q.s-10)));
+  const rock=ISLETS.reduce((a,b)=>!a||b.L>a.L?b:a,null);
+  add("talaia_summit","Sa Talaia Summit","The highest point any road on the island reaches",best(q=>q.y));
+  if(rock)add("vedra_lookout","Es Vedrà Lookout","Where a road looks out to the great rock standing in the sea",best(q=>-Math.hypot(q.x-rock.cx,q.z-rock.cz)));
+  add("sea_level_road","Sea-Level Road","The lowest stretch of road on the island, just above the waves",best(q=>-q.y));
+  add("the_hairpin","The Hairpin","The tightest bend on the island's roads",best(bend,q=>!nearJn(q)));
+  add("north_cape","North Cape","As far north as the roads go",best(q=>-q.z));
+  add("south_cape","South Cape","As far south as the roads go",best(q=>q.z));
+  add("east_cape","East Cape","As far east as the roads go",best(q=>q.x));
+  add("west_cape","West Cape","As far west as the roads go",best(q=>-q.x));
+  // the places the map names: the nearest road within 260 m of each
+  const side=(x,z)=>{const ns=z<-250?"north":z>250?"south":"",ew=x<-250?"west":x>250?"east":"";return ns&&ew?ns+"-"+ew:ns||ew||"middle"};
+  for(const[id,zn,name] of [["eivissa_town","EIVISSA","Eivissa Town"],["santa_eularia","SANTA EULÀRIA","Santa Eulària"],["sant_antoni","SANT ANTONI","Sant Antoni"],
+      ["sant_josep","SANT JOSEP","Sant Josep"],["sant_joan","SANT JOAN","Sant Joan"],["sant_llorenc","SANT LLORENÇ","Sant Llorenç"],
+      ["cala_llonga","CALA LLONGA","Cala Llonga"],["portinatx","PORTINATX","Portinatx"],["es_cubells","ES CUBELLS","Es Cubells"],["sa_talaia_pass","SA TALAIA","Sa Talaia Pass"]]){
+    const Z=ZONES.find(z=>z.n===zn);if(!Z)continue;
+    add(id,name,"A place on the map, in the "+side(Z.x,Z.z)+" of the island",best(q=>-Math.hypot(q.x-Z.x,q.z-Z.z),q=>Math.hypot(q.x-Z.x,q.z-Z.z)<260));
+  }
+  // first visits only count from the next drive on, so a landmark next to wherever the car starts isn't found by standing still
+  PZ.driven=0;PZ.lx=null;
+}
+const foundCount=()=>LANDMARKS.filter(L=>save.found[L.id]).length;
+function discoverLandmark(L){
+  if(!L||save.found[L.id])return false;
+  save.found[L.id]=1;
+  const n=foundCount(),done=n>=LANDMARKS.length&&!save.passBonus;if(done)save.passBonus=true;
+  earn(LANDMARK_REWARD);
+  toast("LANDMARK DISCOVERED",L.name+" · +"+fmtCr(LANDMARK_REWARD)+" CR · "+n+"/"+LANDMARKS.length,"gold");
+  if(done){earn(PASSPORT_BONUS);toast("ISLAND PASSPORT COMPLETE","Every landmark found · +"+fmtCr(PASSPORT_BONUS)+" CR","gold")}
+  if(!$("passport").classList.contains("hide"))renderPassport();
+  return true;
+}
+// once a frame while driving
+function updatePassport(){
+  // how far the car has been driven since it was last put somewhere: a jump of more than 15 m in one frame is a placement
+  if(PZ.lx!==null){const d=Math.hypot(P.x-PZ.lx,P.z-PZ.lz);PZ.driven=d>15?0:Math.min(1e6,PZ.driven+d)}
+  PZ.lx=P.x;PZ.lz=P.z;
+  if(PZ.driven<25)return;
+  for(const L of LANDMARKS)if(!save.found[L.id]&&(P.x-L.x)**2+(P.z-L.z)**2<LM_R*LM_R)discoverLandmark(L);
+}
+// ---- the passport screen (from the pause menu or the map): found ones by name with a GPS button, the rest as hints
+function renderPassport(){
+  const n=foundCount(),N=LANDMARKS.length,pct=N?Math.round(n/N*100):0;
+  $("pzCount").textContent=n+" of "+N+" found · "+pct+"%";$("pzBar").style.width=pct+"%";
+  $("pzNote").textContent=save.passBonus?"Complete. The "+fmtCr(PASSPORT_BONUS)+" CR bonus has been paid.":fmtCr(LANDMARK_REWARD)+" CR for each new landmark, and "+fmtCr(PASSPORT_BONUS)+" CR for finding them all.";
+  const list=$("pzList");list.innerHTML="";
+  for(const L of LANDMARKS){
+    const f=!!save.found[L.id],row=document.createElement("div");row.className="pzr"+(f?" found":"");
+    const t=document.createElement("div"),b=document.createElement("b"),sp=document.createElement("span");
+    // the description only: naming the nearest place on the map could give away another landmark's name
+    b.textContent=f?L.name:"Not found yet";sp.textContent=L.hint;t.append(b,sp);row.appendChild(t);
+    if(f){const g=document.createElement("button");g.className="mbtn";g.textContent="SET GPS";g.setAttribute("aria-label","Set the GPS to "+L.name);g.onclick=()=>passportGPS(L);row.appendChild(g)}
+    list.appendChild(row);
+  }
+}
+function passportOpen(){if(state!=="PAUSE"&&state!=="MAP")return;PZ.from=state;$("pzMsg").textContent="";renderPassport();show("passport",true);try{$("pzClose").focus({preventScroll:true})}catch(e){}}
+function passportClose(){show("passport",false)}
+function passportGPS(L){
+  if(typeof job!=="undefined"&&job){$("pzMsg").textContent="The GPS is following your contract. Finish or abandon it to set another destination.";return}
+  setGPS(L.x,L.z,L.name);passportClose();
+  if(state==="PAUSE")pauseOff();
+}
+$("pPass").onclick=passportOpen;$("mapPass").onclick=passportOpen;$("pzClose").onclick=passportClose;
+
+/* ================================================================ CONTRACTS
+   Optional, repeatable driving jobs between the island's towns: parcel deliveries, timed courier runs and
+   scenic tours. Pickups, drop-offs and tour stops are points on real roads near each town the map names, kept
+   clear of the landmarks (contracts don't lead you to undiscovered ones), of the prompts and of each other.
+   (Cala Llonga has no contract point: its only road is shared with two landmarks.)
+   A contract is available -> active -> completed | failed | abandoned. Only one runs at a time; it pays once,
+   on completion, inside a guard that ends the contract first, so nothing (arriving again, a second callback)
+   can pay twice. While one runs it owns the GPS, races and test drives wait, map travel is off, and going home
+   ends it. Its timer, like a race's, only runs while you drive (pause, the map, the dealership and photo mode
+   stop it). A contract isn't kept across a reload: the page records that one was under way, and the next time
+   the game starts it says so, pays nothing, and clears it. */
+const JOB_R=16,JOB_KPH=30;
+const JOB_TYPES={parcel:"PARCEL DELIVERY",courier:"TIMED COURIER",tour:"SCENIC TOUR"};
+const JOB_TOWNS=[["eivissa","EIVISSA","Eivissa"],["santa_eularia","SANTA EULÀRIA","Santa Eulària"],["sant_antoni","SANT ANTONI","Sant Antoni"],["sant_josep","SANT JOSEP","Sant Josep"],
+  ["sant_joan","SANT JOAN","Sant Joan"],["sant_llorenc","SANT LLORENÇ","Sant Llorenç"],["portinatx","PORTINATX","Portinatx"],["es_cubells","ES CUBELLS","Es Cubells"]];
+// the curated set, by stable id; stops are town points. Courier limits are the route's ideal time (the same
+// model the races' medal times use) times `slack`, plus 15 s
+const JOB_DEFS=[
+  {id:"parcel_eivissa_santaeularia",type:"parcel",stops:["eivissa","santa_eularia"]},
+  {id:"parcel_santantoni_santjosep",type:"parcel",stops:["sant_antoni","sant_josep"]},
+  {id:"parcel_santllorenc_portinatx",type:"parcel",stops:["sant_llorenc","portinatx"]},
+  {id:"courier_eivissa_santantoni",type:"courier",stops:["eivissa","sant_antoni"],slack:2},
+  {id:"courier_santaeularia_eivissa",type:"courier",stops:["santa_eularia","eivissa"],slack:1.6},
+  {id:"courier_santjoan_escubells",type:"courier",stops:["sant_joan","es_cubells"],slack:1.35},
+  {id:"tour_north",type:"tour",title:"Northern villages",stops:["sant_llorenc","sant_joan","portinatx","santa_eularia"]},
+  {id:"tour_southwest",type:"tour",title:"South and west",stops:["sant_antoni","sant_josep","es_cubells"]},
+  {id:"tour_eastside",type:"tour",title:"East side",stops:["eivissa","santa_eularia","sant_llorenc"]}];
+const JOB_PTS={},JOBS=[];
+let job=null,jobMk=null;const jobNotices=[];
+function idealTime(R){
+  const Q=resample(R,4),n=Q.pts.length,ang=[],k=[];
+  for(let i=0;i<n;i++){const a=Q.pts[Math.max(0,i-1)],b=Q.pts[Math.min(n-1,i+1)];ang.push(Math.atan2(b.x-a.x,b.z-a.z))}
+  for(let i=0;i<n;i++)k.push(Math.abs(wrapA(ang[Math.min(n-1,i+2)]-ang[Math.max(0,i-2)]))/16+1e-4);
+  return routeTime(k,13,62,5.5,8);
+}
+const fmtSecs=t=>{t=Math.max(0,Math.ceil(t));return Math.floor(t/60)+":"+String(t%60).padStart(2,"0")};
+const round100=v=>Math.round(v/100)*100;
+function buildJobs(){
+  const pts=[];for(const e of EDGES){if(e.type==="drive")continue;for(let s=6;s<=e.len-6;s+=6){const p=edgePos(e,s);pts.push({x:p.x,z:p.z})}}
+  const hm=gW(0,-8),avoid=[...EVENTS.map(E=>[E.x,E.z,80]),[hm.x,hm.z,80],[DEALER_MARK.x,DEALER_MARK.z,80],...LANDMARKS.map(L=>[L.x,L.z,120])];
+  for(const[id,zn,name] of JOB_TOWNS){const Z=ZONES.find(z=>z.n===zn);if(!Z)continue;let b=null,bd=1e9;
+    // within 300 m, and nearer this town than any other the map names, so a contract never says one town and means another
+    for(const q of pts){const d=Math.hypot(q.x-Z.x,q.z-Z.z);if(d>=bd||d>300||zoneAt(q.x,q.z)!==zn)continue;
+      if(avoid.some(([x,z,r])=>Math.hypot(x-q.x,z-q.z)<r))continue;if(Object.values(JOB_PTS).some(o=>Math.hypot(o.x-q.x,o.z-q.z)<150))continue;bd=d;b=q}
+    if(b)JOB_PTS[id]={id,name,x:+b.x.toFixed(1),z:+b.z.toFixed(1)}}
+  JOBS.length=0;
+  for(const d of JOB_DEFS){
+    const stops=d.stops.map(k=>JOB_PTS[k]);if(stops.some(s=>!s))continue;
+    const legs=[];for(let i=1;i<stops.length;i++){const r=routeBetween(stops[i-1].x,stops[i-1].z,stops[i].x,stops[i].z);if(!r){legs.length=0;break}legs.push(r)}
+    if(legs.length!==stops.length-1)continue;
+    const len=legs.reduce((a,r)=>a+r.len,0),J={id:d.id,type:d.type,stops,len};
+    if(d.type==="parcel"){J.title=stops[0].name+" to "+stops[1].name;J.reward=round100(900+len*3.2);J.diff=len<1300?"Easy":len<2300?"Medium":"Hard"}
+    else if(d.type==="courier"){J.title=stops[0].name+" to "+stops[1].name;J.limit=Math.ceil(idealTime(legs[0])*d.slack+15);J.reward=round100(1500+len*5.5);J.diff=d.slack>=1.9?"Easy":d.slack>=1.5?"Medium":"Hard"}
+    else{J.title=d.title;J.reward=round100(800+len*2.4+400*stops.length);J.diff=len<2500?"Easy":len<4200?"Medium":"Hard"}
+    JOBS.push(J);
+  }
+  // a contract under way when the page was closed is cancelled now, unpaid, and you're told so when you next drive
+  if(save.jobActive){const J=JOBS.find(j=>j.id===save.jobActive.id);
+    jobNotices.push(["CONTRACT CANCELLED",(J?J.title+": t":"T")+"he game was closed during the contract, so it ended without a reward"]);
+    save.jobActive=null;save.jobs.abandoned++;persist()}
+}
+function jobTarget(){if(!job)return null;return job.def.stops[job.stop]}
+function jobObjective(){
+  if(!job)return "";const J=job.def,t=jobTarget();
+  if(J.type==="tour")return "Stop "+(job.stop+1)+" of "+J.stops.length+": "+t.name;
+  return job.stop===0?"Pick up the parcel in "+t.name:"Deliver it to "+t.name;
+}
+function jobMarker(on){
+  if(!jobMk){jobMk=marker(0,0,true,0xf2b33d);jobMk.visible=false}
+  if(!on||!job){jobMk.visible=false;return}
+  const t=jobTarget(),y=surfH(t.x,t.z)+.2;jobMk.children[0].position.set(t.x,y,t.z);if(jobMk.children[1])jobMk.children[1].position.set(t.x,y+35,t.z);jobMk.visible=true;
+}
+function jobAim(){const t=jobTarget();setGPS(t.x,t.z,t.name,true);jobMarker(true);jobHUD()}
+// can a contract start now? the reason if not
+function jobBlocked(){if(job)return "Finish or abandon your current contract first";if(ev)return "Not during a race";if(testDrive)return "Not during a test drive";return ""}
+function jobStart(J){
+  if(!J||jobBlocked()||(state!=="DRIVE"&&state!=="PAUSE"))return false;
+  // a free-ride streak in progress is paid out now (streaks don't score during a contract, as in a race)
+  if(FR.pts>0){const cr=Math.round(FR.pts);earn(cr);toast("STREAK BANKED","+"+fmtCr(cr)+" CR","gold")}streakReset();
+  job={def:J,stop:0,left:J.type==="courier"?J.limit:null,timing:false,ended:false,t:0};
+  save.jobActive={id:J.id};persist();
+  jobAim();show("jobhud",true);
+  toast(JOB_TYPES[J.type],jobObjective()+(J.type==="courier"?" · the clock starts at pickup":""));
+  return true;
+}
+// the one way a contract ends: completed (pays, once), failed or abandoned (never pays)
+function jobEnd(how,why){
+  if(!job||job.ended)return false;
+  const J=job.def;job.ended=true;job=null;
+  save.jobActive=null;
+  if(how==="completed"){save.jobs[J.type]++;save.jobs.runs[J.id]=(save.jobs.runs[J.id]||0)+1;save.jobs.earned+=J.reward}else save.jobs[how==="failed"?"failed":"abandoned"]++;
+  if(how==="completed")earn(J.reward);else persist();
+  clearGPS();jobMarker(false);show("jobhud",false);
+  if(how==="completed")toast("CONTRACT COMPLETE",J.title+" · +"+fmtCr(J.reward)+" CR","gold");
+  else if(how==="failed")toast("CONTRACT FAILED",why||"No reward","bad");
+  else if(why)toast("CONTRACT ABANDONED",why,"bad");
+  if(!$("jobs").classList.contains("hide"))renderJobs();
+  return true;
+}
+function jobRestart(){if(!job)return false;const J=job.def;jobEnd("abandoned");return jobStart(J)}
+// once a frame while driving
+function jobTick(dt){
+  if(!job)return;
+  if(job.timing){job.left-=dt;if(job.left<=0){jobEnd("failed","Out of time: "+job.def.title);return}}
+  const t=jobTarget(),d=Math.hypot(P.x-t.x,P.z-t.z),kph=kphNow();
+  if(d<JOB_R&&kph<JOB_KPH){
+    const J=job.def;job.stop++;
+    if(job.stop>=J.stops.length){jobEnd("completed");return}
+    if(J.type==="courier"&&job.stop===1){job.timing=true;toast("PARCEL COLLECTED","Deliver it to "+jobTarget().name+" within "+fmtSecs(job.left))}
+    else if(J.type==="parcel")toast("PARCEL COLLECTED","Deliver it to "+jobTarget().name);
+    else toast("STOP "+job.stop+" OF "+J.stops.length,t.name+" · next: "+jobTarget().name);
+    beep(760);jobAim();return;
+  }
+  job.near=d<45&&kph>=JOB_KPH;
+  jobHUD();
+}
+function jobHUD(){
+  if(!job)return;const J=job.def;
+  $("jbType").textContent=JOB_TYPES[J.type];$("jbObj").textContent=job.near?"Slow down to stop at "+jobTarget().name:jobObjective();
+  $("jbTime").textContent=J.type==="courier"?(job.timing?fmtSecs(job.left):"Limit "+fmtSecs(J.limit)):"";
+  $("jbTime").classList.toggle("low",!!(job.timing&&job.left<15));
+  $("jbPay").textContent="+"+fmtCr(J.reward)+" CR";
+}
+// ---- the contracts screen, from the pause menu
+function renderJobs(){
+  const s=save.jobs,why=jobBlocked();
+  $("jbStats").textContent="Completed: "+s.parcel+" parcel · "+s.courier+" courier · "+s.tour+" tour"+(s.tour===1?"":"s")+" · earned "+fmtCr(s.earned)+" CR";
+  const cur=$("jbCur");cur.innerHTML="";
+  if(job){const J=job.def,b=document.createElement("b"),sp=document.createElement("span");b.textContent="Under way: "+JOB_TYPES[J.type]+" · "+J.title;sp.textContent=jobObjective()+(job.timing?" · "+fmtSecs(job.left)+" left":"");
+    const r=document.createElement("button"),a=document.createElement("button");r.className="mbtn";r.id="jbRestart";r.textContent="RESTART";r.onclick=()=>{jobRestart();jobsClose();if(state==="PAUSE")pauseOff()};
+    a.className="mbtn";a.id="jbAbandon";a.textContent="ABANDON";a.onclick=()=>{jobEnd("abandoned","No reward");renderJobs()};
+    const acts=document.createElement("div");acts.className="jbacts";acts.append(r,a);cur.append(b,sp,acts)}
+  show("jbCur",!!job);
+  $("jbNote").textContent=why&&!job?why+": contracts can start once it's over.":"";
+  const list=$("jbList");list.innerHTML="";
+  for(const J of JOBS){
+    const row=document.createElement("div");row.className="jbr";
+    const t=document.createElement("div"),k=document.createElement("i"),b=document.createElement("b"),sp=document.createElement("span");
+    k.textContent=JOB_TYPES[J.type];b.textContent=J.title;
+    const extra=J.type==="courier"?" · "+fmtSecs(J.limit)+" from pickup":J.type==="tour"?" · "+J.stops.length+" stops: "+J.stops.map(s=>s.name).join(", "):"";
+    sp.textContent=J.diff+" · "+(J.len/1000).toFixed(1)+" km"+extra+" · +"+fmtCr(J.reward)+" CR"+(save.jobs.runs[J.id]?" · done "+save.jobs.runs[J.id]+"×":"");
+    t.append(k,b,sp);row.appendChild(t);
+    const g=document.createElement("button");g.className="mbtn"+(job&&job.def===J?"":" pri");g.textContent=job&&job.def===J?"UNDER WAY":"START";g.disabled=!!why;g.setAttribute("aria-label","Start "+J.title);
+    g.onclick=()=>{if(jobStart(J)){jobsClose();if(state==="PAUSE")pauseOff()}};row.appendChild(g);list.appendChild(row);
+  }
+}
+function jobsOpen(){if(state!=="PAUSE")return;renderJobs();show("jobs",true);try{$("jbClose").focus({preventScroll:true})}catch(e){}}
+function jobsClose(){show("jobs",false)}
+$("pJobs").onclick=jobsOpen;$("jbClose").onclick=jobsClose;
 /* ================================================================ STATE */
 let state="LOAD",camMode=0,camYaw=0;
 const camP=new V3(),camL=new V3();
@@ -2865,7 +3718,7 @@ let headLight=null,fillLight=null,curId=save.cur,testDrive=null;
 // the two street lamps nearest the car shine for real, so the car (not just the road) lights up as it passes under them
 const LAMP_LIGHTS=[0,1].map(()=>{const l=new THREE.PointLight(0xffc68a,0,26,1.3);scene.add(l);return l});
 const curCar=()=>carById(curId);
-function setState(s){state=s;$("c").style.cursor="default"}
+function setState(s){state=s;$("c").style.cursor="default";if(s!=="DRIVE"){promptAct=null;const p=document.getElementById("prompt");if(p)p.classList.add("hide")}}
 function show(id,on){$(id).classList.toggle("hide",!on)}
 function hudOn(on){show("hud",on);show("chips",on);show("pads",on&&isTouch)}
 
@@ -2879,6 +3732,16 @@ function attachCar(id,temp){
   // night without a glare off the rear window (a light from above lands its highlight right in view)
   pc.G.add(fillLight);fillLight.position.set(0,1.4,-6.5);
 }
+// the car body's lowest level and the four corners of its underside, in the car's own frame (wheels left out)
+function underBox(c){
+  const skip=new Set();c.wheels.forEach(w=>(w.parent||w).traverse(o=>skip.add(o)));
+  const G=c.G,pos=G.position.clone(),rot=G.rotation.clone();G.position.set(0,0,0);G.rotation.set(0,0,0);G.updateMatrixWorld(true);
+  const b=new THREE.Box3(),t=new THREE.Box3();
+  G.traverse(o=>{if(!o.isMesh||skip.has(o)||!o.geometry)return;if(!o.geometry.boundingBox)o.geometry.computeBoundingBox();t.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld);b.union(t)});
+  G.position.copy(pos);G.rotation.copy(rot);G.updateMatrixWorld(true);
+  const x=Math.min(-b.min.x,b.max.x)*.97;
+  return{y:b.min.y,c:[[-x,b.max.z*.97],[x,b.max.z*.97],[-x,b.min.z*.97],[x,b.min.z*.97],[-x,0],[x,0]]};
+}
 function placeCarMesh(dt){
   const G=pc.G,vF=speedF(),ch=Math.cos(P.h),sh=Math.sin(P.h),wb=pc.wb||1.45,tr=pc.tr||.92;
   // the ground under each wheel, in the order the wheels were built: (-tr,+wb) (+tr,+wb) (-tr,-wb) (+tr,-wb)
@@ -2889,13 +3752,21 @@ function placeCarMesh(dt){
   // body height: on the plane through the contacts, raised if needed so no wheel ends up in the ground
   let mid=(front+rear)/2;W.forEach(([lx,lz],i)=>{mid=Math.max(mid,h[i]-slopeF*lz-slopeL*(lx>0?1:-1)*tr-.09)});
   P.pitch=lerp(P.pitch,-Math.atan(slopeF)+(kB()&&vF>2?.025:0)+(kG()&&!kB()?-.01:0),Math.min(1,dt*12));
-  P.roll=lerp(P.roll,Math.atan(slopeL)-clamp(P.r*vF*.006,-.06,.06),Math.min(1,dt*10));
+  // side tilt only follows the ground: a lean in bends made the car look lopsided
+  P.roll=lerp(P.roll,Math.atan(slopeL),Math.min(1,dt*10));
   // wheels drop or lift a little (suspension travel) to keep touching the ground. Worked out from
   // where the body actually is (its pitch and roll are smoothed), and if a wheel would still end
   // up in the ground the body is lifted by that much.
+  // a little extra ride height on the low cars, so their tyres show under the body from the chase camera
+  mid+=rideH(pc);
   G.position.set(P.x,mid,P.z);G.rotation.set(P.pitch,P.h,P.roll,"YXZ");G.updateMatrix();
   const me=G.matrix.elements,base=W.map(([lx,lz])=>me[1]*lx+me[9]*lz);   // height of each wheel mount relative to the body origin
   let lift=0;W.forEach((_,i)=>{lift=Math.max(lift,h[i]-(mid+base[i])-.09)});
+  // the body's lowest edges keep their normal gap above the road, so a lean in a bend shows as the inner side
+  // lifting: the outer side used to drop and close its gap, hiding that side's tyres so the car looked sunk in
+  const U=pc.under||(pc.under=underBox(pc));
+  for(const[lx,lz] of U.c){const wx=P.x+lx*ch+lz*sh,wz=P.z-lx*sh+lz*ch,y=mid+me[1]*lx+me[5]*U.y+me[9]*lz;
+    lift=Math.max(lift,surfH(wx,wz)+Math.max(.02,U.y-.005)-y)}
   if(lift>0){G.position.y=mid+=lift}
   // spinning spokes would strobe at speed: a blurred disc takes over, switching with a dead band so it never flickers
   const om=Math.abs(vF)/pc.wr;if(om>21)pc.blurOn=true;else if(om<15)pc.blurOn=false;
@@ -2920,8 +3791,8 @@ function updateLampLights(){
 }
 function placeOnRoad(nr,dirSign){
   const ux=nr.dx*dirSign,uz=nr.dz*dirSign,off=RT[nr.e.type].lanes[0];
-  P.x=nr.x-uz*off;P.z=nr.z+ux*off;P.h=Math.atan2(ux,uz);P.vx=P.vz=P.vy=0;P.r=0;P.steer=0;P.air=false;
-  P.ty=surfH(P.x,P.z);P.y=P.ty;P.pitch=0;P.roll=0;FR.pts=0;FR.timer=0;autoHold=true;
+  P.x=nr.x-uz*off;P.z=nr.z+ux*off;P.h=Math.atan2(ux,uz);P.vx=P.vz=P.vy=0;P.r=0;P.steer=0;P.steerS=0;P.air=false;
+  P.ty=surfH(P.x,P.z);P.y=P.ty;P.pitch=0;P.roll=0;streakReset();autoHold=true;
 }
 // fade to black and run fn in the dark. Meanwhile the game is in state FADE, which takes no input and
 // moves nothing, so a key or tap in that half second can't open a menu over it or start something twice
@@ -3001,19 +3872,22 @@ function updateCam(dt){
 function cycleCam(){camMode=(camMode+1)%4;$("chCam").textContent="CAM: "+CAMS[camMode];snapCam();toast("CAMERA",CAMS[camMode].toLowerCase())}
 
 /* ---------- paint swatches ---------- */
+// each swatch is named for screen readers, and says whether it's the paint on the car
+const PAINT_NAMES={0xf1f1ef:"White",0x141518:"Black",0xa9aeb4:"Silver",0x5a6168:"Grey",0xc0141a:"Red",0xe8761a:"Orange",0xf0c419:"Yellow",0x1d4aa8:"Blue",0x2c8ad8:"Light blue",0x0d6b3c:"Green"};
+function paintName(col,first){const hex="#"+col.toString(16).padStart(6,"0").toUpperCase();return (PAINT_NAMES[col]||(first?"Original":"Custom"))+" paint"+(PAINT_NAMES[col]?"":" "+hex)}
 function swatches(box,current,onPick){
   box.innerHTML="";
   const list=[...new Set([current,...PAINTS])];
-  for(const col of list){
-    const b=document.createElement("button");b.className="swb"+(col===current?" on":"");
-    b.style.background="#"+col.toString(16).padStart(6,"0");b.setAttribute("aria-label","Paint colour");
-    b.onclick=()=>{[...box.children].forEach(x=>x.classList.remove("on"));b.classList.add("on");onPick(col)};
+  list.forEach((col,i)=>{
+    const b=document.createElement("button"),on=col===current;b.className="swb"+(on?" on":"");
+    b.style.background="#"+col.toString(16).padStart(6,"0");b.setAttribute("aria-label",paintName(col,i===0&&!PAINTS.includes(col)));b.setAttribute("aria-pressed",on?"true":"false");
+    b.onclick=()=>{[...box.children].forEach(x=>{x.classList.remove("on");x.setAttribute("aria-pressed","false")});b.classList.add("on");b.setAttribute("aria-pressed","true");onPick(col)};
     box.appendChild(b);
-  }
+  });
 }
 
 /* ================================================================ GARAGE */
-let gSel=0,gT=0,exitT=0,exitCurve=null,exitLen=1;
+let gSel=0,gT=0,exitT=0,exitCurve=null,exitLen=1,exitDoorU=1;
 const dots=$("gdots");
 function buildGarageUI(){
   dots.innerHTML="";
@@ -3050,6 +3924,8 @@ function garageCam(dt){
 function goGarage(fromFade){
   const doIt=()=>{
     endEvent();if(testDrive)finishTestDrive(false);
+    // going home ends a contract; the garage hides the HUD, so the message waits for the next drive
+    if(job&&jobEnd("abandoned"))jobNotices.push(["CONTRACT ABANDONED","You went home, so it ended without a reward"]);
     setState("GARAGE");audioOn(false);
     if(pc){pc.inside.visible=false;pc.glass.visible=true;pc.shell.visible=true}
     parkAll(null);gSel=Math.max(0,save.owned.indexOf(save.cur));buildGarageUI();gPick(gSel);
@@ -3069,11 +3945,17 @@ function goDrive(){
   const way=s[1]>18?[gW(s[0],16.5),gW(0,15),gW(0,7)]:[gW(s[0]*.45,4.2)];
   exitCurve=new THREE.CatmullRomCurve3([pc.G.position.clone(),...way,gW(0,.6),gW(0,-8),gW(.5,-16)],false,"centripetal");
   exitLen=exitCurve.getLength();
+  // where along the path the car passes the door: from there on it rides on the driveway, which climbs
+  const door=gW(0,.6);let bd=1e9;for(let i=0;i<=200;i++){const q=exitCurve.getPointAt(i/200),d=Math.hypot(q.x-door.x,q.z-door.z);if(d<bd){bd=d;exitDoorU=i/200}}
 }
 function exitSeq(dt){
   exitT+=dt;const dur=3.2+exitLen/40,u=Math.min(1,exitT/dur),e=.35*u+.65*u*u;
   const p=exitCurve.getPointAt(Math.min(.999,e)),tg=exitCurve.getTangentAt(Math.min(.999,e));
-  pc.G.position.copy(p);pc.G.rotation.set(0,pc.G.rotation.y+wrapA(Math.atan2(tg.x,tg.z)-pc.G.rotation.y)*Math.min(1,dt*9),0);
+  // past the door the car follows the driveway's height and slope instead of the flat garage floor
+  const w=smooth(exitDoorU,Math.min(1,exitDoorU+.08),e),fl=Math.hypot(tg.x,tg.z)||1,fx=tg.x/fl,fz=tg.z/fl;
+  let pitch=0;
+  if(w>0){p.y=lerp(p.y,surfH(p.x,p.z)+rideH(pc),w);pitch=-Math.atan(clamp((surfH(p.x+fx*1.4,p.z+fz*1.4)-surfH(p.x-fx*1.4,p.z-fz*1.4))/2.8,-.2,.2))*w}
+  pc.G.position.copy(p);pc.G.rotation.set(pitch,pc.G.rotation.y+wrapA(Math.atan2(tg.x,tg.z)-pc.G.rotation.y)*Math.min(1,dt*9),0,"YXZ");
   for(const w of pc.wheels)w.rotation.x+=exitLen*(.35+1.3*u)/dur*dt/pc.wr;
   const back=new V3(tg.x,0,tg.z).normalize();
   camP.lerp(p.clone().addScaledVector(back,-7).setY(p.y+2.3),1-Math.exp(-dt*(1.5+u*6)));
@@ -3082,12 +3964,13 @@ function exitSeq(dt){
   audioUpd(.2+u*.4,1,1,0);
   if(u>=1){
     const h=pc.G.rotation.y,v=exitLen*1.65/dur;
-    Object.assign(P,{x:p.x,z:p.z,h,vx:Math.sin(h)*v,vz:Math.cos(h)*v,vy:0,r:0,steer:0,air:false,pitch:0,roll:0});
+    Object.assign(P,{x:p.x,z:p.z,h,vx:Math.sin(h)*v,vz:Math.cos(h)*v,vy:0,r:0,steer:0,steerS:0,air:false,pitch,roll:0});
     P.ty=surfH(p.x,p.z);P.y=P.ty;camYaw=h;
     setState("DRIVE");hudOn(true);updateMoney();
     $("keys").style.opacity=1;setTimeout(()=>$("keys").style.opacity=0,10000);
     for(const t of TRAFFIC)spawnTraffic(t,60,600,false);
     toast("FREE RIDE",isTouch?"Ibiza is yours. Tap MAP to plan a route.":"Ibiza is yours. Press M for the map.");
+    while(jobNotices.length){const[t,s]=jobNotices.shift();toast(t,s,"bad")}
   }
 }
 
@@ -3115,7 +3998,7 @@ function dPick(i){
   $("dCap").textContent="Garage "+save.owned.length+"/"+GARAGE_CAP+(full&&!own?" · sell a car to make room":"");
   show("dBuy",!own);$("dBuy").disabled=save.cr<c.price||full;
   show("dDrive",own&&c.id!==curId);
-  show("dTest",!own);
+  show("dTest",!own);$("dTest").disabled=!!job;if(job&&!own)$("dCap").textContent+=" · no test drives during a contract";
   show("dSell",own&&c.id!==curId&&save.owned.length>1);
   [...$("dList").children][dSel].scrollIntoView({block:"nearest",inline:"nearest"});
 }
@@ -3176,29 +4059,36 @@ function updatePrompt(){
     // the dealer sits back from the street: 24 m reaches it from the road, where map travel drops you
     if(testDrive)c.push({x:DEALER_MARK.x,z:DEALER_MARK.z,r:24,t:"Return the test car",a:endTestDrive});
     else{
-      c.push({x:hm.x,z:hm.z,r:11,t:"Enter your house · change car",a:()=>goGarage(false)},{x:DEALER_MARK.x,z:DEALER_MARK.z,r:24,t:"Enter Auto Gallery · buy or test drive",a:()=>openDealer()});
-      for(const E of EVENTS)c.push({x:E.x,z:E.z,r:14,t:(E.type==="tt"?"Time trial: ":"Race: ")+E.name,a:()=>openIntro(E)});
+      c.push({x:hm.x,z:hm.z,r:11,t:"Enter your house · change car"+(job?" · ends your contract":""),a:()=>goGarage(false)},{x:DEALER_MARK.x,z:DEALER_MARK.z,r:24,t:"Enter Auto Gallery · buy or test drive",a:()=>openDealer()});
+      // during a contract a race waits: the prompt says so instead of opening the race
+      for(const E of EVENTS)c.push({x:E.x,z:E.z,r:14,t:(E.type==="tt"?"Time trial: ":"Race: ")+E.name+(job?" · after your contract":""),a:()=>{if(job)toast("FINISH YOUR CONTRACT FIRST","Or abandon it in the pause menu to race","bad");else openIntro(E)}});
     }
     for(const o of c){const d=Math.hypot(P.x-o.x,P.z-o.z);if(d<o.r&&d<bd){bd=d;best=o}}
   }
   promptAct=best?best.a:null;show("prompt",!!best);if(best)$("promptTxt").textContent=best.t;
 }
-$("prompt").onclick=()=>{if(promptAct)promptAct()};
+$("prompt").onclick=()=>{if(state==="DRIVE"&&promptAct)promptAct()};
 function pauseOn(){if(state!=="DRIVE")return;setState("PAUSE");clearInput();audioOn(false);
-  $("pTitle").textContent=ev?ev.E.name:testDrive?"Test drive · "+carById(testDrive.id).md:"Free ride";
+  $("pTitle").textContent=ev?ev.E.name:testDrive?"Test drive · "+carById(testDrive.id).md:job?"Contract · "+job.def.title:"Free ride";
+  $("pHome").textContent=job?"GO HOME · ENDS CONTRACT":"GO HOME";
   show("pQuit",!!(ev||testDrive));$("pQuit").textContent=testDrive?"END TEST DRIVE":"QUIT EVENT";show("pHome",!testDrive);
-  syncPause();show("pause",true)}
+  syncPause();$("pFb").classList.toggle("wide",[...document.querySelectorAll("#pause .mbtn")].filter(b=>b.id!=="pRes"&&!b.classList.contains("hide")).length%2===1);show("pause",true)}
 function pauseOff(){show("pause",false);if(state==="PAUSE"){setState("DRIVE");audioOn(true)}}
 const TODS=[["AUTO",null],["MORNING",8.5],["NOON",13],["SUNSET",17.75],["NIGHT",22.5]];
-function syncPause(){$("pAssist").textContent="DRIVING ASSIST: "+(save.assist?"ON":"OFF");$("pTime").textContent="TIME OF DAY: "+TODS[save.todMode][0];$("pAuto").textContent="AUTO GAS: "+(save.auto?"ON":"OFF");$("pSnd").textContent="SOUND: "+(save.sound?"ON":"OFF")}
+function syncPause(){$("pAssist").textContent="DRIVING ASSIST: "+(save.assist?"ON":"OFF");$("pTime").textContent="TIME OF DAY: "+TODS[save.todMode][0];$("pAuto").textContent="AUTO GAS: "+(save.auto?"ON":"OFF");$("pSnd").textContent="SOUND FX: "+(save.sound?"ON":"OFF");$("pMus").textContent=$("gMus").textContent="MUSIC: "+(save.music?"ON":"OFF");$("pGfx").textContent="GRAPHICS: "+["AUTO","SHARP","SMOOTH"][save.gfx]}
 $("pRes").onclick=pauseOff;
 $("pMap").onclick=()=>{show("pause",false);setState("DRIVE");openMap()};
 $("pQuit").onclick=()=>{if(testDrive){endTestDrive();return}endEvent();pauseOff();toast("EVENT CANCELLED","Back to free ride")};
 $("pHome").onclick=()=>{show("pause",false);goGarage(false)};
 $("pTime").onclick=()=>{save.todMode=(save.todMode+1)%TODS.length;if(TODS[save.todMode][1]!==null)save.tod=TODS[save.todMode][1];syncPause();persist()};
 $("pAuto").onclick=()=>{save.auto=!save.auto;syncPause();persist()};
+const GFX=["AUTO","SHARP","SMOOTH"];
+function applyGfx(){gfxLimits();const p=clamp(save.gfx===0?Math.max(prNow,PR_MIN):PR_MAX,PR_MIN,PR_MAX);RES.bad=99;RES.wait=3;RES.t=0;
+  if(p!==prNow){prNow=p;renderer.setPixelRatio(p);renderer.setSize(W,H,false)}}
+$("pGfx").onclick=()=>{save.gfx=(save.gfx+1)%3;applyGfx();syncPause();persist();toast("GRAPHICS: "+GFX[save.gfx],["Sharp, eases off a little if frames slow down","Always full sharpness","Lighter on weak phones and battery"][save.gfx])};
 $("pAssist").onclick=()=>{save.assist=!save.assist;syncPause();persist()};
 $("pSnd").onclick=()=>{save.sound=!save.sound;if(save.sound)audioInit();syncPause();persist()};
+$("pMus").onclick=$("gMus").onclick=()=>{save.music=!save.music;audioInit();musicInit();syncPause();persist()};
 function openMap(){if(state!=="DRIVE")return;setState("MAP");clearInput();audioOn(false);show("map",true);show("mapPop",false);MV.z=1;MV.cx=0;MV.cz=0}
 function closeMap(){if(state!=="MAP")return;show("map",false);setState("DRIVE");audioOn(true)}
 $("mapClose").onclick=closeMap;$("chMap").onclick=openMap;$("chCam").onclick=cycleCam;$("chPause").onclick=pauseOn;
@@ -3209,17 +4099,38 @@ $("rOk").onclick=()=>{if(state!=="RESULT")return;show("result",false);setState("
 $("drive").onclick=goDrive;$("gprev").onclick=()=>gPick((gSel-1+save.owned.length)%save.owned.length);$("gnext").onclick=()=>gPick((gSel+1)%save.owned.length);
 
 /* ---------- input wiring ---------- */
-addEventListener("blur",clearInput);
+addEventListener("blur",()=>{clearInput();if(state==="DRIVE"&&!window.__autostart)pauseOn()});
 document.addEventListener("visibilitychange",()=>{if(document.hidden){clearInput();if(state==="DRIVE")pauseOn()}});
+// a button reached with Tab belongs to the keyboard user: Enter presses it and does nothing else. Focus that
+// arrives after a click or tap (the last input was the pointer) came from the pointer, and a later key press
+// doesn't change that; focus that arrives after a key (Tab), or before any input at all, is the keyboard's
+let lastPtrT=-1,lastKeyT=0,kbFocusEl=null;
+addEventListener("pointerdown",()=>{lastPtrT=performance.now()},true);
+addEventListener("keydown",()=>{lastKeyT=performance.now()},true);
+document.addEventListener("focusin",e=>{kbFocusEl=lastKeyT>=lastPtrT?e.target:null},true);
+function kbFocusedButton(){const el=document.activeElement;return !!el&&el===kbFocusEl&&(el.tagName==="BUTTON"||el.tagName==="A")}
 addEventListener("keydown",e=>{
-  const k=e.key.toLowerCase();keys[k]=true;
+  const k=e.key.toLowerCase();
+  // Space is the handbrake while driving, focused button or not (a stray Tab mustn't turn it into a map or pause
+  // key mid-race; Enter presses a Tab-focused button there). Anywhere else Space presses the focused button, as on
+  // any page, and isn't recorded as a held handbrake
+  if(k===" "&&state!=="DRIVE"&&document.activeElement&&document.activeElement.tagName==="BUTTON")return;
+  keys[k]=true;
   if(["arrowup","arrowdown","arrowleft","arrowright"," "].includes(k)&&state!=="DEALER")e.preventDefault();
+  // otherwise Enter is the game's own key: a button the mouse clicked earlier keeps focus, and without this
+  // Enter would press it as well (CAM switching camera while starting a race, NEXT changing the garage pick)
+  if(k==="enter"){if(kbFocusedButton())return;e.preventDefault()}
   if(e.repeat)return;
   if(state==="DRIVE"){
-    if(k==="escape"||k==="p")pauseOn();else if(k==="m")openMap();else if(k==="c")cycleCam();
+    if(k==="escape"||k==="p")pauseOn();else if(k==="m")openMap();else if(k==="c")cycleCam();else if(k==="v")photoEnter();
     else if(k==="e"||k==="enter"){if(promptAct)promptAct()}
     else if(k==="r"&&!ev)resetToRoad(true);
-  }else if(state==="PAUSE"){if(k==="escape"||k==="p")pauseOff()}
+  }else if(!$("passport").classList.contains("hide")){if(k==="escape")passportClose()}
+  else if(!$("jobs").classList.contains("hide")){if(k==="escape")jobsClose()}
+  else if(state==="PAUSE"){if(k==="escape"||k==="p")pauseOff();else if(k==="v")photoEnter()}
+  else if(state==="PHOTO"){
+    if(!$("phShot").classList.contains("hide")){if(k==="escape")photoShotClose()}
+    else if(k==="escape"||k==="v")photoExit();else if(k==="enter")photoCapture();else if(k==="r")photoReset();else if(k>="1"&&k<="4"&&k.length===1)photoLookSet(+k-1)}
   else if(state==="MAP"){if(k==="escape"||k==="m")closeMap();else if(k==="+"||k==="=")$("mapIn").onclick();else if(k==="-")$("mapOut").onclick()}
   else if(state==="GARAGE"){if(k==="arrowleft"||k==="a")$("gprev").onclick();else if(k==="arrowright"||k==="d")$("gnext").onclick();else if(k==="enter")goDrive()}
   else if(state==="DEALER"){if(k==="arrowup"||k==="arrowleft"){e.preventDefault();dPick(dSel-1)}else if(k==="arrowdown"||k==="arrowright"){e.preventDefault();dPick(dSel+1)}else if(k==="escape")closeDealer()}
@@ -3266,18 +4177,38 @@ function driveUpdate(dt){
   if(ev)updateEvent(dt);
   if(state!=="DRIVE")return;
   if(testDrive){testDrive.t-=dt;if(testDrive.t<=0){testDrive.t=1e9;toast("TEST DRIVE OVER","Taking the car back to the dealer");endTestDrive()}}
-  updateStreak(dt);updateRadars();updateGPS(dt);updatePrompt();
+  updateStreak(dt);updateRadars();updatePassport();jobTick(dt);if(state!=="DRIVE")return;updateGPS(dt);updatePrompt();
   placeCarMesh(dt);updateCam(dt);updateHUD(dt);drawMini();
-  if(P.water){waterT+=dt;if(waterT>.6){waterT=-1;toast("BACK ON THE ROAD","The sea is not a road");resetToRoad(true)}}else if(waterT>0)waterT=0;
+  // every visit to the sea gets the same 0.6 s: the count starts again at the reset and whenever the car is out
+  // of the water (it used to be left at -1 after a reset, so every later visit took 1.6 s). Nothing moves during
+  // the fade, so the reset can't fire twice
+  if(P.water){waterT+=dt;if(waterT>.6){waterT=0;toast("BACK ON THE ROAD","The sea is not a road");resetToRoad(true)}}else waterT=0;
 }
 let prevTs=0,fishT=0,doorOpen=1;
+// dynamic resolution: if frames run slow for a couple of seconds, render fewer pixels; when there is headroom
+// again, step back up. Steps are small and spaced out so the picture never pumps.
+// A level that turned out too slow right after stepping up to it is not retried for 30 s, so a phone on the
+// edge doesn't flip back and forth.
+const RES={avg:1/60,t:0,wait:3,bad:99,badT:0,upT:99};
+function adaptRes(dt){
+  if(document.hidden)return;dt=Math.min(dt,.25);RES.avg+=(Math.min(dt,.1)-RES.avg)*.05;RES.t+=dt;RES.badT+=dt;RES.upT+=dt;if(RES.t<RES.wait)return;
+  if(RES.badT>30)RES.bad=99;
+  if(PR_MIN>=PR_MAX)return;
+  let p=prNow;if(RES.avg>1/36){p=Math.max(PR_MIN,p-.25);if(RES.upT<8){RES.bad=prNow;RES.badT=0}}
+  else if(RES.avg<1/50&&prNow+.25<RES.bad){p=Math.min(PR_MAX,p+.25);if(p!==prNow)RES.upT=0}
+  RES.t=0;RES.wait=.5;
+  if(p!==prNow){prNow=p;renderer.setPixelRatio(p);renderer.setSize(W,H,false);RES.wait=3}
+}
 function frame(ts){
   requestAnimationFrame(frame);
-  const dt=Math.min(.05,(ts-prevTs)/1000||.016);prevTs=ts;
+  const raw=(ts-prevTs)/1000||.016,dt=Math.min(.05,raw);prevTs=ts;adaptRes(raw);
   // automatic time: an hour every 30 s by day, and the night passes about twice as fast
   if(save.todMode===0&&(state==="DRIVE"||state==="GARAGE"||state==="EXIT"))save.tod=(save.tod+dt/30*(1+1.4*night))%24;
-  applyDayNight();updateLampLights();if(VTL.size)updateVegetation(dt);if(water)updateSea(dt);
-  fishT+=dt;
+  // photo mode stops the scenery's clocks too (sea, foam, boats, grass, fish, clouds); they carry on from the same
+  // point afterwards. Showing and hiding by distance still follows the photo camera
+  const wdt=state==="PHOTO"?0:dt;if(state!=="PHOTO")skyClock+=raw;
+  applyDayNight();updateLampLights();if(VTL.size)updateVegetation(wdt);if(water)updateSea(wdt);
+  fishT+=wdt;
   for(const f of fishes){const ph=fishT*.5+f.ph;f.g.position.copy(gW(12+Math.sin(ph)*7.5,f.zc,f.yc+Math.sin(fishT*.9+f.ph*1.7)*.5));f.g.rotation.y=f.yaw+(Math.cos(ph)>0?0:Math.PI)}
   if(aquaLight)aquaLight.intensity=1.2+Math.sin(fishT*2)*.2;
   const wantOpen=state==="EXIT"?1:0;doorOpen+=(wantOpen-doorOpen)*Math.min(1,dt*1.6);
@@ -3287,6 +4218,7 @@ function frame(ts){
   else if(state==="DRIVE")driveUpdate(dt);
   else if(state==="DEALER")dealerCam(dt);
   else if(state==="MAP")drawMap();
+  else if(state==="PHOTO")photoFrame(dt);
   sky.position.copy(camera.position);stars.position.copy(camera.position);
   const f=state==="DEALER"?SHOW:pc&&state!=="GARAGE"&&state!=="LOAD"?pc.G.position:gW(0,12);
   sun.position.copy(f).addScaledVector(MOON,220);sun.target.position.copy(f);sun.target.updateMatrixWorld();
@@ -3303,7 +4235,7 @@ const STEPS=[
   ["Building walls and signs",buildRoadside],
   ["Opening your house",buildHouse],
   ["Stocking the dealership",buildDealer],
-  ["Setting up events",()=>{buildEvents();buildGates();buildRadars()}],
+  ["Setting up events",()=>{buildEvents();buildGates();buildRadars();buildLandmarks();buildJobs()}],
   ["Filling the roads",()=>{initTraffic();buildMapImage()}],
   ["Parking your cars",()=>{parkAll(null)}],
 ];
@@ -3320,7 +4252,16 @@ function boot(){
   const g=garageWant();camP.copy(g.pos).add(new V3(0,2,0));camL.copy(g.look);
   $("chCam").textContent="CAM: "+CAMS[camMode];
   requestAnimationFrame(frame);
-  setTimeout(()=>{$("load").style.opacity=0;setTimeout(()=>{show("load",false);show("gui",true);setState("GARAGE")},600)},200);
+  // browsers only allow sound after a tap or key press, so the garage opens on one: the music starts with it
+  let entered=false;
+  const enter=()=>{if(entered)return;entered=true;removeEventListener("keydown",onKey,true);
+    if(!window.__autostart)firstGesture();
+    $("load").style.opacity=0;setTimeout(()=>{show("load",false);show("gui",true);setState("GARAGE")},600)};
+  const onKey=e=>{if(e.key!=="Tab"&&e.key!=="Shift"&&e.key!=="Control"&&e.key!=="Alt"&&e.key!=="Meta")enter()};
+  if(window.__autostart){setTimeout(enter,200);return}
+  $("lmsg").textContent="Ready";$("lf").parentNode.classList.add("hide");
+  show("lstart",true);show("lhint",true);$("lstart").onclick=enter;addEventListener("keydown",onKey,true);
+  try{$("lstart").focus({preventScroll:true})}catch(e){}
 }
 boot();
 })();

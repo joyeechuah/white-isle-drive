@@ -1,14 +1,16 @@
 # White Isle Drive
 
-A free-roam driving game set on a Mediterranean island modelled loosely on Ibiza. Cruise the coast roads, buy and collect cars, set records on speed radars and race AI drivers in time trials and races. It runs in any modern browser on desktop or phone, with no install and no build step.
+A free-roam driving game set on a Mediterranean island modelled loosely on Ibiza. Cruise the coast roads, buy and collect cars, set records on speed radars, race AI drivers in time trials and races, find the island's landmarks, take on driving contracts and stop for photos. It runs in any modern browser on desktop or phone, with no install and no build step.
 
-![White Isle Drive screenshot](docs/screenshot.jpg)
+### [▶ Play now](https://joyeechuah.github.io/white-isle-drive/)
+
+![A white hatchback driving along the coastal highway at sunset, with the credits, minimap and speedometer on screen](docs/screenshot.jpg)
 
 ## Play
 
-**Locally:** download or clone the repository and open `index.html` in Chrome, Edge, Firefox or Safari. It needs an internet connection to load three.js and the web fonts.
+**Online:** play it at [joyeechuah.github.io/white-isle-drive](https://joyeechuah.github.io/white-isle-drive/).
 
-**On GitHub Pages:** in the repository go to *Settings → Pages*, set *Source* to *Deploy from a branch*, choose `main` and `/ (root)`, then save. The game will be live at `https://<your-username>.github.io/<repository-name>/` after a minute or two.
+**Locally:** download or clone the repository and open `index.html` in Chrome, Edge, Firefox or Safari. It needs an internet connection to load three.js and the web fonts. Browsers block a page opened straight from disk from loading the music files, so locally you'll hear the built-in backup music instead; to hear the full soundtrack, run a small local server in the folder (for example `python -m http.server`) and open `http://localhost:8000`.
 
 ## Controls
 
@@ -20,33 +22,51 @@ A free-roam driving game set on a Mediterranean island modelled loosely on Ibiza
 | Interact (dealer, events, house) | `E` or `Enter` | Tap the prompt |
 | Map and GPS | `M` | MAP |
 | Change camera | `C` | CAM |
+| Photo mode | `V` | PHOTO |
 | Back on the road | `R` | |
 | Pause and settings | `Esc` or `P` | PAUSE |
 
 In the garage, `←` / `→` choose a car and `Enter` drives it. On the map, drag to pan, scroll or pinch to zoom, click a marker to set the GPS or travel there, or click a road to drop a waypoint.
 
-The pause menu sets the time of day, driving assist (keeps the car stable and in its lane), auto gas (handy on phones) and sound.
+In photo mode, drag (or use the arrow keys) to move around the car and scroll, pinch or press `+` / `−` to move closer. The ZOOM and DISTANCE sliders do the same, `1` to `4` pick a look (AS IS, GOLDEN HOUR, NIGHT DRIVE, COASTAL SUNSET), `R` resets the camera, `Enter` takes the picture and `Esc` or `V` goes back to the game. The world stands still while it's open, and the looks change the light only in photo mode.
+
+The pause menu opens photo mode, the Island Passport and the Contracts board, and sets the time of day, driving assist (keeps the car stable and in its lane), auto gas (off by default, handy on phones), sound effects (SOUND FX), music and graphics quality (AUTO, SHARP or SMOOTH). The two sound switches are independent. The garage also has its own MUSIC button.
 
 ## Features
 
 - A compact island with the old town of Eivissa, Sant Antoni, hill villages, villas, a coastal highway, offshore islets and passing boats, all generated in code at load time
-- A day and night cycle with a dynamic sky, clouds and sea, and moonlit nights lit by street lamps and your headlights
+- A day and night cycle in which the sky, clouds and sea change with the hour, and moonlit nights lit by street lamps and your headlights
 - 24 cars from hatchbacks to hypercars across classes A1 to A7, with paint colours, a 12-car garage and a dealership where you can buy, sell and take a 90-second test drive
 - 6 events (time trials and races against AI drivers) with medals and personal bests
+- Photo mode: a free camera around your car, a zoom control, three looks (Golden Hour, Night Drive, Coastal Sunset) and a PNG of the scene without the game's on-screen display
+- An Island Passport of 18 landmarks to find by driving to them, from the highest road to the far capes and the villages, each paying credits once, with a bonus for finding them all
+- Contracts: parcel deliveries, timed courier runs and scenic tours between the towns, with the GPS guiding you and a reward on completion
 - Speed radars, plus a free-ride points streak for speed, near misses, oncoming-lane driving and drifts that you bank as credits
 - Traffic on the roads, a GPS minimap that draws the route to any marker or waypoint, and a full map with fast travel
+- A three-track soundtrack: a Mediterranean lounge groove in the garage and dealership, Balearic house for free driving and a faster track for races, looping without a gap, quieter behind menus and softer after dark
 - Engine, tyre, surface and impact sound synthesised live with the Web Audio API
 - Responsive HUD for desktop and touch screens in landscape or portrait
 
 ## How it works
 
-Everything is in one file, `index.html`. The only library is [three.js](https://threejs.org/) r128 (MIT licence), loaded from cdnjs with a Subresource Integrity hash so the browser rejects a modified copy. Terrain, roads, buildings, vegetation, cars, textures and sound are all generated procedurally, so the repository has no asset files.
+The game itself is one file, `index.html`. The only library is [three.js](https://threejs.org/) r128 (MIT licence), loaded from cdnjs with a Subresource Integrity hash so the browser rejects a modified copy. Terrain, roads, buildings, vegetation, cars, textures and sound effects are all generated procedurally. The only asset files are the three music tracks in `audio/` (about 2 MB each), which are loaded only when needed and looped on the Web Audio clock. Two backup tracks composed in code play if the files can't load. A Content Security Policy in the page only lets it load scripts from itself and cdnjs, fonts from Google Fonts and music from its own folder.
 
 ## Privacy
 
-The game has no accounts, analytics, ads, cookies or tracking, and sends no data anywhere. Progress is saved only in your own browser's `localStorage` (key `white-isle-drive-v1`); clearing site data resets it.
+The game has no accounts, analytics, ads, cookies or tracking, and sends no data anywhere. The feedback links only open Google Forms or GitHub in a new tab when you click them; the form collects no email addresses. Progress is saved only in your own browser's `localStorage` (key `white-isle-drive-v1`); clearing site data resets it.
 
 The page makes two kinds of outside requests: three.js from cdnjs.cloudflare.com and the Barlow fonts from Google Fonts. As with any web font, Google receives the visitor's IP address when the fonts load. To avoid that, delete the three Google Fonts `<link>` lines at the top of `index.html`; the game then uses the system font.
+
+## Music
+
+The soundtrack was generated with Google Flow Music under a Google AI Plus plan: *Mediterranean Showroom* (garage and dealership), *Coastal Cruise Loop* (free driving) and *Island Highway Run* (races and time trials). The backup tracks used when the files can't load are composed in the game's code.
+
+## Feedback
+
+Found a bug or have an idea? I'd love to hear it.
+
+- **[Quick feedback form](https://forms.gle/bPk18BbmhaGLNJtD9)** takes about a minute and needs no account. It's also what **SEND FEEDBACK** in the in-game pause menu opens.
+- **[GitHub issues](https://github.com/joyeechuah/white-isle-drive/issues/new/choose)**: if you have a GitHub account, the bug report and idea forms there let you follow the fix.
 
 ## How this was made
 
