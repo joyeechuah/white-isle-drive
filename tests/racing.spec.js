@@ -140,6 +140,8 @@ test.describe("races and time trials", () => {
       P.h = Math.atan2(g.dx, g.dz);
       P.vx = g.dx * 15;
       P.vz = g.dz * 15;
+      // straight wheels: the autopilot may have left the steering turned
+      P.r = P.steer = P.steerS = 0;
       ev.px = null;
       for (let i = 0; i < 360 && T.state === "DRIVE"; i++) {
         T.keys.w = true;
