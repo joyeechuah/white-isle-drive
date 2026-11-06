@@ -2375,9 +2375,12 @@ function seatCar(o,G,x,z,yaw,wb,tr,dt,ride){
 }
 function speedF(){return P.vx*Math.sin(P.h)+P.vz*Math.cos(P.h)}
 function kphNow(){return Math.abs(speedF())*3.6}
-// handling tune (one place so it can be balanced against the race AI)
-const HD={latBase:1.2,latGrip:.6,latLow:.25,rUp:6,rUpHi:3.4,rBack:10,rBackHi:7,rCounter:14,steerEase:25,expHi:1.3,
-  asK:2.6,asLim:.9,csGrip:.76,csBrake:7,thrUp:3.2,pBase:3.2,pAcc:8,offDrag:2.2,offDragV:.035,yawResp:10,rMin0:5,rMinV:.7,laneK:1.0};
+// handling tune (one place so it can be balanced against the race AI, whose acceleration uses pBase and pAcc too).
+// Nov 2026 playtest: engines 15% stronger (pBase, pAcc); the corner-speed assist takes bends closer to the tyres'
+// grip (csGrip, was .76); at speed the wheel turns in more slowly and short presses are softer (rUpHi was 3.4,
+// expHi 1.3, and both now reach their high-speed value by 140 km/h, steerV), so a tap at 100 km/h moves the car less
+const HD={latBase:1.2,latGrip:.6,latLow:.25,rUp:6,rUpHi:2,rBack:10,rBackHi:7,rCounter:14,steerEase:25,expHi:1.6,steerV:39,
+  asK:2.6,asLim:.9,csGrip:.83,csBrake:7,thrUp:3.2,pBase:3.7,pAcc:9.2,offDrag:2.2,offDragV:.035,yawResp:10,rMin0:5,rMinV:.7,laneK:1.0};
 // fastest speed for a bend of curvature k: limited by grip, and in tight
 // corners by the smallest circle the car turns at that speed
 const vCorner=(k,aC)=>Math.min(Math.sqrt(aC/k),Math.max(4,(.92/k-HD.rMin0)/HD.rMinV));
@@ -2417,6 +2420,13 @@ function pathLimit(R,s0,sp,aC){
   const look=lookAhead(sp),ang=[];
   for(let d=0;d<=look+16&&s0+d<=R.len;d+=8){const q=edgePos(R,s0+d);ang.push(Math.atan2(q.dx,q.dz))}
   return limitFromAngles(ang,sp,aC);
+}
+// the middle of the nearest lane, on either side of the road, for a position across it (0 = the centre line);
+// a position beyond the road's edge is left as it is
+function laneNear(e,x){
+  if(Math.abs(x)>e.half)return x;
+  let best=x,bd=1e9;for(const l of RT[e.type].lanes)for(const c of [l,-l]){const d=Math.abs(x-c);if(d<bd){bd=d;best=c}}
+  return best;
 }
 function stepPlayer(dt){
   const cd=curCar();
@@ -2461,12 +2471,12 @@ function stepPlayer(dt){
   if(!P.air)vS*=Math.exp(-(7+cd.grip*8)*surf*(hb?.16:1)*dt);
   // steering. Keys turn the wheel in quickly, a little more gently at speed,
   // and the turn rate is capped by the tyres' grip.
-  const tgt=(kR()?1:0)-(kL()?1:0),sp=Math.abs(vF),dirV=vF>=0?1:-1;
-  const rate=!tgt?lerp(HD.rBack,HD.rBackHi,vN):(P.steer*tgt<0?HD.rCounter:lerp(HD.rUp,HD.rUpHi,vN));
+  const tgt=(kR()?1:0)-(kL()?1:0),sp=Math.abs(vF),dirV=vF>=0?1:-1,vNs=clamp(sp/HD.steerV,0,1);
+  const rate=!tgt?lerp(HD.rBack,HD.rBackHi,vN):(P.steer*tgt<0?HD.rCounter:lerp(HD.rUp,HD.rUpHi,vNs));
   P.steer+=clamp(tgt-P.steer,-rate*dt,rate*dt);
   // a short easing on top rounds off the start and end of each key press so the turn builds and lets go smoothly
   P.steerS=(P.steerS||0)+(P.steer-(P.steerS||0))*(1-Math.exp(-dt*HD.steerEase));
-  const s=Math.sign(P.steerS)*Math.pow(Math.abs(P.steerS),lerp(1,HD.expHi,vN));
+  const s=Math.sign(P.steerS)*Math.pow(Math.abs(P.steerS),lerp(1,HD.expHi,vNs));
   // at low speed a full key press would spin the car on the spot, so the
   // tightest circle grows with speed (about 12 m at 30 km/h, 20 m at 60 km/h)
   const rGeo=sp*Math.tan(.62)/2.6,rLat=aLat/Math.max(sp,2.5),rLow=sp/(HD.rMin0+sp*HD.rMinV),rCap=Math.min(rGeo,rLat,rLow);
@@ -2474,10 +2484,12 @@ function stepPlayer(dt){
   if(hb&&sp>6)rT=s*Math.min(rGeo,rLat*2)*dirV;
   // steering assist: follows the road and holds your line. With no key pressed
   // it keeps the car at the spot across the road where you last let go of
-  // A/D (any lane, kept inside the edges), steering back gently if it drifts.
-  // With a key pressed the way the road bends, it makes sure the car turns at
-  // least enough to follow it. Steering against it (changing lanes, turning
-  // off) always wins, and the line is re-set wherever you let go.
+  // A/D, steering back gently if it drifts. That line is the middle of the lane
+  // you were nearest (either side of the road), so a short press doesn't leave the
+  // car on the divider or the edge line. With a key pressed the way the road
+  // bends, it makes sure the car turns at least enough to follow it. Steering
+  // against it (changing lanes, turning off) always wins, and the line is re-set
+  // to the nearest lane wherever you let go.
   if(save.assist&&!hb&&nr&&sp>4&&dirV>0&&(onRoad||nr.d<nr.e.half+5)){
     const sideDrv=nr.side*rdir,gap=nr.e.half-Math.abs(sideDrv),band=Math.max(.6,nr.e.half-1.3);
     // road direction just ahead (covers the car's reaction lag) and its bend
@@ -2486,7 +2498,7 @@ function stepPlayer(dt){
     // the line to hold: while you steer, and until the car has straightened
     // up after you let go, it follows the car; then it stays put
     if(tgt||P.laneT==null){P.laneT=sideDrv;P.laneLock=false;P.laneWait=0}
-    if(!P.laneLock){P.laneT=sideDrv;P.laneWait+=dt;if(Math.abs(wrapA(want-P.h))<.03||P.laneWait>1.5)P.laneLock=true}
+    if(!P.laneLock){P.laneT=sideDrv;P.laneWait+=dt;if(Math.abs(wrapA(want-P.h))<.03||P.laneWait>1.5){P.laneLock=true;P.laneT=laneNear(nr.e,sideDrv)}}
     const laneT=clamp(P.laneT,-band,band);
     const pb=edgePos(nr.e,nr.s+rdir*(ant-6)),pf=edgePos(nr.e,nr.s+rdir*(ant+6));
     const rFF=-wrapA(Math.atan2(pf.dx*rdir,pf.dz*rdir)-Math.atan2(pb.dx*rdir,pb.dz*rdir))/12*sp;
@@ -2667,7 +2679,7 @@ function buildEvents(){
     vp[n-1]=60;for(let i=n-1;i>=0;i--){const vc=Math.sqrt(11.5/k[i]);vp[i]=Math.min(vc,i<n-1?Math.sqrt(vp[i+1]**2+2*9*4):vc)}
     // medal times follow the route's own bends: a well driven lap in a quick
     // road car (about 13 m/s² through corners, 225 km/h top, brisk acceleration)
-    E.tIdeal=routeTime(k,13,62,5.5,8);
+    E.tIdeal=routeTime(k,13,62,5.5*1.15,8);
     E.vp=vp;E.cps=[];for(let s=330;s<R.len-120;s+=330)E.cps.push(s);E.cps.push(R.len);
     const L=R.len;
     E.gold=E.tIdeal*1.02;E.silver=E.tIdeal*1.15;E.bronze=E.tIdeal*1.32;
@@ -2741,7 +2753,7 @@ function startEvent(E){
       let key,k=0;do key=pick.id+"#"+(k++);while(used.has(key));used.add(key);
       const m=rivalModel(pick,key);AIM[i]=m;
       m.G.visible=true;
-      ev.ai.push({m,s:grid[i][0],lat:grid[i][1],lane:grid[i][1],v:0,sk:[.95,.91,.98][i],vmax:pick.top/3.6*[.91,.88,.94][i],acc:3.2+pick.acc*8,fin:0,x:0,z:0,yaw:0,name:pick.mk+" "+pick.md});
+      ev.ai.push({m,s:grid[i][0],lat:grid[i][1],lane:grid[i][1],v:0,sk:[.95,.91,.98][i],vmax:pick.top/3.6*[.91,.88,.94][i],acc:HD.pBase+pick.acc*HD.pAcc,fin:0,x:0,z:0,yaw:0,name:pick.mk+" "+pick.md});
     }
   }
   streakReset();snapCam();
