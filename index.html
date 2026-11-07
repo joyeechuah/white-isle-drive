@@ -899,10 +899,10 @@ function mat(x,y,z,ry=0,sx=1,sy=1,sz=1,rx=0,rz=0){
       and node heights are shared so junctions are level.
    5. The terrain is cut and filled to sit just under the roads. */
 const RT={
-  coast:{half:5.6,lanes:[1.9],spd:17,prio:3},
-  highway:{half:9.2,lanes:[2,5.6],spd:25,prio:4},
-  country:{half:4.8,lanes:[1.8],spd:14,prio:2},
-  town:{half:5.2,lanes:[1.9],spd:10.5,prio:1},
+  coast:{half:5.6,lanes:[2.5],spd:17,prio:3},
+  highway:{half:9.2,lanes:[2,6.3],spd:25,prio:4},
+  country:{half:4.8,lanes:[2.2],spd:14,prio:2},
+  town:{half:5.2,lanes:[2.4],spd:10.5,prio:1},
   drive:{half:3.4,lanes:[1.4],spd:6,prio:0}
 };
 // lane offsets in RT are for driving on the right; SIDE() turns them to the side the player chose (-1 = left)
@@ -2681,6 +2681,11 @@ function collidePlayer(){
 
 /* ================================================================ TRAFFIC (two-way, right-hand lanes) */
 const TRAFFIC=[];let TEDGES=[],TEDGE_CUM=[],bubbleT=0;
+// town streets near you hold at most TOWN_CAP cars: traffic is slow there, so cars piled up in the narrow streets and
+// were hard to drive through without hitting one (about 7 within 150 m, against 3 to 5 on open roads). townN is the count
+// within TOWN_R of you, kept up to date every half second
+const TOWN_CAP=isTouch?3:5,TOWN_R=200;let townN=0;
+const nearTown=t=>!!t.e&&t.e.type==="town"&&Math.abs(t.wx-P.x)<TOWN_R&&Math.abs(t.wz-P.z)<TOWN_R;
 const TCOLS=[0xe8e8e6,0xbfc3c8,0x2d2f33,0x7a1f1f,0x2b4a7a,0xd9cfb8,0x5d6b4a,0xa0a4a8,0x1f1f22,0xc9b27a,0x8a2c2c,0xf0f0f0];
 function initTraffic(){
   TEDGES=EDGES.filter(e=>e.type!=="drive"&&e.len>24);let c=0;TEDGE_CUM=TEDGES.map(e=>c+=e.len);
@@ -2704,6 +2709,7 @@ function spawnTraffic(t,dmin,dmax,avoidView){
   for(let k=0;k<50;k++){
     const e=pickEdge(),s=Math.random()*e.len,p=edgePos(e,s),dx=p.x-P.x,dz=p.z-P.z,d=Math.hypot(dx,dz);
     if(d<dmin||d>dmax)continue;
+    if(e.type==="town"&&townN>=TOWN_CAP&&d<TOWN_R+150)continue;
     if(avoidView){const cf=new V3();camera.getWorldDirection(cf);if((dx*cf.x+dz*cf.z)/d>.2)continue}
     let dir=Math.random()<.5?1:-1;if(oncoming(e,dir)){dir=-dir;if(oncoming(e,dir))continue}
     // never on top of another car
@@ -2741,12 +2747,20 @@ function junction(t,node,over){
   // give way: a road that isn't free can't be turned into yet (cars used to merge into each other here). A car
   // normally waits at the stop line when no way out is free (updateTraffic); one that got here anyway stops at the end
   if(!free.length){t.s=t.dir>0?t.e.len-.01:.01;t.v=0;return}
-  const a=free[Math.floor(Math.random()*free.length)];
+  // a town street near you that's full already: another way if there is one
+  let pick=free;if(townN>=TOWN_CAP&&Math.abs(t.wx-P.x)<TOWN_R&&Math.abs(t.wz-P.z)<TOWN_R){const o=free.filter(a=>a.e.type!=="town");if(o.length)pick=o}
+  const a=pick[Math.floor(Math.random()*pick.length)];
   t.e=a.e;if(a.end==="a"){t.dir=1;t.s=Math.min(over,t.e.len)}else{t.dir=-1;t.s=Math.max(0,t.e.len-over)}
   setLane(t);
 }
 function updateTraffic(dt){
   bubbleT-=dt;const bubble=bubbleT<=0;if(bubble)bubbleT=.5;
+  if(bubble){townN=0;const cf=new V3();camera.getWorldDirection(cf);
+    for(const t of TRAFFIC){if(!nearTown(t))continue;
+      const dx=t.wx-P.x,dz=t.wz-P.z,d=Math.hypot(dx,dz);
+      // one too many, and out of sight (behind you, or 80 m off): it reappears somewhere else
+      if(townN>=TOWN_CAP&&(d>80||(dx*cf.x+dz*cf.z)/Math.max(d,1)<-.2)&&d>25){t.e=null;t.c.G.visible=false;t.wx=t.wz=1e6;t.lost=!spawnTraffic(t,220,560,true);if(!nearTown(t))continue}
+      townN++}}
   const pf=fwdOf(P.h),kph=kphNow();
   for(const t of TRAFFIC){
     if(!t.e){if(bubble&&t.lost)t.lost=!spawnTraffic(t,220,560,true);continue}
@@ -2775,7 +2789,12 @@ function updateTraffic(dt){
       // with no way out free yet, it waits at the stop line too, and lets the others cross meanwhile (it used to roll
       // up to the middle of the junction and wait there, in the way of cars crossing)
       const ex=exitsAt(t,jn),stuck=ex.opts.length&&!ex.free.length;
-      if((jn.res&&jn.res!==t)||stuck){target=Math.min(target,Math.sqrt(14*Math.max(0,dEnd-7.5)),Math.max(0,(dEnd-7.5)*1.2+(dEnd>12?6:0)));if(dEnd<12)close=true;if(stuck&&jn.res===t)jn.res=null}
+      // and it gives way to you: in the junction, or heading into it within about 2 s (cars used to pull out across
+      // you). Not when you're behind it on its own road, which would leave you both waiting
+      const pd=Math.hypot(P.x-jn.x,P.z-jn.z),pTo=((jn.x-P.x)*P.vx+(jn.z-P.z)*P.vz)/Math.max(pd,1),
+        pBehind=(P.x-t.wx)*tx+(P.z-t.wz)*tz<0&&Math.abs((P.x-t.wx)*-tz+(P.z-t.wz)*tx)<4,
+        you=jn.res!==t&&!pBehind&&(pd<10||(pTo>2&&pd<10+pTo*2.2));
+      if((jn.res&&jn.res!==t)||stuck||you){target=Math.min(target,Math.sqrt(14*Math.max(0,dEnd-7.5)),Math.max(0,(dEnd-7.5)*1.2+(dEnd>12?6:0)));if(dEnd<12)close=true;if(stuck&&jn.res===t)jn.res=null}
       else if(dEnd<12)jn.res=t;
     }
     const ddx=P.x-t.wx,ddz=P.z-t.wz,ah=ddx*tx+ddz*tz,lt=ddx*-tz+ddz*tx;
