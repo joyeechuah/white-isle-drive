@@ -26,7 +26,7 @@ const NAMES = (
   "openMap openMapPopup pad passportClose passportOpen pauseOff pauseOn pc persist photoCapture photoEnter " +
   "photoExit photoLook photoLookSet photoReset prNow promptAct renderer resetToRoad routeBetween save scene " +
   "seaT setGPS clearGPS setState skyClock skyU startEvent startTestDrive state streakReset testDrive " +
-  "updatePrompt zoneAt Hf LM_R gates fadeThen layoutHUD show audioOn acResume musicWant photoFrame finishTestDrive gateOf trackRoute trackRouteFull mapMarkers CAMV snapCam DIFFS setDiff raceRewards"
+  "updatePrompt zoneAt Hf LM_R gates fadeThen layoutHUD show audioOn acResume musicWant photoFrame finishTestDrive gateOf trackRoute trackRouteFull mapMarkers CAMV snapCam DIFFS setDiff raceRewards GH ghostAt ghostTimeAt"
 ).split(/\s+/);
 
 const EDITS = [
