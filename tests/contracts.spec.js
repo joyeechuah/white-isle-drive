@@ -115,6 +115,17 @@ test.describe("contracts", () => {
         T.P.z = t.z;
         T.resetToRoad(false);
         T.P.vx = T.P.vz = 0;
+        // facing the way the GPS leads from there: the autopilot can't make a U-turn from the lane by the verge (with
+        // traffic on the left it drove off the road trying, and the longest courier run timed out)
+        T.driveUpdate(1 / 60);
+        const R = T.gps.route;
+        if (R && R.pts.length > 2) {
+          const a = R.pts[0],
+            b = R.pts[Math.min(R.pts.length - 1, 4)];
+          T.P.h = Math.atan2(b.x - a.x, b.z - a.z);
+          T.resetToRoad(false);
+          T.P.vx = T.P.vz = 0;
+        }
         window.__bot = null;
         return { started, c0, runs0 };
       }, id);
