@@ -75,6 +75,66 @@ test.describe("touch controls", () => {
   });
 });
 
+test.describe("no zooming on phones and tablets", () => {
+  test.use({ viewport: { width: 1024, height: 768 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+
+  test("a double tap or a pinch doesn't zoom the page, buttons still take quick taps, and a zoomed page says how to get back", async ({ game, page }) => {
+    await game.open();
+    const set = await game.eval(() => ({
+      meta: document.querySelector('meta[name="viewport"]').content,
+      html: getComputedStyle(document.documentElement).touchAction,
+      body: getComputedStyle(document.body).touchAction,
+      list: getComputedStyle(document.getElementById("jbList")).touchAction,
+      dealer: getComputedStyle(document.getElementById("dList")).touchAction,
+    }));
+    expect(set.meta).toContain("user-scalable=no");
+    expect(set.meta).toContain("maximum-scale=1");
+    expect([set.html, set.body]).toEqual(["none", "none"]);
+    // lists that scroll still scroll
+    expect(set.list).toBe("pan-y");
+    expect(set.dealer).toBe("pan-x pan-y");
+    const cdp = await page.context().newCDPSession(page);
+    const tap = async (x, y) => {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ id: 1, x, y }] });
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    };
+    // in the garage: a double tap on NEXT picks two cars on (the second tap isn't lost)
+    const g0 = await game.eval(() => __T.gSel);
+    const b = await game.eval(() => {
+      const r = document.getElementById("gnext").getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    });
+    await tap(b.x, b.y);
+    // a quick double tap, well inside Safari's 0.3 s (a longer pause here sometimes ran past it on a busy machine)
+    await page.waitForTimeout(30);
+    await tap(b.x, b.y);
+    await game.frames(2);
+    expect(await game.eval(() => __T.gSel)).toBe((g0 + 2) % (await game.eval(() => __T.save.owned.length)));
+    // on the road: the second tap of a double tap is held back from the browser, so it can't zoom
+    await game.driveOut();
+    await game.park();
+    await game.eval(() => {
+      window.__ends = [];
+      window.addEventListener("touchend", (e) => window.__ends.push(e.defaultPrevented));
+    });
+    await tap(512, 300);
+    // a quick double tap, well inside Safari's 0.3 s (a longer pause here sometimes ran past it on a busy machine)
+    await page.waitForTimeout(30);
+    await tap(512, 300);
+    expect(await game.eval(() => window.__ends)).toEqual([false, true]);
+    expect(await game.eval(() => window.visualViewport.scale)).toBe(1);
+    // if the page does end up zoomed in, a note says how to get back
+    const zoom = (s) =>
+      game.eval((s) => {
+        Object.defineProperty(visualViewport, "scale", { configurable: true, get: () => s });
+        visualViewport.dispatchEvent(new Event("resize"));
+        return !document.getElementById("zoomed").classList.contains("hide");
+      }, s);
+    expect(await zoom(2)).toBe(true);
+    expect(await zoom(1)).toBe(false);
+  });
+});
+
 test.describe("brake and reverse button", () => {
   test.use({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
 

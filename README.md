@@ -82,7 +82,7 @@ The tests run against the real `index.html`, read fresh on every run. For tests 
 - **Photo Mode**: where it opens, the world standing still, camera and looks, a real PNG capture, everything restored.
 - **Island Passport** and **Contracts**: every landmark and all 9 contracts, each paid once, failures and cancellations.
 - **Saves**: reloads, a save from the first release, corrupt and malformed saves, storage being refused.
-- **Phones**: touch controls, and layouts at six screen sizes (including 360 px tall phones held sideways), and turning the device, the race panel kept clear of the car and the road, and the BRAKE / REVERSE label.
+- **Phones**: touch controls, and layouts at six screen sizes (including 360 px tall phones held sideways), and turning the device, the race panel kept clear of the car and the road, the BRAKE / REVERSE label, and no zooming from a double tap or a pinch.
 - **Traffic**: cars keep their distance at junctions, in queues and where they appear, and none waits for good, even behind a parked car.
 - **Ghost**: a record run is saved and a slower one isn't, the replay follows the recorded path, is see-through, shows the gap and can't be hit, the switch, and damaged ghosts in a save.
 - **Championships**: which cups are open in which car, points, NEXT ROUND, the prize paid once, 22 points to win, quitting a round, class medal times (with the autopilot getting a medal in an A1 and an A7 car), the garage's cups won, and damaged saves.

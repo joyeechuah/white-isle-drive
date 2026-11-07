@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="description" content="Free-roam open-world driving game on a Mediterranean island, built with three.js. Runs in the browser, no install.">
 <meta name="theme-color" content="#07090c">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
@@ -36,7 +36,7 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box}
-html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:var(--f-body);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+html,body{touch-action:none;margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:var(--f-body);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
 #c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
 .hide{display:none!important}
 button{font-family:inherit;color:inherit}
@@ -156,6 +156,10 @@ body.touch #lhint{display:none}
 .card .row{display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid var(--line);font-size:13px}
 .card .row span{color:var(--mute)}
 .card .row b{font-family:var(--f-num);font-size:16px}
+/* phones and tablets: the page never zooms or pans (a double tap or a pinch used to zoom Safari in, with no way back
+   but pinching out); menus and lists that scroll still scroll */
+.card,#pzList,#jbList,#cpList,#mapSide{touch-action:pan-y}#dList{touch-action:pan-x pan-y}
+#zoomed{position:fixed;left:0;top:0;z-index:99;transform-origin:0 0;background:#e2483d;color:#fff;font-weight:700;font-size:13px;letter-spacing:.06em;padding:10px 14px;border-radius:0 0 8px 0;pointer-events:none}
 #iDiff{display:flex;gap:6px;margin-top:12px}#iDiff .mbtn{flex:1;margin:0}#iDiff .mbtn.on{background:#fff;color:#0b0c0e;border-color:#fff}
 .card .acts{margin-top:18px}
 .card .acts .btn{flex:1}
@@ -369,6 +373,7 @@ body.touch #phExit kbd{display:none}
   </div>
 </div>
 
+<div id="zoomed" class="hide" role="status">ZOOMED IN · pinch out with two fingers to get back</div>
 <div id="hud" class="hide">
   <div id="vig"></div><div id="mblur"></div><div id="edge"></div>
   <div id="tl">
@@ -2547,8 +2552,12 @@ function stepPlayer(dt){
   // throttle comes in over a fraction of a second instead of all at once
   P.thr=clamp((P.thr||0)+((gas&&!brake&&over<=0)?HD.thrUp:-8)*dt,0,1);if(gas&&P.thr>gA)P.thr=Math.max(gA,P.thr-8*dt);
   if(!P.air){const sl=(surfH(P.x+fx*2,P.z+fz*2)-surfH(P.x-fx*2,P.z-fz*2))/4;vF-=9.81*sl*.75*dt}
+  // the brake builds up while it's held: gentle at first (9 m/s²), full (22 m/s²) after 0.7 s, so a quick press
+  // slows the car instead of stopping it dead (it used to be 26 m/s² at once). Past the finish line it's full at once
+  P.brkT=brake&&vF>.5?(P.brkT||0)+dt:0;
+  const bF=ev&&ev.phase==="finish"?24:lerp(9,22,smooth(0,.7,P.brkT));
   if(gas&&!brake&&vF<-.5)vF+=22*dt;
-  else if(brake){if(vF>.5)vF-=26*bA*dt;else vF=Math.max(vF-5*bA*dt,-11)}
+  else if(brake){if(vF>.5)vF-=bF*bA*dt;else vF=Math.max(vF-5*bA*dt,-11)}
   else if(P.thr>0&&!P.air)vF+=power*P.thr*Math.max(0,1-(vF/vMax)**2)*dt;
   if(!gas&&!brake||over>0){const dec=(.7+.00042*vF*vF)*dt;vF=Math.abs(vF)<=dec?0:vF-Math.sign(vF)*dec}
   if(over>.6){vF-=Math.min(HD.csBrake,(over-.6)*3)*dt;P.aBrk=true}
@@ -4439,6 +4448,16 @@ $("rNext").onclick=()=>{if(state!=="RESULT"||!resNext)return;const n=resNext;res
 $("drive").onclick=goDrive;$("gprev").onclick=()=>gPick((gSel-1+save.owned.length)%save.owned.length);$("gnext").onclick=()=>gPick((gSel+1)%save.owned.length);
 
 /* ---------- input wiring ---------- */
+// Safari zooms on a pinch (its own gesture events) and on a double tap even where touch-action says not to, on some
+// versions: both are stopped here. A second tap on a button within 0.3 s still presses it
+document.addEventListener("gesturestart",e=>e.preventDefault());document.addEventListener("gesturechange",e=>e.preventDefault());
+let lastTapEnd=0;
+document.addEventListener("touchend",e=>{const now=performance.now();
+  if(e.cancelable&&now-lastTapEnd<300&&e.changedTouches.length===1&&!e.target.closest("#pzList,#jbList,#cpList,#dList")){e.preventDefault();const b=e.target.closest("button,a");if(b)b.click()}
+  lastTapEnd=now},{passive:false});
+// if the page is zoomed in anyway, a note says how to get back (it sits at the top left of what's on screen)
+if(window.visualViewport){const vv=visualViewport,z=$("zoomed"),fit=()=>{const on=vv.scale>1.05;show("zoomed",on);if(on)z.style.transform=`translate(${vv.offsetLeft}px,${vv.offsetTop}px) scale(${1/vv.scale})`};
+  vv.addEventListener("resize",fit);vv.addEventListener("scroll",fit)}
 addEventListener("blur",()=>{clearInput();if(state==="DRIVE"&&!window.__autostart)pauseOn()});
 document.addEventListener("visibilitychange",()=>{if(document.hidden){clearInput();if(state==="DRIVE")pauseOn()}});
 // a button reached with Tab belongs to the keyboard user: Enter presses it and does nothing else. Focus that
