@@ -104,6 +104,15 @@ test.describe("driving", () => {
   });
 
   test("after map travel the car is on the road at the destination, stopped", async ({ game }) => {
+    // no traffic: a car passing could nudge the stopped car off its spot, which says nothing about where travel put it
+    await game.eval(() => {
+      for (const t of __T.TRAFFIC) {
+        t.e = null;
+        t.c.G.visible = false;
+        t.wx = t.wz = 1e6;
+        t.lost = false;
+      }
+    });
     await game.eval(() => __T.openMap());
     await game.waitState("MAP");
     const E = await game.eval(() => {
