@@ -26,11 +26,13 @@ A free-roam driving game set on a Mediterranean island modelled loosely on Ibiza
 | Back on the road | `R` | |
 | Pause and settings | `Esc` or `P` | PAUSE |
 
+**Game controller:** left stick steers, right trigger is the gas and left trigger the brake (part-way works too), A is the handbrake, X the prompt (E), Y changes camera, View/Back opens the map, Start pauses and B goes back. In menus, A confirms and the D-pad moves.
+
 In the garage, `←` / `→` choose a car and `Enter` drives it. On the map, drag to pan, scroll or pinch to zoom, click a marker to set the GPS or travel there, or click a road to drop a waypoint.
 
 In photo mode, drag (or use the arrow keys) to move around the car and scroll, pinch or press `+` / `−` to move closer. The ZOOM and DISTANCE sliders do the same, `1` to `4` pick a look (AS IS, GOLDEN HOUR, NIGHT DRIVE, COASTAL SUNSET), `R` resets the camera, `Enter` takes the picture and `Esc` or `V` goes back to the game. The world stands still while it's open, and the looks change the light only in photo mode.
 
-The pause menu opens photo mode, the Island Passport and the Contracts board, and sets the time of day, driving assist (keeps the car stable and in its lane), auto gas (off by default, handy on phones), sound effects (SOUND FX), music and graphics quality (AUTO, SHARP or SMOOTH). The two sound switches are independent. The garage also has its own MUSIC button.
+The pause menu opens photo mode, the Island Passport and the Contracts board, and sets the time of day, driving assist (keeps the car stable and in its lane), auto gas (off by default, handy on phones), sound effects (SOUND FX), music, graphics quality (AUTO, SHARP or SMOOTH), the time trial ghost, steering sensitivity (STEERING: LOW, NORMAL or HIGH) and, on phones and tablets, TILT STEERING (off by default; the way you hold the phone when you switch it on or resume is straight ahead). The two sound switches are independent. The garage also has its own MUSIC button.
 
 ## Features
 
@@ -82,6 +84,7 @@ The tests run against the real `index.html`, read fresh on every run. For tests 
 - **Phones**: touch controls, and layouts at six screen sizes (including 360 px tall phones held sideways), and turning the device, the race panel kept clear of the car and the road, and the BRAKE / REVERSE label.
 - **Traffic**: cars keep their distance at junctions, in queues and where they appear, and none waits for good, even behind a parked car.
 - **Ghost**: a record run is saved and a slower one isn't, the replay follows the recorded path, is see-through, shows the gap and can't be hit, the switch, and damaged ghosts in a save.
+- **Controls**: steering sensitivity, a simulated game controller (triggers part-way and fully, stick, buttons) and simulated tilt steering on a phone.
 - **Camera**: the chase camera keeps the road ahead in view for small, large and low cars; the chosen camera is remembered.
 - **Rendering**: real WebGL drawing by day and night and at each graphics setting.
 - **Stability and performance**: no leftovers after many screen changes, long frame gaps, a hidden tab, memory over a long drive, and measurements of frame cost, GPU load, load time and memory.
