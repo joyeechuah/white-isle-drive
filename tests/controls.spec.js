@@ -142,6 +142,12 @@ test.describe("controls", () => {
     };
     await tap(9);
     await game.waitState("PAUSE");
+    // B closes a screen opened from the pause menu first, then the menu
+    await page.locator("#pJobs").click();
+    await expect(page.locator("#jobs")).toBeVisible();
+    await tap(1);
+    await expect(page.locator("#jobs")).toBeHidden();
+    expect(await game.state()).toBe("PAUSE");
     await tap(9);
     await game.waitState("DRIVE");
     await tap(8);

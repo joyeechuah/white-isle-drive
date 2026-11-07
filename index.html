@@ -2372,6 +2372,8 @@ let locked=false,autoHold=false;
 // a game controller (the first one connected, standard layout): left stick steers, right trigger is the gas, left
 // trigger the brake, A the handbrake; Start pauses, View/Back opens the map, Y changes camera, X is the prompt key
 const GP={on:false,steer:0,gas:0,brake:0,hb:false,prev:[]};
+// screens opened from the pause menu, and how each closes
+const PAUSE_SUBS=[["passport",()=>passportClose()],["jobs",()=>jobsClose()]];
 function pollPad(){
   let g=null;try{const l=navigator.getGamepads?navigator.getGamepads():[];for(const x of l)if(x&&x.connected){g=x;break}}catch(e){}
   if(!g){GP.on=false;GP.steer=GP.gas=GP.brake=0;GP.hb=false;return}
@@ -2380,7 +2382,9 @@ function pollPad(){
   // buttons pressed since the last frame
   const now=g.buttons.map(q=>!!(q&&q.pressed)),was=GP.prev,hit=i=>now[i]&&!was[i];GP.prev=now;
   if(state==="DRIVE"){if(hit(9))pauseOn();else if(hit(8))openMap();else if(hit(3))cycleCam();else if(hit(2)&&promptAct)promptAct()}
-  else if(state==="PAUSE"){if(hit(9)||hit(1))pauseOff()}
+  // in the pause menu, B or Start closes a screen opened from it (passport, contracts) before the menu itself
+  else if(state==="PAUSE"){if(hit(9)||hit(1)){const sub=PAUSE_SUBS.find(([id])=>!$(id).classList.contains("hide"));if(sub)sub[1]();else pauseOff()}}
+  else if(state==="LOAD"){if(hit(0)&&!$("lstart").classList.contains("hide"))$("lstart").click()}
   else if(state==="MAP"){if(hit(8)||hit(1))closeMap()}
   else if(state==="PHOTO"){if(hit(1))photoExit()}
   else if(state==="GARAGE"){if(hit(0))goDrive();else if(hit(14))$("gprev").onclick();else if(hit(15))$("gnext").onclick()}
