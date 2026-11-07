@@ -155,4 +155,68 @@ test.describe("driving", () => {
     const b = await game.eval(() => [__T.P.x, __T.P.z]);
     expect(Math.hypot(b[0] - a[0], b[1] - a[1])).toBeGreaterThan(1);
   });
+
+  test("with driving assist, a short steering press at 100 km/h ends in the middle of a lane, never on the divider", async ({ game }) => {
+    const r = await game.eval(() => {
+      const T = __T,
+        P = T.P,
+        out = [];
+      for (const t of T.TRAFFIC) {
+        t.e = null;
+        t.c.G.visible = false;
+        t.wx = 1e6;
+        t.wz = 1e6;
+      }
+      // the straightest long stretch of two-way road with a lane each way
+      let road = null,
+        best = 9;
+      for (const e of T.EDGES) {
+        if (e.type === "drive" || e.type === "highway" || e.len < 320) continue;
+        const a = T.edgePos(e, 10),
+          b = T.edgePos(e, 300),
+          t = Math.abs(Math.atan2(a.dx * b.dz - a.dz * b.dx, a.dx * b.dx + a.dz * b.dz));
+        if (t < best) {
+          best = t;
+          road = e;
+        }
+      }
+      const across = () => {
+        const nr = T.nearestRoad(P.x, P.z, 20);
+        return nr.side * (Math.sin(P.h) * nr.dx + Math.cos(P.h) * nr.dz >= 0 ? 1 : -1);
+      };
+      T.save.assist = true;
+      T.attachCar("gtr");
+      // presses of 0.1 s to 0.4 s towards the divider, from the middle of the right-hand lane
+      for (const n of [6, 12, 18, 24]) {
+        const q = T.edgePos(road, 5);
+        P.x = q.x - q.dz * 1.9;
+        P.z = q.z + q.dx * 1.9;
+        P.h = Math.atan2(q.dx, q.dz);
+        P.vx = P.vz = 0;
+        P.r = P.steer = P.steerS = P.thr = 0;
+        P.laneT = null;
+        for (let i = 0; i < 900 && Math.hypot(P.vx, P.vz) * 3.6 < 100; i++) {
+          T.keys.w = true;
+          T.driveUpdate(1 / 60);
+        }
+        const start = across(),
+          key = start > 0 ? "a" : "d";
+        for (let i = 0; i < 240; i++) {
+          T.keys.w = Math.hypot(P.vx, P.vz) * 3.6 < 100;
+          T.keys[key] = i < n;
+          T.driveUpdate(1 / 60);
+        }
+        T.keys.w = T.keys.a = T.keys.d = false;
+        out.push({ ms: Math.round((n * 1000) / 60), start: +start.toFixed(2), end: +across().toFixed(2) });
+      }
+      return out;
+    });
+    test.info().annotations.push({ type: "lane after a press (0 = the divider)", description: JSON.stringify(r) });
+    for (const x of r) {
+      // lane centres on these roads are 1.8 to 1.9 m either side of the centre line; the car settles near one,
+      // a little to the outside on a bend, and never on the divider (before this fix a 0.3 s press left it 0.4 m off)
+      expect(Math.abs(x.end), `${x.ms} ms press: metres from the divider at the end`).toBeGreaterThan(1.2);
+      expect(Math.abs(x.end), `${x.ms} ms press: metres from the divider at the end`).toBeLessThan(3);
+    }
+  });
 });
