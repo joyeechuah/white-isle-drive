@@ -2924,16 +2924,20 @@ function updateEvent(dt){
       // and never closer than a car length to a rival ahead that is still level with it across the road; behind a
       // traffic car that has only just come onto the route that close, it brakes hard instead of jumping back
       for(const b of obs){const g=b.s-a.s;if(b!==a&&g>=0&&g<5&&Math.abs(b.lat-a.lat)<1.8){if(b.tc)a.v=Math.min(a.v,b.v*.7);else{a.s=b.s-5;a.v=Math.min(a.v,b.v)}}}
-      // a traffic car that still ends up inside a rival (it came onto the route right there) is taken off the road and
-      // put back somewhere out of sight, rather than the two staying inside each other
-      for(const b of obs){if(!b.tc||!b.tc.e)continue;if(Math.abs(b.s-a.s)<4.6&&Math.abs(b.lat-a.lat)<1.8){b.tc.ovT=(b.tc.ovT||0)+dt;
-        if(b.tc.ovT>.3){const t=b.tc;t.ovT=0;t.e=null;t.c.G.visible=false;t.wx=t.wz=1e6;t.lost=!spawnTraffic(t,220,560,true)}}else b.tc.ovT=0}
+      // note any traffic car this rival is inside (dealt with below, once every rival has been seen)
+      for(const b of obs)if(b.tc&&Math.abs(b.s-a.s)<4.6&&Math.abs(b.lat-a.lat)<1.8)b.tc.ovHit=true;
     }
     const q=edgePos(R,Math.min(a.s,R.len)),over=Math.max(0,a.s-R.len);a.x=q.x-q.dz*a.lat+q.dx*over;a.z=q.z+q.dx*a.lat+q.dz*over;a.yaw=Math.atan2(q.dx,q.dz);
     // on all four wheels on hills and crests (they used to sit level, nose in the road and tail in the air)
     seatCar(a,a.m.G,a.x,a.z,a.yaw,a.m.wb||1.45,a.m.tr||.92,dt,0);
     for(const w of a.m.wheels)w.rotation.x+=a.v*dt/.36;
   }
+  // a traffic car that stays inside any rival for 0.3 s (it came onto the route right there) is taken off the road and
+  // put back somewhere out of sight, rather than the two staying inside each other. The time counts while it is inside
+  // one rival or another (it used to start again whenever a rival it wasn't touching was looked at, so with three
+  // rivals it could stay inside one for a second or more)
+  for(const b of obs){const t=b.tc;if(!t||!t.e)continue;t.ovT=t.ovHit?(t.ovT||0)+dt:0;t.ovHit=false;
+    if(t.ovT>.3){t.ovT=0;t.e=null;t.c.G.visible=false;t.wx=t.wz=1e6;t.lost=!spawnTraffic(t,220,560,true)}}
   // checkpoints
   const cps=E.cps;
   if(ev.phase==="run"&&ev.cp<cps.length&&ev.px!==null&&crossedGate(ev.gate,ev.px,ev.pz,P.x,P.z)){

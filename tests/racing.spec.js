@@ -530,6 +530,42 @@ test.describe("races and time trials", () => {
     expect([r.gone, r.waiting]).toEqual([true, true]);
   });
 
+  test("a traffic car inside one of three rivals is taken off the road within half a second", async ({ game }) => {
+    await ready(game);
+    const r = await game.eval(() => {
+      const T = __T;
+      T.startEvent(T.EVENTS[3]);
+      for (let i = 0; i < 200; i++) T.driveUpdate(1 / 60);
+      const R = T.ev.R,
+        ai = T.ev.ai;
+      // the rivals spread out along the route, and a traffic car placed right inside the last one, going its way
+      ai.forEach((a, k) => {
+        a.s = 300 + k * 60;
+        a.v = 0;
+      });
+      for (let i = 0; i < 2; i++) T.driveUpdate(1 / 60);
+      const a = ai[2],
+        q = T.edgePos(R, a.s),
+        nr = T.nearestRoad(a.x, a.z, 4),
+        t = T.TRAFFIC[0];
+      t.e = nr.e;
+      t.s = nr.s;
+      t.dir = q.dx * nr.dx + q.dz * nr.dz > 0 ? 1 : -1;
+      // at the rival's own place across the road
+      t.off = t.offCur = a.lat;
+      t.v = t.base = 0;
+      t.lost = false;
+      let n = 0;
+      for (; n < 120 && t.e === nr.e; n++) {
+        for (const b of ai) b.v = 0;
+        T.driveUpdate(1 / 60);
+      }
+      return { seconds: n / 60, gone: t.e !== nr.e };
+    });
+    expect(r.gone).toBe(true);
+    expect(r.seconds).toBeLessThan(0.5);
+  });
+
   test("no traffic comes the other way along a race or time trial route", async ({ game }) => {
     test.setTimeout(400_000);
     await ready(game);
