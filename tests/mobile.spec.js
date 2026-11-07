@@ -105,7 +105,8 @@ test.describe("no zooming on phones and tablets", () => {
       return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
     });
     await tap(b.x, b.y);
-    await page.waitForTimeout(120);
+    // a quick double tap, well inside Safari's 0.3 s (a longer pause here sometimes ran past it on a busy machine)
+    await page.waitForTimeout(30);
     await tap(b.x, b.y);
     await game.frames(2);
     expect(await game.eval(() => __T.gSel)).toBe((g0 + 2) % (await game.eval(() => __T.save.owned.length)));
@@ -117,7 +118,8 @@ test.describe("no zooming on phones and tablets", () => {
       window.addEventListener("touchend", (e) => window.__ends.push(e.defaultPrevented));
     });
     await tap(512, 300);
-    await page.waitForTimeout(120);
+    // a quick double tap, well inside Safari's 0.3 s (a longer pause here sometimes ran past it on a busy machine)
+    await page.waitForTimeout(30);
     await tap(512, 300);
     expect(await game.eval(() => window.__ends)).toEqual([false, true]);
     expect(await game.eval(() => window.visualViewport.scale)).toBe(1);
