@@ -23,6 +23,35 @@ test.describe("driving", () => {
     expect(back.fwd, "km/h after holding the brake at a standstill").toBeLessThan(-3);
   });
 
+  test("the brake builds up: a quick press slows the car a little, holding it stops it", async ({ game }) => {
+    const run = (n) =>
+      game.eval((n) => {
+        const T = __T,
+          P = T.P;
+        T.resetToRoad(false);
+        const f = { x: Math.sin(P.h), z: Math.cos(P.h) };
+        P.vx = f.x * 27.8;
+        P.vz = f.z * 27.8;
+        T.keys.s = true;
+        let i = 0;
+        for (; i < n && P.vx * f.x + P.vz * f.z > 0.5; i++) T.driveUpdate(1 / 60);
+        T.keys.s = false;
+        return { kph: (P.vx * f.x + P.vz * f.z) * 3.6, s: i / 60 };
+      }, n);
+    await game.park();
+    const tap = await run(12);
+    await game.park();
+    const hold = await run(600);
+    test.info().annotations.push({ type: "braking from 100 km/h", description: JSON.stringify({ tap, hold }) });
+    // a 0.2 s press: about 6 km/h off (it took 19 km/h off when the brake bit fully at once)
+    expect(100 - tap.kph, "km/h lost to a 0.2 s press").toBeLessThan(9);
+    expect(100 - tap.kph).toBeGreaterThan(3);
+    // held: stopped in under 2 s, but not in a second as before
+    expect(hold.kph, "km/h left (stopped is under 2)").toBeLessThan(2);
+    expect(hold.s).toBeLessThan(2);
+    expect(hold.s).toBeGreaterThan(1.3);
+  });
+
   test("steering left and right turn the car opposite ways, and only when it moves", async ({ game }) => {
     const still = await game.steps(60, { a: true });
     const h0 = await game.eval(() => __T.P.h);

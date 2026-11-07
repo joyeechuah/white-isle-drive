@@ -132,7 +132,8 @@ test.describe("controls", () => {
       __press(6, 0);
       return Math.hypot(P.vx, P.vz) * 3.6;
     });
-    expect(braked, "km/h after 0.5 s of full brake from 72").toBeLessThan(40);
+    // (the brake builds up over 0.7 s, so half a second takes off about 22 km/h)
+    expect(braked, "km/h after 0.5 s of full brake from 72").toBeLessThan(55);
     // Start pauses and resumes; View opens and closes the map; Y changes camera (real frames read the pad)
     const tap = async (i) => {
       await game.eval((i) => __press(i, 1), i);
