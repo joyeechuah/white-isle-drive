@@ -431,6 +431,7 @@ body.touch #phExit kbd{display:none}
   <button class="mbtn" id="pGhost">GHOST CAR: ON</button>
   <button class="mbtn" id="pSteer">STEERING: NORMAL</button>
   <button class="mbtn hide" id="pTilt">TILT STEERING: OFF</button>
+  <button class="mbtn" id="pSide">DRIVE ON: LEFT</button>
   <a class="mbtn" id="pFb" href="https://forms.gle/bPk18BbmhaGLNJtD9" target="_blank" rel="noopener">SEND FEEDBACK &#8599;</a>
 </div></div>
 
@@ -593,7 +594,7 @@ const GARAGE_CAP=12;
 
 /* ================================================================ SAVE */
 const SAVE_KEY="white-isle-drive-v1";
-const save={v:2,cr:120000,xp:0,owned:STARTERS.slice(),cur:"golf",paint:{},rec:{},radar:{},auto:false,assist:true,sound:true,music:true,gfx:0,cam:0,todMode:0,tod:16.6,found:{},passBonus:false,jobs:{},jobActive:null,diff:1,ghost:{},ghostOn:true,steer:1,tilt:false,champ:{}};
+const save={v:2,cr:120000,xp:0,owned:STARTERS.slice(),cur:"golf",paint:{},rec:{},radar:{},auto:false,assist:true,sound:true,music:true,gfx:0,cam:0,todMode:0,tod:16.6,found:{},passBonus:false,jobs:{},jobActive:null,diff:1,ghost:{},ghostOn:true,steer:1,tilt:false,champ:{},side:"L"};
 let loadedV=0;
 try{
   const s=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
@@ -629,6 +630,8 @@ try{
   if(typeof save.ghostOn!=="boolean")save.ghostOn=true;
   // steering sensitivity (0 LOW, 1 NORMAL, 2 HIGH) and tilt-to-steer on phones (off unless switched on)
   save.steer=Math.round(num(save.steer,1,0,2));if(typeof save.tilt!=="boolean")save.tilt=false;
+  // which side of the road traffic keeps to: L (the default, as in Malaysia or the UK) or R (as in Spain)
+  save.side=save.side==="R"?"R":"L";
   // class championships, by class: rounds driven (0 to 3), the points from each, and whether the cup was ever won
   {const c=save.champ&&typeof save.champ==="object"&&!Array.isArray(save.champ)?save.champ:{},o={};
    for(const k of ["A1","A2","A3","A4","A5","A6","A7"]){const v=c[k];if(!v||typeof v!=="object")continue;
@@ -902,6 +905,8 @@ const RT={
   town:{half:5.2,lanes:[1.9],spd:10.5,prio:1},
   drive:{half:3.4,lanes:[1.4],spd:6,prio:0}
 };
+// lane offsets in RT are for driving on the right; SIDE() turns them to the side the player chose (-1 = left)
+const SIDE=()=>save.side==="R"?1:-1;
 const YO=.16,WALK_W=2.8;            // road surface above its bed; town pavement width beyond the kerb
 const ROADS=[],NODES=[],EDGES=[];
 const ringPt=a=>{const R=coastR(Math.cos(a),Math.sin(a))*.8;return[Math.cos(a)*R,Math.sin(a)*R]};
@@ -2672,7 +2677,7 @@ function initTraffic(){
   for(let i=0;i<n;i++){const c=buildTrafficCar(TCOLS[i%TCOLS.length],i%3===0?"hatch":"sedan");scene.add(c.G);TRAFFIC.push({c,e:null,dir:1,s:0,lane:0,off:0,offCur:0,base:0,v:0,stopT:0,hitT:0,waitT:0,passT:0,pa:null,wx:1e6,wz:1e6,yaw:0})}
 }
 function pickEdge(){const r=Math.random()*TEDGE_CUM[TEDGE_CUM.length-1];let i=0;while(TEDGE_CUM[i]<r)i++;return TEDGES[i]}
-function setLane(t){const ln=RT[t.e.type].lanes;t.lane=Math.min(t.lane,ln.length-1);t.off=ln[t.lane];t.offCur=t.off;t.passT=0;t.waitT=0;t.base=RT[t.e.type].spd*(.85+Math.random()*.3)}
+function setLane(t){const ln=RT[t.e.type].lanes;t.lane=Math.min(t.lane,ln.length-1);t.off=ln[t.lane]*SIDE();t.offCur=t.off;t.passT=0;t.waitT=0;t.base=RT[t.e.type].spd*(.85+Math.random()*.3)}
 // during a race or time trial, traffic on the route only drives the same way as the race: a car coming the other
 // way blocks overtaking. evDirs maps each road the route uses to the race's direction along it (0 = both ways)
 let evDirs=null;
@@ -2757,7 +2762,7 @@ function updateTraffic(dt){
       // counts from wherever it stopped: a car that pulled up more than 16 m back used to wait for good
       if(pv<1.5){t.waitT+=dt;if(t.waitT>2){t.waitT=0;t.passT=4.5}}}
     else t.waitT=Math.max(0,t.waitT-dt);
-    const ln=RT[t.e.type].lanes,offT=t.passT>0?(ln.length>1&&t.lane===0?ln[1]:-ln[0]):t.off;
+    const ln=RT[t.e.type].lanes,offT=t.passT>0?(ln.length>1&&t.lane===0?ln[1]:-ln[0])*SIDE():t.off;
     t.offCur+=clamp(offT-t.offCur,-2.2*dt,2.2*dt);
     t.v+=clamp(target-t.v,-(close?20:9)*dt,3*dt);
     t.s+=t.v*dt*t.dir;
@@ -2797,7 +2802,7 @@ function updateStreak(dt){
   const nr=P.nr;
   if(nr&&P.onRoad&&nr.e.type!=="drive"&&kph>70){
     const f=fwdOf(P.h),al=f.x*nr.dx+f.z*nr.dz;
-    if((al>.3&&nr.side<-.8)||(al<-.3&&nr.side>.8))streakAction("ONCOMING",kph*.55*dt,false);
+    const sd=nr.side*SIDE();if((al>.3&&sd<-.8)||(al<-.3&&sd>.8))streakAction("ONCOMING",kph*.55*dt,false);
   }
   const vF=speedF(),vS=P.vx*-Math.cos(P.h)+P.vz*Math.sin(P.h),ang=Math.abs(Math.atan2(vS,Math.abs(vF)))*57.3;
   if(ang>12&&kph>40&&!P.air)streakAction("DRIFT",ang*4*dt,false);
@@ -2926,10 +2931,12 @@ function startEvent(E,cup){
   const R=E.route,me=curCar(),idx=CARS.indexOf(me);
   ev={E,R,t:-3,phase:"count",cp:0,hint:0,s:14,sNow:14,d:99,ai:[],done:false,wrongT:0,last:4,px:null,pz:null,gate:gateOf(R,E.cps[0]),reT:0,missT:0,diff:E.type==="race"?save.diff:1,obs:[],cup:cup||null,tg:cup&&E.type==="tt"?cupTimes(E,cup.cls):E,rec:E.type==="tt"?[]:null,ghost:E.type==="tt"&&save.ghost[E.id]?save.ghost[E.id]:null};
   const p=edgePos(R,14);
-  P.x=p.x-p.dz*-1.7;P.z=p.z+p.dx*-1.7;P.h=Math.atan2(p.dx,p.dz);P.vx=P.vz=0;P.r=0;P.steer=0;P.steerS=0;P.ty=surfH(P.x,P.z);P.y=P.ty;P.air=false;
+  // the grid: you on the outer side of the road, rivals beside and behind (mirrored when driving on the left)
+  const S=SIDE(),L1=1.9*S,L2=-1.7*S;
+  P.x=p.x-p.dz*L2;P.z=p.z+p.dx*L2;P.h=Math.atan2(p.dx,p.dz);P.vx=P.vz=0;P.r=0;P.steer=0;P.steerS=0;P.ty=surfH(P.x,P.z);P.y=P.ty;P.air=false;
   if(E.type==="race"){
     // second row far enough back that the chase camera is not inside the car behind you
-    const grid=[[14,1.9],[3,-1.7],[3,1.9]],used=new Set();AIM.forEach(m=>m&&(m.G.visible=false));
+    const grid=[[14,L1],[3,L2],[3,L1]],used=new Set();ev.lanes=[L1,L2];AIM.forEach(m=>m&&(m.G.visible=false));
     // in a championship the rivals drive cars of the cup's class
     const pool=cup?CARS.filter(c=>c.cls===cup.cls&&c.id!==me.id):[];
     for(let i=0;i<3;i++){
@@ -2986,7 +2993,7 @@ function updateEvent(dt){
       // used to drive through each other)
       let ahead=null,ag=1e9;
       for(const b of obs){const g=b.s-a.s;if(b!==a&&g>0&&g<(b.tc?30:16)&&Math.abs(b.lat-a.lat)<2.2&&g<ag){ag=g;ahead=b}}
-      if(ahead){const other=a.lane>0?-1.7:1.9;
+      if(ahead){const other=Math.abs(a.lane-ev.lanes[0])<.1?ev.lanes[1]:ev.lanes[0];
         if(ahead.v<a.v+1&&obs.every(b=>b===a||Math.abs(b.lat-other)>2.2||b.s-a.s<-7||b.s-a.s>(b.tc?25:12)))a.lane=other;
         if(ag<(ahead.tc?22:10))vt=Math.min(vt,Math.max(0,ahead.v-(ag<6.5?1.5:0))+(ahead.tc?Math.max(0,ag-8)*.6:0))}
       a.v+=clamp(vt-a.v,-11*dt,a.acc*pace*Math.max(.15,1-(a.v/a.vmax)**2)*dt);
@@ -4124,7 +4131,7 @@ function updateLampLights(){
     l.position.set(L.x,L.y-.4,L.z);l.intensity=night*1.9*(1-smooth(9,21,Math.sqrt(d2)))});
 }
 function placeOnRoad(nr,dirSign){
-  const ux=nr.dx*dirSign,uz=nr.dz*dirSign,off=RT[nr.e.type].lanes[0];
+  const ux=nr.dx*dirSign,uz=nr.dz*dirSign,off=RT[nr.e.type].lanes[0]*SIDE();
   P.x=nr.x-uz*off;P.z=nr.z+ux*off;P.h=Math.atan2(ux,uz);P.vx=P.vz=P.vy=0;P.r=0;P.steer=0;P.steerS=0;P.air=false;
   P.ty=surfH(P.x,P.z);P.y=P.ty;P.pitch=0;P.roll=0;streakReset();autoHold=true;
 }
@@ -4414,7 +4421,7 @@ function pauseOn(){if(state!=="DRIVE")return;setState("PAUSE");clearInput();audi
   syncPause();$("pFb").classList.toggle("wide",[...document.querySelectorAll("#pause .mbtn")].filter(b=>b.id!=="pRes"&&!b.classList.contains("hide")).length%2===1);show("pause",true)}
 function pauseOff(){show("pause",false);if(state==="PAUSE"){setState("DRIVE");audioOn(true);TILT.zero=TILT.phi}}
 const TODS=[["AUTO",null],["MORNING",8.5],["NOON",13],["SUNSET",17.75],["NIGHT",22.5]];
-function syncPause(){$("pAssist").textContent="DRIVING ASSIST: "+(save.assist?"ON":"OFF");$("pTime").textContent="TIME OF DAY: "+TODS[save.todMode][0];$("pAuto").textContent="AUTO GAS: "+(save.auto?"ON":"OFF");$("pSnd").textContent="SOUND FX: "+(save.sound?"ON":"OFF");$("pMus").textContent=$("gMus").textContent="MUSIC: "+(save.music?"ON":"OFF");$("pGfx").textContent="GRAPHICS: "+["AUTO","SHARP","SMOOTH"][save.gfx];$("pGhost").textContent="GHOST CAR: "+(save.ghostOn?"ON":"OFF");$("pSteer").textContent="STEERING: "+["LOW","NORMAL","HIGH"][save.steer];$("pTilt").textContent="TILT STEERING: "+(save.tilt?"ON":"OFF");show("pTilt",isTouch)}
+function syncPause(){$("pAssist").textContent="DRIVING ASSIST: "+(save.assist?"ON":"OFF");$("pTime").textContent="TIME OF DAY: "+TODS[save.todMode][0];$("pAuto").textContent="AUTO GAS: "+(save.auto?"ON":"OFF");$("pSnd").textContent="SOUND FX: "+(save.sound?"ON":"OFF");$("pMus").textContent=$("gMus").textContent="MUSIC: "+(save.music?"ON":"OFF");$("pGfx").textContent="GRAPHICS: "+["AUTO","SHARP","SMOOTH"][save.gfx];$("pGhost").textContent="GHOST CAR: "+(save.ghostOn?"ON":"OFF");$("pSteer").textContent="STEERING: "+["LOW","NORMAL","HIGH"][save.steer];$("pTilt").textContent="TILT STEERING: "+(save.tilt?"ON":"OFF");show("pTilt",isTouch);$("pSide").textContent="DRIVE ON: "+(save.side==="R"?"RIGHT":"LEFT")}
 $("pRes").onclick=pauseOff;
 $("pMap").onclick=()=>{show("pause",false);setState("DRIVE");openMap()};
 $("pQuit").onclick=()=>{if(testDrive){endTestDrive();return}if(ev&&ev.fin){pauseOff();showResult();return}endEvent();pauseOff();toast("EVENT CANCELLED","Back to free ride")};
@@ -4426,6 +4433,9 @@ function applyGfx(){gfxLimits();const p=clamp(save.gfx===0?Math.max(prNow,PR_MIN
   if(p!==prNow){prNow=p;renderer.setPixelRatio(p);renderer.setSize(W,H,false)}}
 $("pGfx").onclick=()=>{save.gfx=(save.gfx+1)%3;applyGfx();syncPause();persist();toast("GRAPHICS: "+GFX[save.gfx],["Sharp, eases off a little if frames slow down","Always full sharpness","Lighter on weak phones and battery"][save.gfx])};
 $("pAssist").onclick=()=>{save.assist=!save.assist;syncPause();persist()};
+// which side traffic keeps to; the cars on the road move over to it straight away
+$("pSide").onclick=()=>{save.side=save.side==="R"?"L":"R";for(const t of TRAFFIC)if(t.e){const ln=RT[t.e.type].lanes;t.off=ln[Math.min(t.lane,ln.length-1)]*SIDE();t.offCur=t.off;t.passT=0}
+  syncPause();persist();toast("DRIVE ON THE "+(save.side==="R"?"RIGHT":"LEFT"),"Traffic keeps to the "+(save.side==="R"?"right":"left")+(ev?" · the race's grid changes from the next start":""))};
 $("pSteer").onclick=()=>{save.steer=(save.steer+1)%3;syncPause();persist()};
 // iPhones only send tilt after the player allows it, which must be asked from a tap
 $("pTilt").onclick=()=>{
