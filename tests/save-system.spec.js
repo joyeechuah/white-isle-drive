@@ -87,6 +87,7 @@ test.describe("save system", () => {
       sound: null,
       music: "off",
       gfx: 7.6,
+      cam: 7.4,
       todMode: 99,
       tod: 1e9,
       found: { a: 1, b: 0, c: "1", d: true },
@@ -111,6 +112,7 @@ test.describe("save system", () => {
     expect(s.gfx).toBeGreaterThanOrEqual(0);
     expect(s.gfx).toBeLessThanOrEqual(2);
     expect(s.todMode).toBe(4);
+    expect(s.cam).toBe(3);
     expect(s.tod).toBeLessThan(24);
     expect(s.found).toEqual({ a: 1, d: 1 });
     expect(s.jobs).toEqual({ parcel: 0, courier: 3, tour: 0, failed: 0, abandoned: 0, earned: 0, runs: { a: 1 } });
