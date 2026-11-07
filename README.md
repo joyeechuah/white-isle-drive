@@ -16,12 +16,12 @@ A free-roam driving game set on a Mediterranean island modelled loosely on Ibiza
 
 | Action | Keyboard | Touch |
 | --- | --- | --- |
-| Accelerate / brake and reverse | `W` / `S` or `↑` / `↓` | GAS / BRAKE pads |
+| Accelerate / brake and reverse | `W` / `S` or `↑` / `↓` | GAS / BRAKE pads (BRAKE reads REVERSE when you're stopped) |
 | Steer | `A` / `D` or `←` / `→` | ◀ / ▶ pads |
 | Handbrake | `Space` | HAND BRAKE pad |
 | Interact (dealer, events, house) | `E` or `Enter` | Tap the prompt |
 | Map and GPS | `M` | MAP |
-| Change camera | `C` | CAM |
+| Change camera (remembered next visit) | `C` | CAM |
 | Photo mode | `V` | PHOTO |
 | Back on the road | `R` | |
 | Pause and settings | `Esc` or `P` | PAUSE |
@@ -37,7 +37,7 @@ The pause menu opens photo mode, the Island Passport and the Contracts board, an
 - A compact island with the old town of Eivissa, Sant Antoni, hill villages, villas, a coastal highway, offshore islets and passing boats, all generated in code at load time
 - A day and night cycle in which the sky, clouds and sea change with the hour, and moonlit nights lit by street lamps and your headlights
 - 24 cars from hatchbacks to hypercars across classes A1 to A7, with paint colours, a 12-car garage and a dealership where you can buy, sell and take a 90-second test drive
-- 6 events (time trials and races against AI drivers) with medals and personal bests
+- 6 events (time trials and races against AI drivers) with medals and personal bests; traffic on the route only drives your way, so you can overtake
 - Photo mode: a free camera around your car, a zoom control, three looks (Golden Hour, Night Drive, Coastal Sunset) and a PNG of the scene without the game's on-screen display
 - An Island Passport of 18 landmarks to find by driving to them, from the highest road to the far capes and the villages, each paying credits once, with a bonus for finding them all
 - Contracts: parcel deliveries, timed courier runs and scenic tours between the towns, with the GPS guiding you and a reward on completion
@@ -72,12 +72,13 @@ The tests run against the real `index.html`, read fresh on every run. For tests 
 - **Smoke**: the untouched page loads, START, the garage, driving, pause and home; site files and the 404 page.
 - **Driving**: throttle, brakes, reverse, steering, handbrake, the sea reset, R to reset, map travel, keys held while menus are open.
 - **Garage and dealership**: buying (charged once), not enough credits, the 12-car limit, selling, test drives, paint.
-- **Races and time trials**: rewards paid once, checkpoints in order, the finish line, quitting and restarting.
+- **Races and time trials**: rewards paid once, checkpoints in order, the finish line, quitting and restarting, and no oncoming traffic on any event route.
 - **Map and GPS**: waypoints and routes, mouse and touch zoom and pan, turning a phone, travelling from a marker.
 - **Photo Mode**: where it opens, the world standing still, camera and looks, a real PNG capture, everything restored.
 - **Island Passport** and **Contracts**: every landmark and all 9 contracts, each paid once, failures and cancellations.
 - **Saves**: reloads, a save from the first release, corrupt and malformed saves, storage being refused.
-- **Phones**: touch controls, and layouts at six screen sizes (including 360 px tall phones held sideways), and turning the device.
+- **Phones**: touch controls, and layouts at six screen sizes (including 360 px tall phones held sideways), and turning the device, the race panel kept clear of the car and the road, and the BRAKE / REVERSE label.
+- **Camera**: the chase camera keeps the road ahead in view for small, large and low cars; the chosen camera is remembered.
 - **Rendering**: real WebGL drawing by day and night and at each graphics setting.
 - **Stability and performance**: no leftovers after many screen changes, long frame gaps, a hidden tab, memory over a long drive, and measurements of frame cost, GPU load, load time and memory.
 
