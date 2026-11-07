@@ -2711,18 +2711,24 @@ function clearOncoming(){
     t.e=null;t.c.G.visible=false;t.wx=t.wz=1e6;
     t.lost=!spawnTraffic(t,220,560,true)}
 }
-function junction(t,node,over){
+// the roads a car could take at a junction (not back the way it came, nor against a race), and which of them are
+// free to turn into now: none whose first few metres hold a car going the same way, none where a race rival is about
+// to pass where it would join
+function exitsAt(t,node){
   const opts=node.adj.filter(a=>a.e!==t.e&&a.e.type!=="drive"&&!oncoming(a.e,a.end==="a"?1:-1));
+  const free=opts.filter(a=>{const d2=a.end==="a"?1:-1,s0=d2>0?0:a.e.len;if(TRAFFIC.some(o=>o!==t&&o.e===a.e&&o.dir===d2&&(o.s-s0)*d2<9))return false;
+    if(ev&&ev.ai.length){const q=edgePos(a.e,s0);if(ev.ai.some(r=>Math.hypot(r.x-q.x,r.z-q.z)<16))return false}
+    return true});
+  return{opts,free};
+}
+function junction(t,node,over){
+  const{opts,free}=exitsAt(t,node);
   if(!opts.length){
     // a dead end: turn round, unless that would mean driving against a race, then reappear elsewhere
     if(oncoming(t.e,-t.dir)){t.e=null;t.c.G.visible=false;t.wx=t.wz=1e6;t.lost=!spawnTraffic(t,220,560,true);return}
     t.dir*=-1;t.s=t.dir>0?Math.min(over,t.e.len):Math.max(0,t.e.len-over);return}
-  // give way: a road whose first few metres already hold a car going the same way can't be turned into yet (cars
-  // used to merge into each other here); with every way out taken, the car waits at the end of its road
-  const free=opts.filter(a=>{const d2=a.end==="a"?1:-1,s0=d2>0?0:a.e.len;if(TRAFFIC.some(o=>o!==t&&o.e===a.e&&o.dir===d2&&(o.s-s0)*d2<9))return false;
-    // nor pull out in front of a race rival close to where it would join
-    if(ev&&ev.ai.length){const q=edgePos(a.e,s0);if(ev.ai.some(r=>Math.hypot(r.x-q.x,r.z-q.z)<16))return false}
-    return true});
+  // give way: a road that isn't free can't be turned into yet (cars used to merge into each other here). A car
+  // normally waits at the stop line when no way out is free (updateTraffic); one that got here anyway stops at the end
   if(!free.length){t.s=t.dir>0?t.e.len-.01:.01;t.v=0;return}
   const a=free[Math.floor(Math.random()*free.length)];
   t.e=a.e;if(a.end==="a"){t.dir=1;t.s=Math.min(over,t.e.len)}else{t.dir=-1;t.s=Math.max(0,t.e.len-over)}
@@ -2741,18 +2747,24 @@ function updateTraffic(dt){
     // junction on the next, stop a car length short of it, and brake harder when that close (cars on the next road used to be missed,
     // and the one behind drove into them)
     let close=false;
-    for(const o of TRAFFIC){if(o===t||!o.e)continue;const ox=o.wx-t.wx,oz=o.wz-t.wz;if(Math.abs(ox)>20||Math.abs(oz)>20)continue;
-      const gap=ox*tx+oz*tz;if(gap<=0||gap>=20||Math.abs(ox*-tz+oz*tx)>=1.6)continue;
+    // (it looks as far ahead as it needs to stop at a comfortable 7 m/s2: at highway speed a car used to see the
+    // queue 20 m ahead too late to stop, and ran into the back of it)
+    const look=Math.max(20,10+t.v*t.v/14);
+    for(const o of TRAFFIC){if(o===t||!o.e)continue;const ox=o.wx-t.wx,oz=o.wz-t.wz;if(Math.abs(ox)>look||Math.abs(oz)>look)continue;
+      const gap=ox*tx+oz*tz;if(gap<=0||gap>=look||Math.abs(ox*-tz+oz*tx)>=1.6)continue;
       // only cars going its way: one waiting to cross, or coming the other way, is not followed (that could lock both)
       if(Math.sin(o.yaw)*tx+Math.cos(o.yaw)*tz<.5)continue;
-      target=Math.min(target,gap<6.5?0:o.v*(gap<9?.4:.95));if(gap<9)close=true}
+      target=Math.min(target,gap<6.5?0:Math.min(o.v*(gap<9?.4:.95)+Math.sqrt(14*Math.max(0,gap-9)),Math.sqrt(o.v*o.v+14*(gap-6.5))));if(gap<9)close=true}
     // where roads meet, one car crosses at a time: it holds the junction from 12 m out until it is 14 m clear of it,
     // and the others wait 7.5 m short, clear of the road they cross (cars crossing a junction together used to drive
     // through each other)
     const jn=t.dir>0?t.e.b:t.e.a,dEnd=t.dir>0?t.e.len-t.s:t.s;
-    if(jn.adj.length>2&&dEnd<18){
+    if(jn.adj.length>2&&dEnd<Math.max(18,11.5+t.v*t.v/14)){
       const h=jn.res;if(h&&h!==t&&!(h.e&&Math.hypot(h.wx-jn.x,h.wz-jn.z)<14))jn.res=null;
-      if(jn.res&&jn.res!==t){target=Math.min(target,Math.max(0,(dEnd-7.5)*1.2));if(dEnd<12)close=true}
+      // with no way out free yet, it waits at the stop line too, and lets the others cross meanwhile (it used to roll
+      // up to the middle of the junction and wait there, in the way of cars crossing)
+      const ex=exitsAt(t,jn),stuck=ex.opts.length&&!ex.free.length;
+      if((jn.res&&jn.res!==t)||stuck){target=Math.min(target,Math.sqrt(14*Math.max(0,dEnd-7.5)),Math.max(0,(dEnd-7.5)*1.2+(dEnd>12?6:0)));if(dEnd<12)close=true;if(stuck&&jn.res===t)jn.res=null}
       else if(dEnd<12)jn.res=t;
     }
     const ddx=P.x-t.wx,ddz=P.z-t.wz,ah=ddx*tx+ddz*tz,lt=ddx*-tz+ddz*tx;
