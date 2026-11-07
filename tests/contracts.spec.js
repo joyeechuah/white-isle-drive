@@ -89,6 +89,16 @@ test.describe("contracts", () => {
   test("every contract can be driven start to finish, and pays its reward exactly once", async ({ game }) => {
     test.setTimeout(600_000);
     await ready(game);
+    // no traffic: the autopilot doesn't steer round cars, so with traffic its times say more about how many it ran
+    // into than about the contracts (the longest courier run sometimes timed out that way)
+    await game.eval(() => {
+      for (const t of __T.TRAFFIC) {
+        t.e = null;
+        t.c.G.visible = false;
+        t.wx = t.wz = 1e6;
+        t.lost = false;
+      }
+    });
     const ids = await game.eval(() => __T.JOBS.map((j) => j.id));
     const results = {};
     for (const id of ids) {
