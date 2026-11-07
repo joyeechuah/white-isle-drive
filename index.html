@@ -312,6 +312,7 @@ body.touch #keys,body.touch #prompt kbd,body.touch #mapClose kbd{display:none}
 #jbCur span{display:block;font-size:12px;color:var(--mute);margin-top:2px}
 .jbacts{display:flex;gap:8px;margin-top:8px}.jbacts .mbtn{margin:0}
 #jbList{overflow:auto;margin-top:10px;flex:1;min-height:80px}
+#cpList{overflow:auto;margin-top:10px;flex:1;min-height:80px}#cpStats{font-size:12px;color:var(--mute)}#cpNote{font-size:12px;color:var(--acc);margin-top:6px}#cpNote:empty{display:none}#gcups{color:var(--acc)}
 .jbr{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--line)}
 .jbr>div{flex:1;min-width:0}
 .jbr i{display:block;font-style:normal;font-size:9px;letter-spacing:.3em;color:var(--acc);font-weight:700}
@@ -351,7 +352,7 @@ body.touch #phExit kbd{display:none}
 </div>
 
 <div id="gui" class="hide">
-  <div id="gtitle"><div class="k">HOME · SANTA EULÀRIA HILLS · <span id="gcount"></span></div><div class="t">MY GARAGE</div><div id="ghint">Click a car to select it, click it again to drive</div></div>
+  <div id="gtitle"><div class="k">HOME · SANTA EULÀRIA HILLS · <span id="gcount"></span><span id="gcups"></span></div><div class="t">MY GARAGE</div><div id="ghint">Click a car to select it, click it again to drive</div></div>
   <div id="gcr" class="pill">Credits<b class="num" id="gcrv">0</b></div>
   <button id="gMus" class="pill">MUSIC: ON</button>
   <div id="gpick"><button class="gnav" id="gprev" aria-label="Previous car">&#10094;</button><div id="gdots"></div><button class="gnav" id="gnext" aria-label="Next car">&#10095;</button></div>
@@ -413,6 +414,7 @@ body.touch #phExit kbd{display:none}
   <button class="mbtn" id="pPhoto">PHOTO MODE</button>
   <button class="mbtn" id="pPass">ISLAND PASSPORT</button>
   <button class="mbtn" id="pJobs">CONTRACTS</button>
+  <button class="mbtn" id="pCups">CHAMPIONSHIPS</button>
   <button class="mbtn" id="pQuit">QUIT EVENT</button>
   <button class="mbtn" id="pHome">GO HOME</button>
   <button class="mbtn" id="pTime">TIME OF DAY: AUTO</button>
@@ -484,6 +486,13 @@ body.touch #phExit kbd{display:none}
   <button class="mbtn pri" id="jbClose">CLOSE</button>
 </div></div>
 
+<div id="cups" class="ov hide"><div class="card jbc" role="dialog" aria-labelledby="cpTitle">
+  <h3>COMPETE</h3><h2 id="cpTitle">Class championships</h2>
+  <div id="cpStats">Three events per cup, in a car of its class. 10, 6, 4 or 3 points a round; 22 of 30 wins the cup and its prize.</div><div id="cpNote" role="status"></div>
+  <div id="cpList"></div>
+  <button class="mbtn pri" id="cpClose">CLOSE</button>
+</div></div>
+
 <div id="intro" class="ov hide"><div class="card">
   <h3 id="iType">TIME TRIAL</h3><h2 id="iName"></h2>
   <div id="iRows"></div>
@@ -494,7 +503,7 @@ body.touch #phExit kbd{display:none}
 <div id="result" class="ov hide"><div class="card">
   <h3 id="rType">RESULT</h3><h2 id="rTitle"></h2>
   <div id="rRows"></div>
-  <div class="acts"><button class="btn" id="rOk">CONTINUE</button></div>
+  <div class="acts"><button class="btn gold hide" id="rNext">NEXT ROUND</button><button class="btn" id="rOk">CONTINUE</button></div>
 </div></div>
 
 <div id="photo" class="hide">
@@ -579,7 +588,7 @@ const GARAGE_CAP=12;
 
 /* ================================================================ SAVE */
 const SAVE_KEY="white-isle-drive-v1";
-const save={v:2,cr:120000,xp:0,owned:STARTERS.slice(),cur:"golf",paint:{},rec:{},radar:{},auto:false,assist:true,sound:true,music:true,gfx:0,cam:0,todMode:0,tod:16.6,found:{},passBonus:false,jobs:{},jobActive:null,diff:1,ghost:{},ghostOn:true,steer:1,tilt:false};
+const save={v:2,cr:120000,xp:0,owned:STARTERS.slice(),cur:"golf",paint:{},rec:{},radar:{},auto:false,assist:true,sound:true,music:true,gfx:0,cam:0,todMode:0,tod:16.6,found:{},passBonus:false,jobs:{},jobActive:null,diff:1,ghost:{},ghostOn:true,steer:1,tilt:false,champ:{}};
 let loadedV=0;
 try{
   const s=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
@@ -615,6 +624,12 @@ try{
   if(typeof save.ghostOn!=="boolean")save.ghostOn=true;
   // steering sensitivity (0 LOW, 1 NORMAL, 2 HIGH) and tilt-to-steer on phones (off unless switched on)
   save.steer=Math.round(num(save.steer,1,0,2));if(typeof save.tilt!=="boolean")save.tilt=false;
+  // class championships, by class: rounds driven (0 to 3), the points from each, and whether the cup was ever won
+  {const c=save.champ&&typeof save.champ==="object"&&!Array.isArray(save.champ)?save.champ:{},o={};
+   for(const k of ["A1","A2","A3","A4","A5","A6","A7"]){const v=c[k];if(!v||typeof v!=="object")continue;
+     const pts=Array.isArray(v.pts)?v.pts.filter(x=>[0,3,4,6,10].includes(x)).slice(0,3):[];
+     o[k]={r:pts.length,pts,won:v.won===true}}
+   save.champ=o}
   // Island Passport: landmarks found, by stable id (ids not in this version are kept, so nothing is lost), and the one-time bonus
   save.found=dict(save.found,v=>v===1||v===true);for(const k in save.found)save.found[k]=1;
   if(typeof save.passBonus!=="boolean")save.passBonus=false;
@@ -2373,7 +2388,7 @@ let locked=false,autoHold=false;
 // trigger the brake, A the handbrake; Start pauses, View/Back opens the map, Y changes camera, X is the prompt key
 const GP={on:false,steer:0,gas:0,brake:0,hb:false,prev:[]};
 // screens opened from the pause menu, and how each closes
-const PAUSE_SUBS=[["passport",()=>passportClose()],["jobs",()=>jobsClose()]];
+const PAUSE_SUBS=[["passport",()=>passportClose()],["jobs",()=>jobsClose()],["cups",()=>cupsClose()]];
 function pollPad(){
   let g=null;try{const l=navigator.getGamepads?navigator.getGamepads():[];for(const x of l)if(x&&x.connected){g=x;break}}catch(e){}
   if(!g){GP.on=false;GP.steer=GP.gas=GP.brake=0;GP.hb=false;return}
@@ -2393,7 +2408,8 @@ function pollPad(){
     if(hit(1))closeDealer();else if(hit(12)||hit(14))dPick(dSel-1);else if(hit(13)||hit(15))dPick(dSel+1);
     else if(hit(0)){if(on("dBuy"))$("dBuy").onclick();else if(on("dDrive"))$("dDrive").onclick()}else if(hit(2)&&on("dTest"))$("dTest").onclick()}
   else if(state==="INTRO"){if(hit(0))$("iGo").onclick();else if(hit(1))$("iNo").onclick();else if(hit(14))setDiff(save.diff-1);else if(hit(15))setDiff(save.diff+1)}
-  else if(state==="RESULT"){if(hit(0)||hit(1))$("rOk").onclick()}
+  // A goes on to the next championship round when there is one, B (or A otherwise) continues
+  else if(state==="RESULT"){if(hit(0)&&resNext)$("rNext").onclick();else if(hit(0)||hit(1))$("rOk").onclick()}
 }
 addEventListener("gamepadconnected",e=>{if(typeof toast==="function")toast("CONTROLLER CONNECTED","Stick to steer, triggers for gas and brake, A handbrake, Start pause")});
 // tilt-to-steer on phones: the phone is a steering wheel. Its turn in the screen's own plane is worked out from the
@@ -2837,7 +2853,7 @@ function buildEvents(){
     // medal times follow the route's own bends: a well driven lap in a quick
     // road car (about 13 m/s² through corners, 225 km/h top, brisk acceleration)
     E.tIdeal=routeTime(k,13,62,5.5*1.15,8);
-    E.vp=vp;E.cps=[];for(let s=330;s<R.len-120;s+=330)E.cps.push(s);E.cps.push(R.len);
+    E.k=k;E.vp=vp;E.cps=[];for(let s=330;s<R.len-120;s+=330)E.cps.push(s);E.cps.push(R.len);
     const L=R.len;
     E.gold=E.tIdeal*1.02;E.silver=E.tIdeal*1.15;E.bronze=E.tIdeal*1.32;
     E.rewards=E.type==="tt"?[Math.round(L*16/100)*100,Math.round(L*9/100)*100,Math.round(L*5/100)*100]:[Math.round(L*22/100)*100,Math.round(L*11/100)*100,Math.round(L*5/100)*100];
@@ -2897,16 +2913,18 @@ function rivalModel(cd,key){
   while(AIC.size>6){const[id,old]=AIC.entries().next().value;if(AIM.includes(old))break;AIC.delete(id);disposeHeroCar(old)}
   return m;
 }
-function startEvent(E){
+function startEvent(E,cup){
   const R=E.route,me=curCar(),idx=CARS.indexOf(me);
-  ev={E,R,t:-3,phase:"count",cp:0,hint:0,s:14,sNow:14,d:99,ai:[],done:false,wrongT:0,last:4,px:null,pz:null,gate:gateOf(R,E.cps[0]),reT:0,missT:0,diff:E.type==="race"?save.diff:1,obs:[],rec:E.type==="tt"?[]:null,ghost:E.type==="tt"&&save.ghost[E.id]?save.ghost[E.id]:null};
+  ev={E,R,t:-3,phase:"count",cp:0,hint:0,s:14,sNow:14,d:99,ai:[],done:false,wrongT:0,last:4,px:null,pz:null,gate:gateOf(R,E.cps[0]),reT:0,missT:0,diff:E.type==="race"?save.diff:1,obs:[],cup:cup||null,tg:cup&&E.type==="tt"?cupTimes(E,cup.cls):E,rec:E.type==="tt"?[]:null,ghost:E.type==="tt"&&save.ghost[E.id]?save.ghost[E.id]:null};
   const p=edgePos(R,14);
   P.x=p.x-p.dz*-1.7;P.z=p.z+p.dx*-1.7;P.h=Math.atan2(p.dx,p.dz);P.vx=P.vz=0;P.r=0;P.steer=0;P.steerS=0;P.ty=surfH(P.x,P.z);P.y=P.ty;P.air=false;
   if(E.type==="race"){
     // second row far enough back that the chase camera is not inside the car behind you
     const grid=[[14,1.9],[3,-1.7],[3,1.9]],used=new Set();AIM.forEach(m=>m&&(m.G.visible=false));
+    // in a championship the rivals drive cars of the cup's class
+    const pool=cup?CARS.filter(c=>c.cls===cup.cls&&c.id!==me.id):[];
     for(let i=0;i<3;i++){
-      const pick=CARS[clamp(idx+[1,-1,0][i],0,CARS.length-1)];
+      const pick=pool.length?pool[i%pool.length]:CARS[clamp(idx+[1,-1,0][i],0,CARS.length-1)];
       let key,k=0;do key=pick.id+"#"+(k++);while(used.has(key));used.add(key);
       const m=rivalModel(pick,key);AIM[i]=m;
       m.G.visible=true;
@@ -3023,50 +3041,56 @@ function updateEvent(dt){
   else ghostHide();
   // over the line, the panel holds the time and place you finished with
   const tt=ev.fin?ev.fin.t:ev.t;
-  $("evPos").textContent=E.type==="race"?(ev.fin?ev.fin.pos:pos)+"/"+(ev.ai.length+1):(tt<E.gold?"GOLD":tt<E.silver?"SILVER":tt<E.bronze?"BRONZE":"--");
+  $("evPos").textContent=E.type==="race"?(ev.fin?ev.fin.pos:pos)+"/"+(ev.ai.length+1):(tt<ev.tg.gold?"GOLD":tt<ev.tg.silver?"SILVER":tt<ev.tg.bronze?"BRONZE":"--");
   $("evTime").textContent=fmtT(Math.max(0,tt));
   $("evCp").textContent=ev.cp+"/"+cps.length;
 }
 function finishEvent(){
-  const E=ev.E,t=ev.t;let title,rew=0,rows=[],pos=0;
+  const E=ev.E,t=ev.t;let title,rew=0,rows=[],pos=0,medal=0;
   if(E.type==="race"){
     pos=1+ev.ai.filter(a=>a.fin&&a.fin<t).length;
     title=["1ST PLACE","2ND PLACE","3RD PLACE","4TH PLACE"][pos-1];rew=raceRewards(E,ev.diff)[pos-1]||0;
     rows.push(["Position",pos+" of 4"],["Difficulty",DIFFS[ev.diff].n]);
   }else{
-    const medal=t<E.gold?0:t<E.silver?1:t<E.bronze?2:3;title=["GOLD","SILVER","BRONZE","NO MEDAL"][medal];rew=E.rewards[medal]||0;
-    rows.push(["Gold time",fmtT(E.gold)]);
+    const G=ev.tg;medal=t<G.gold?0:t<G.silver?1:t<G.bronze?2:3;title=["GOLD","SILVER","BRONZE","NO MEDAL"][medal];rew=E.rewards[medal]||0;
+    rows.push(["Gold time",fmtT(G.gold)]);
   }
+  const cupRows=ev.cup?cupScore(ev.cup,E.type==="race"?pos-1:medal):null;
   const best=save.rec[E.id];const isRec=!best||t<best;if(isRec)save.rec[E.id]=t;
   // a record time trial run becomes the ghost (the last sample is the line itself)
   if(isRec&&ev.rec&&ev.rec.length>=8&&ev.rec.length<12000){ev.rec.push(+P.x.toFixed(1),+P.z.toFixed(1),+P.h.toFixed(2),+E.route.len.toFixed(1));save.ghost[E.id]={c:curId,t,d:ev.rec}}
   rows.unshift(["Your time",fmtT(t)]);rows.push(["Best",fmtT(save.rec[E.id])+(isRec?"  · new record":"")],["Reward",rew?"+"+fmtCr(rew)+" CR":"none"]);
-  if(rew)earn(rew);persist();
+  if(cupRows)rows.push(...cupRows.rows);
+  if(rew)earn(rew);if(cupRows&&cupRows.prize)earn(cupRows.prize);persist();
   // the result shows once the car has stopped past the line (updateEvent): it used to show at once, with the car
   // frozen at race speed, which carried on the moment you pressed OK
-  ev.phase="finish";ev.fin={t,pos,title,rows,T:0};locked=true;
+  ev.phase="finish";ev.fin={t,pos,title,rows,T:0,next:cupRows&&cupRows.next};locked=true;
   $("count").textContent="FINISH";$("count").classList.remove("hide");beep(990);
 }
 function showResult(){
   const f=ev.fin;
   $("rType").textContent=ev.E.name.toUpperCase();$("rTitle").textContent=f.title;
   $("rRows").innerHTML=f.rows.map(r=>`<div class="row"><span>${r[0]}</span><b>${r[1]}</b></div>`).join("");
+  // in a championship with a round to go, NEXT ROUND opens it
+  resNext=f.next||null;show("rNext",!!resNext);
   endEvent();P.vx=P.vz=0;P.r=0;autoHold=true;setState("RESULT");audioOn(false);$("result").classList.remove("hide");
 }
-function openIntro(E){
-  const rows=[["Distance",(E.route.len/1000).toFixed(1)+" km"]];
-  if(E.type==="tt")rows.push(["Gold / silver / bronze",fmtT(E.gold)+" / "+fmtT(E.silver)+" / "+fmtT(E.bronze)]);else rows.push(["Opponents","3 rivals in cars near your class"]);
+let resNext=null;
+function openIntro(E,cup){
+  const rows=[["Distance",(E.route.len/1000).toFixed(1)+" km"]],G=cup&&E.type==="tt"?cupTimes(E,cup.cls):E;
+  if(E.type==="tt")rows.push(["Gold / silver / bronze",fmtT(G.gold)+" / "+fmtT(G.silver)+" / "+fmtT(G.bronze)]);else rows.push(["Opponents",cup?"3 rivals in "+cup.cls+" cars":"3 rivals in cars near your class"]);
+  if(cup)rows.push(["Cup points",E.type==="race"?"10 / 6 / 4 / 3 for 1st to 4th":"10 / 6 / 4 / 3 for gold to no medal"]);
   rows.push(["Rewards",(E.type==="race"?raceRewards(E,save.diff):E.rewards).map(fmtCr).join(" / ")+" CR"],["Your best",save.rec[E.id]?fmtT(save.rec[E.id]):"--"]);
-  $("iType").textContent=E.type==="tt"?"TIME TRIAL":"RACE";$("iName").textContent=E.name;
+  $("iType").textContent=(cup?cup.cls+" CUP · ROUND "+(cup.round+1)+" OF 3 · ":"")+(E.type==="tt"?"TIME TRIAL":"RACE");$("iName").textContent=E.name;
   $("iRows").innerHTML=rows.map(r=>`<div class="row"><span>${r[0]}</span><b>${r[1]}</b></div>`).join("");
   // races: how fast the rivals drive, and what it pays
   const dz=$("iDiff");dz.innerHTML="";show("iDiff",E.type==="race");
   if(E.type==="race")DIFFS.forEach((d,k)=>{const b=document.createElement("button");b.className="mbtn"+(k===save.diff?" on":"");b.textContent=d.n;
     b.setAttribute("aria-pressed",k===save.diff?"true":"false");b.setAttribute("aria-label","Difficulty "+d.n+", rewards ×"+d.pay);b.onclick=()=>setDiff(k);dz.appendChild(b)});
-  introE=E;setState("INTRO");audioOn(false);$("intro").classList.remove("hide");
+  introE=E;introCup=cup||null;setState("INTRO");audioOn(false);$("intro").classList.remove("hide");
 }
-function setDiff(k){if(!introE||introE.type!=="race")return;save.diff=clamp(k,0,2);persist();const E=introE;openIntro(E)}
-let introE=null;
+function setDiff(k){if(!introE||introE.type!=="race")return;save.diff=clamp(k,0,2);persist();openIntro(introE,introCup)}
+let introE=null,introCup=null;
 
 /* ================================================================ SPEED RADARS */
 const RADARS=[];
@@ -3944,6 +3968,73 @@ function renderJobs(){
 function jobsOpen(){if(state!=="PAUSE")return;renderJobs();show("jobs",true);try{$("jbClose").focus({preventScroll:true})}catch(e){}}
 function jobsClose(){show("jobs",false)}
 $("pJobs").onclick=jobsOpen;$("jbClose").onclick=jobsClose;
+/* ================================================================ CLASS CHAMPIONSHIPS
+   Seven cups, A1 to A7, in the style of Test Drive Unlimited 2. Each is three of the island's events, entered in a car
+   of the cup's class (a cup opens once you own one). Rounds score 10, 6, 4 or 3 points (1st to 4th in a race, gold to
+   no medal in a time trial); 22 of the 30 points wins the cup, which pays its prize the first time. Each round also
+   pays its event's own reward. A cup's time trial has medal times for its class, from the class's cars, the same way
+   the usual medal times come from a quick road car (A3, the usual times). In a cup race the rivals drive cars of the
+   class. Quitting a round leaves the cup where it was; after the third round the next start begins it afresh. */
+const CUP_PTS=[10,6,4,3],CUP_WIN=22;
+const CUPS=[
+  {cls:"A1",ev:["oldtown","talaia","antoni"],prize:25000},{cls:"A2",ev:["cubells","highway","talaia"],prize:40000},
+  {cls:"A3",ev:["south","antoni","highway"],prize:60000},{cls:"A4",ev:["oldtown","highway","antoni"],prize:85000},
+  {cls:"A5",ev:["cubells","talaia","antoni"],prize:110000},{cls:"A6",ev:["south","talaia","highway"],prize:140000},
+  {cls:"A7",ev:["cubells","antoni","highway"],prize:180000}];
+const cupOf=cls=>CUPS.find(c=>c.cls===cls);
+const evById=id=>EVENTS.find(E=>E.id===id);
+// medal times for a class: the route's ideal time for the class's average car, scaled from the usual (A3) times
+const CUPT={};
+function cupTimes(E,cls){
+  const key=E.id+cls;if(CUPT[key])return CUPT[key];
+  const avg=c=>{const L=CARS.filter(x=>x.cls===c);return{top:L.reduce((a,x)=>a+x.top,0)/L.length,acc:L.reduce((a,x)=>a+x.acc,0)/L.length,grip:L.reduce((a,x)=>a+x.grip,0)/L.length}};
+  const a=avg(cls),r=avg("A3"),pw=x=>HD.pBase+x*HD.pAcc,gr=x=>HD.latBase+x*HD.latGrip;
+  const t=routeTime(E.k,13*gr(a.grip)/gr(r.grip),62*a.top/r.top,5.5*1.15*pw(a.acc)/pw(r.acc),8);
+  return CUPT[key]={gold:t*1.02,silver:t*1.15,bronze:t*1.32};
+}
+const champOf=cls=>save.champ[cls]||(save.champ[cls]={r:0,pts:[],won:false});
+const cupTotal=c=>c.pts.reduce((a,x)=>a+x,0);
+// can a cup start now? the reason if not
+function cupBlocked(cls){
+  if(job)return "Finish or abandon your contract first";if(testDrive)return "Not during a test drive";if(ev)return "Finish or quit this event first";
+  const own=save.owned.map(carById).filter(c=>c.cls===cls);
+  if(!own.length)return "Opens once you own an "+cls+" car";
+  if(curCar().cls!==cls)return "Drive an "+cls+" car to enter: your "+own.map(c=>c.md).join(", ")+(own.length>1?" are":" is")+" at home";
+  return "";
+}
+function cupStart(cls){
+  const C=cupOf(cls);if(!C||cupBlocked(cls))return false;
+  const c=champOf(cls);if(c.r>=3){c.r=0;c.pts=[]}
+  persist();openIntro(evById(C.ev[c.r]),{cls,round:c.r});return true;
+}
+// after a cup round: its points, and at the third round whether the cup is won (the prize is paid the first time)
+function cupScore(cup,place){
+  const C=cupOf(cup.cls),c=champOf(cup.cls),pts=CUP_PTS[place]||0;
+  if(cup.round!==c.r)return{rows:[["Cup points","+"+pts+" (this round was already scored)"]]};
+  c.pts.push(pts);c.r++;const total=cupTotal(c),rows=[["Cup points","+"+pts+" · "+total+" of "+c.r*10]];let prize=0,next=null;
+  if(c.r<3)next={cls:cup.cls};
+  else if(total>=CUP_WIN){if(!c.won){prize=C.prize;rows.push(["Cup won",cup.cls+" Cup · +"+fmtCr(prize)+" CR"])}else rows.push(["Cup won","again · the prize was paid the first time"]);c.won=true;toast(cup.cls+" CUP WON",total+" of 30 points","gold")}
+  else rows.push(["Cup over",total+" points, "+CUP_WIN+" needed to win"]);
+  return{rows,prize,next};
+}
+// ---- the championships screen, from the pause menu
+function renderCups(){
+  const list=$("cpList");list.innerHTML="";const busy=job?"Finish or abandon your contract first":testDrive?"Not during a test drive":ev?"Finish or quit this event first":"";
+  $("cpNote").textContent=busy?busy+": cups can start once it's over.":"";
+  for(const C of CUPS){
+    const c=save.champ[C.cls]||{r:0,pts:[],won:false},why=cupBlocked(C.cls),row=document.createElement("div");row.className="jbr";
+    const t=document.createElement("div"),k=document.createElement("i"),b=document.createElement("b"),sp=document.createElement("span");
+    k.textContent=C.cls+" CUP"+(c.won?" · WON":"");b.textContent=C.ev.map(id=>evById(id).name).join(" · ");
+    const st=c.r>0&&c.r<3?"Round "+(c.r+1)+" of 3 · "+cupTotal(c)+" points so far":c.r>=3?"Last time: "+cupTotal(c)+" points"+(cupTotal(c)>=CUP_WIN?", won":", "+CUP_WIN+" needed"):"Win with "+CUP_WIN+" of 30 points";
+    sp.textContent=(why&&!busy?why+" · ":"")+st+" · prize "+fmtCr(C.prize)+" CR"+(c.won?" (paid)":"");
+    t.append(k,b,sp);row.appendChild(t);
+    const g=document.createElement("button");g.className="mbtn"+(why?"":" pri");g.textContent=c.r>0&&c.r<3?"ROUND "+(c.r+1):c.r>=3?"AGAIN":"START";g.disabled=!!why;g.setAttribute("aria-label",g.textContent+" "+C.cls+" Cup");
+    g.onclick=()=>{if(cupBlocked(C.cls))return;cupsClose();show("pause",false);cupStart(C.cls)};row.appendChild(g);list.appendChild(row);
+  }
+}
+function cupsOpen(){if(state!=="PAUSE")return;renderCups();show("cups",true);try{$("cpClose").focus({preventScroll:true})}catch(e){}}
+function cupsClose(){show("cups",false)}
+$("pCups").onclick=cupsOpen;$("cpClose").onclick=cupsClose;
 /* ================================================================ STATE */
 let state="LOAD",camMode=save.cam,camYaw=0;
 const camP=new V3(),camL=new V3();
@@ -4131,6 +4222,7 @@ function buildGarageUI(){
   dots.innerHTML="";
   save.owned.forEach((id,i)=>{const c=carById(id),d=document.createElement("button");d.className="gdot"+(i===gSel?" on":"");d.setAttribute("aria-label",c.mk+" "+c.md);d.onclick=()=>gPick(i);dots.appendChild(d)});
   $("gcount").textContent=save.owned.length+"/"+GARAGE_CAP+" CARS";
+  const won=CUPS.filter(C=>save.champ[C.cls]&&save.champ[C.cls].won).map(C=>C.cls);$("gcups").textContent=won.length?" · CUPS WON: "+won.join(" "):"";
 }
 function statBars(c,p){
   $(p+"1").style.width="0";$(p+"2").style.width="0";$(p+"3").style.width="0";
@@ -4340,9 +4432,10 @@ function openMap(){if(state!=="DRIVE")return;setState("MAP");clearInput();audioO
 function closeMap(){if(state!=="MAP")return;show("map",false);setState("DRIVE");audioOn(true)}
 $("mapClose").onclick=closeMap;$("chMap").onclick=openMap;$("chCam").onclick=cycleCam;$("chPause").onclick=pauseOn;
 // each acts once: a second click or key press while the first is under way does nothing
-$("iGo").onclick=()=>{if(state!=="INTRO")return;show("intro",false);fadeThen(420,()=>{startEvent(introE);audioOn(true)})};
+$("iGo").onclick=()=>{if(state!=="INTRO")return;show("intro",false);const c=introCup;fadeThen(420,()=>{startEvent(introE,c);audioOn(true)})};
 $("iNo").onclick=()=>{if(state!=="INTRO")return;show("intro",false);setState("DRIVE");audioOn(true)};
 $("rOk").onclick=()=>{if(state!=="RESULT")return;show("result",false);setState("DRIVE");audioOn(true)};
+$("rNext").onclick=()=>{if(state!=="RESULT"||!resNext)return;const n=resNext;resNext=null;show("result",false);setState("DRIVE");cupStart(n.cls)};
 $("drive").onclick=goDrive;$("gprev").onclick=()=>gPick((gSel-1+save.owned.length)%save.owned.length);$("gnext").onclick=()=>gPick((gSel+1)%save.owned.length);
 
 /* ---------- input wiring ---------- */
@@ -4374,6 +4467,7 @@ addEventListener("keydown",e=>{
     else if(k==="r"&&!ev)resetToRoad(true);
   }else if(!$("passport").classList.contains("hide")){if(k==="escape")passportClose()}
   else if(!$("jobs").classList.contains("hide")){if(k==="escape")jobsClose()}
+  else if(!$("cups").classList.contains("hide")){if(k==="escape")cupsClose()}
   else if(state==="PAUSE"){if(k==="escape"||k==="p")pauseOff();else if(k==="v")photoEnter()}
   else if(state==="PHOTO"){
     if(!$("phShot").classList.contains("hide")){if(k==="escape")photoShotClose()}
