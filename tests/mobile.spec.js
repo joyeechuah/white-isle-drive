@@ -75,6 +75,46 @@ test.describe("touch controls", () => {
   });
 });
 
+test.describe("brake and reverse button", () => {
+  test.use({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+
+  test("says REVERSE when stopped or backing up and BRAKE while moving forward; the first reverse explains it", async ({ game, page }) => {
+    await game.open();
+    await game.driveOut();
+    await game.park();
+    await game.watchToasts();
+    await game.eval(() => {
+      __T.save.auto = false;
+    });
+    await game.steps(5, {});
+    await expect(page.locator("#bB")).toHaveText("REVERSE");
+    await game.steps(120, { w: true });
+    await game.steps(1, {});
+    await expect(page.locator("#bB")).toHaveText("BRAKE");
+    // hold the button: it brakes to a stop, then reverses
+    const cdp = await page.context().newCDPSession(page);
+    const c = await game.eval(() => {
+      const r = document.getElementById("bB").getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ id: 1, x: c.x, y: c.y }] });
+    const back = await game.steps(300, {});
+    await game.steps(1, {});
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    expect(back.fwd, "km/h after holding it").toBeLessThan(-3);
+    await expect(page.locator("#bB")).toHaveText("REVERSE");
+    await game.frames(2);
+    expect((await game.toastLog()).filter((t) => t.startsWith("REVERSING"))).toHaveLength(1);
+    // only the first time
+    await game.steps(120, { w: true });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ id: 2, x: c.x, y: c.y }] });
+    await game.steps(300, {});
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await game.frames(2);
+    expect((await game.toastLog()).filter((t) => t.startsWith("REVERSING"))).toHaveLength(1);
+  });
+});
+
 for (const size of SIZES) {
   test.describe(`layout: ${size.name} ${size.width}x${size.height}`, () => {
     test.use({ viewport: { width: size.width, height: size.height }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });

@@ -145,7 +145,7 @@ body.touch #lhint{display:none}
 .pb{border-radius:50%;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.7);font-weight:700;font-size:11px;letter-spacing:.06em;touch-action:none;backdrop-filter:blur(6px)}
 .pb.on{background:rgba(255,255,255,.3);border-color:#fff;color:#fff;transform:scale(.94)}
 #bL,#bR{width:76px;height:76px;font-size:24px}
-#bG{width:84px;height:84px} #bB{width:66px;height:66px} #bH{width:58px;height:58px;font-size:10px}
+#bG{width:84px;height:84px} #bB{width:66px;height:66px} #bB.rev{font-size:10px;letter-spacing:.02em} #bH{width:58px;height:58px;font-size:10px}
 
 /* overlays */
 .ov{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(5,6,8,.62);backdrop-filter:blur(10px);padding:16px}
@@ -387,7 +387,7 @@ body.touch #phExit kbd{display:none}
   <div id="minWrap"><canvas id="mini"></canvas><div id="gpsTxt"></div></div>
   <canvas id="speedo"></canvas>
   <button id="prompt" class="hide"><kbd>E</kbd> <span id="promptTxt"></span></button>
-  <div id="keys"><kbd>W</kbd><kbd>S</kbd> gas / brake &nbsp; <kbd>A</kbd><kbd>D</kbd> steer &nbsp; <kbd>Space</kbd> handbrake &nbsp; <kbd>M</kbd> map &nbsp; <kbd>C</kbd> camera &nbsp; <kbd>V</kbd> photo &nbsp; <kbd>R</kbd> back to road &nbsp; <kbd>Esc</kbd> pause</div>
+  <div id="keys"><kbd>W</kbd><kbd>S</kbd> gas / brake, reverse &nbsp; <kbd>A</kbd><kbd>D</kbd> steer &nbsp; <kbd>Space</kbd> handbrake &nbsp; <kbd>M</kbd> map &nbsp; <kbd>C</kbd> camera &nbsp; <kbd>V</kbd> photo &nbsp; <kbd>R</kbd> back to road &nbsp; <kbd>Esc</kbd> pause</div>
 </div>
 
 <div id="chips" class="hide">
@@ -572,7 +572,7 @@ const GARAGE_CAP=12;
 
 /* ================================================================ SAVE */
 const SAVE_KEY="white-isle-drive-v1";
-const save={v:2,cr:120000,xp:0,owned:STARTERS.slice(),cur:"golf",paint:{},rec:{},radar:{},auto:false,assist:true,sound:true,music:true,gfx:0,todMode:0,tod:16.6,found:{},passBonus:false,jobs:{},jobActive:null};
+const save={v:2,cr:120000,xp:0,owned:STARTERS.slice(),cur:"golf",paint:{},rec:{},radar:{},auto:false,assist:true,sound:true,music:true,gfx:0,cam:0,todMode:0,tod:16.6,found:{},passBonus:false,jobs:{},jobActive:null};
 let loadedV=0;
 try{
   const s=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
@@ -597,7 +597,7 @@ try{
   if(typeof save.assist!=="boolean")save.assist=true;
   if(typeof save.sound!=="boolean")save.sound=true;
   if(typeof save.music!=="boolean")save.music=true;
-  save.gfx=Math.round(num(save.gfx,0,0,2));
+  save.gfx=Math.round(num(save.gfx,0,0,2));save.cam=Math.round(num(save.cam,0,0,3));
   // Island Passport: landmarks found, by stable id (ids not in this version are kept, so nothing is lost), and the one-time bonus
   save.found=dict(save.found,v=>v===1||v===true);for(const k in save.found)save.found[k]=1;
   if(typeof save.passBonus!=="boolean")save.passBonus=false;
@@ -3756,9 +3756,9 @@ function jobsOpen(){if(state!=="PAUSE")return;renderJobs();show("jobs",true);try
 function jobsClose(){show("jobs",false)}
 $("pJobs").onclick=jobsOpen;$("jbClose").onclick=jobsClose;
 /* ================================================================ STATE */
-let state="LOAD",camMode=0,camYaw=0;
+let state="LOAD",camMode=save.cam,camYaw=0;
 const camP=new V3(),camL=new V3();
-const CAMS=["CHASE","FAR","BUMPER","COCKPIT"];
+const CAMS=["CHASE","FAR","BUMPER","COCKPIT"];$("chCam").textContent="CAM: "+CAMS[camMode];
 let headLight=null,fillLight=null,curId=save.cur,testDrive=null;
 // the two street lamps nearest the car shine for real, so the car (not just the road) lights up as it passes under them
 const LAMP_LIGHTS=[0,1].map(()=>{const l=new THREE.PointLight(0xffc68a,0,26,1.3);scene.add(l);return l});
@@ -3885,12 +3885,16 @@ function camFloor(x,z,p){
   }
   return y;
 }
+// the chase camera: height above the car, how far ahead it aims and at what height. It sits high enough, and
+// aims far enough ahead, that the road and the cars in front show over the roof (it was 2 m up aiming 9 m ahead,
+// and the car hid two thirds of the road from 12 to 45 m ahead; now about a third)
+const CAMV={up:3.0,ahead:24,lookY:1.2};
 function camWant(at){
   const p=at||pc.G.position,v=Math.abs(speedF()),f={x:Math.sin(camYaw),z:Math.cos(camYaw)},big=pc.shape==="suv"?1.2:1;
   const full=(camMode===0?6.6+Math.min(1.6,v*.02):11.5+Math.min(3,v*.04))*big,clear=boomClear(p.x,p.z,f.x,f.z,full);
   camBoom=camBoom===null?clear:clear<camBoom?lerp(camBoom,clear,.35):lerp(camBoom,clear,.05);
-  const back=Math.min(full,camBoom),up=(camMode===0?2.0:3.8)*big+(full-back)*.18;
-  return{pos:new V3(p.x-f.x*back,p.y+up,p.z-f.z*back),look:new V3(p.x+f.x*9,p.y+(camMode===0?1:1.4)*big,p.z+f.z*9),fov:(camMode===0?58:60)+Math.min(13,v*.15)};
+  const back=Math.min(full,camBoom),up=(camMode===0?CAMV.up:3.8)*big+(full-back)*.18,ah=camMode===0?CAMV.ahead:9;
+  return{pos:new V3(p.x-f.x*back,p.y+up,p.z-f.z*back),look:new V3(p.x+f.x*ah,p.y+(camMode===0?CAMV.lookY:1.4)*big,p.z+f.z*ah),fov:(camMode===0?58:60)+Math.min(13,v*.15)};
 }
 // after a teleport the car mesh only moves on the next frame, so aim from the physics position
 function snapCam(){if(!pc)return;camYaw=P.h;camBoom=null;if(camMode<2){const c=camWant(new V3(P.x,P.y,P.z));camP.copy(c.pos);camL.copy(c.look)}}
@@ -3914,7 +3918,7 @@ function updateCam(dt){
   camera.updateProjectionMatrix();
   shake*=Math.pow(.02,dt);
 }
-function cycleCam(){camMode=(camMode+1)%4;$("chCam").textContent="CAM: "+CAMS[camMode];snapCam();toast("CAMERA",CAMS[camMode].toLowerCase())}
+function cycleCam(){camMode=(camMode+1)%4;save.cam=camMode;persist();$("chCam").textContent="CAM: "+CAMS[camMode];snapCam();toast("CAMERA",CAMS[camMode].toLowerCase())}
 
 /* ---------- paint swatches ---------- */
 // each swatch is named for screen readers, and says whether it's the paint on the car
@@ -4197,8 +4201,13 @@ $("c").addEventListener("pointermove",e=>{if(state!=="GARAGE"||e.pointerType!=="
 
 /* ================================================================ HUD + MAIN LOOP */
 let hudT=0,waterT=0;
+// the on-screen brake also reverses once the car has stopped, so its label says which it will do; the first time
+// it reverses in a session, a message says so
+let padRevShown=false;
 function updateHUD(dt){
   const cd=curCar(),vF=speedF(),kph=Math.abs(vF)*3.6,gi=gearInfo(kph,cd.top,vF<-.5);
+  const bB=$("bB"),rev=vF<.5,lbl=rev?"REVERSE":"BRAKE";if(bB.textContent!==lbl){bB.textContent=lbl;bB.classList.toggle("rev",rev)}
+  if(rev&&pad.B&&vF<-.5&&!padRevShown&&!ev){padRevShown=true;toast("REVERSING","Hold REVERSE to back up. While you're moving forward the same button brakes")}
   drawSpeedo(kph,gi.rpm*8,gi.g);
   if(camMode===3)drawGauges(kph,gi.rpm*8,gi.g);
   const fr=$("streak");fr.classList.toggle("off",!(FR.pts>0&&!ev));
