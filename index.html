@@ -422,6 +422,8 @@ body.touch #phExit kbd{display:none}
   <button class="mbtn" id="pMus">MUSIC: ON</button>
   <button class="mbtn" id="pGfx">GRAPHICS: AUTO</button>
   <button class="mbtn" id="pGhost">GHOST CAR: ON</button>
+  <button class="mbtn" id="pSteer">STEERING: NORMAL</button>
+  <button class="mbtn hide" id="pTilt">TILT STEERING: OFF</button>
   <a class="mbtn" id="pFb" href="https://forms.gle/bPk18BbmhaGLNJtD9" target="_blank" rel="noopener">SEND FEEDBACK &#8599;</a>
 </div></div>
 
@@ -577,7 +579,7 @@ const GARAGE_CAP=12;
 
 /* ================================================================ SAVE */
 const SAVE_KEY="white-isle-drive-v1";
-const save={v:2,cr:120000,xp:0,owned:STARTERS.slice(),cur:"golf",paint:{},rec:{},radar:{},auto:false,assist:true,sound:true,music:true,gfx:0,cam:0,todMode:0,tod:16.6,found:{},passBonus:false,jobs:{},jobActive:null,diff:1,ghost:{},ghostOn:true};
+const save={v:2,cr:120000,xp:0,owned:STARTERS.slice(),cur:"golf",paint:{},rec:{},radar:{},auto:false,assist:true,sound:true,music:true,gfx:0,cam:0,todMode:0,tod:16.6,found:{},passBonus:false,jobs:{},jobActive:null,diff:1,ghost:{},ghostOn:true,steer:1,tilt:false};
 let loadedV=0;
 try{
   const s=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
@@ -611,6 +613,8 @@ try{
     Array.isArray(g.d)&&g.d.length>=8&&g.d.length%4===0&&g.d.length<=12000&&g.d.every(v=>typeof v==="number"&&Number.isFinite(v)));
   for(const k in save.ghost){const g=save.ghost[k];save.ghost[k]={c:g.c,t:g.t,d:g.d}}
   if(typeof save.ghostOn!=="boolean")save.ghostOn=true;
+  // steering sensitivity (0 LOW, 1 NORMAL, 2 HIGH) and tilt-to-steer on phones (off unless switched on)
+  save.steer=Math.round(num(save.steer,1,0,2));if(typeof save.tilt!=="boolean")save.tilt=false;
   // Island Passport: landmarks found, by stable id (ids not in this version are kept, so nothing is lost), and the one-time bonus
   save.found=dict(save.found,v=>v===1||v===true);for(const k in save.found)save.found[k]=1;
   if(typeof save.passBonus!=="boolean")save.passBonus=false;
@@ -2365,13 +2369,53 @@ function parkAll(except){
 const keys={},pad={};
 function clearInput(){for(const k in keys)keys[k]=false;for(const k in pad)pad[k]=false;document.querySelectorAll(".pb.on").forEach(e=>e.classList.remove("on"))}
 let locked=false,autoHold=false;
-const kL=()=>!locked&&(keys.arrowleft||keys.a||pad.L);
-const kR=()=>!locked&&(keys.arrowright||keys.d||pad.R);
-const kB=()=>!locked&&(keys.arrowdown||keys.s||pad.B);
+// a game controller (the first one connected, standard layout): left stick steers, right trigger is the gas, left
+// trigger the brake, A the handbrake; Start pauses, View/Back opens the map, Y changes camera, X is the prompt key
+const GP={on:false,steer:0,gas:0,brake:0,hb:false,prev:[]};
+function pollPad(){
+  let g=null;try{const l=navigator.getGamepads?navigator.getGamepads():[];for(const x of l)if(x&&x.connected){g=x;break}}catch(e){}
+  if(!g){GP.on=false;GP.steer=GP.gas=GP.brake=0;GP.hb=false;return}
+  const ax=g.axes[0]||0,b=i=>g.buttons[i]||{pressed:false,value:0},v=i=>{const q=b(i);return typeof q.value==="number"&&q.value>0?q.value:q.pressed?1:0};
+  GP.on=true;GP.steer=Math.abs(ax)<.12?0:Math.sign(ax)*(Math.abs(ax)-.12)/.88;GP.gas=v(7);GP.brake=v(6);GP.hb=b(0).pressed;
+  // buttons pressed since the last frame
+  const now=g.buttons.map(q=>!!(q&&q.pressed)),was=GP.prev,hit=i=>now[i]&&!was[i];GP.prev=now;
+  if(state==="DRIVE"){if(hit(9))pauseOn();else if(hit(8))openMap();else if(hit(3))cycleCam();else if(hit(2)&&promptAct)promptAct()}
+  else if(state==="PAUSE"){if(hit(9)||hit(1))pauseOff()}
+  else if(state==="MAP"){if(hit(8)||hit(1))closeMap()}
+  else if(state==="PHOTO"){if(hit(1))photoExit()}
+  else if(state==="GARAGE"){if(hit(0))goDrive();else if(hit(14))$("gprev").onclick();else if(hit(15))$("gnext").onclick()}
+  else if(state==="DEALER"){if(hit(1))closeDealer();else if(hit(12)||hit(14))dPick(dSel-1);else if(hit(13)||hit(15))dPick(dSel+1)}
+  else if(state==="INTRO"){if(hit(0))$("iGo").onclick();else if(hit(1))$("iNo").onclick();else if(hit(14))setDiff(save.diff-1);else if(hit(15))setDiff(save.diff+1)}
+  else if(state==="RESULT"){if(hit(0)||hit(1))$("rOk").onclick()}
+}
+addEventListener("gamepadconnected",e=>{if(typeof toast==="function")toast("CONTROLLER CONNECTED","Stick to steer, triggers for gas and brake, A handbrake, Start pause")});
+// tilt-to-steer on phones: the phone is a steering wheel. Its turn in the screen's own plane is worked out from the
+// up direction (from the tilt angles), so it works however far back the phone is held; the angle it's held at when
+// tilt is switched on, or the game is resumed, is straight ahead. About 26 degrees is full lock
+const TILT={phi:null,zero:null};
+function tiltPhi(e){
+  if(e.beta==null||e.gamma==null)return null;
+  const b=e.beta*Math.PI/180,g=e.gamma*Math.PI/180,ux=-Math.cos(b)*Math.sin(g),uy=Math.sin(b);
+  const a=((screen.orientation&&typeof screen.orientation.angle==="number"?screen.orientation.angle:+window.orientation||0))*Math.PI/180;
+  const sx=ux*Math.cos(a)-uy*Math.sin(a),sy=ux*Math.sin(a)+uy*Math.cos(a);
+  // lying flat there's no clear up within the screen: no steering from tilt
+  return Math.hypot(sx,sy)<.3?null:Math.atan2(-sx,sy);
+}
+addEventListener("deviceorientation",e=>{TILT.phi=tiltPhi(e);if(TILT.zero===null&&TILT.phi!==null)TILT.zero=TILT.phi});
+const tiltSteer=()=>{if(!save.tilt||!isTouch||TILT.phi===null||TILT.zero===null)return 0;const d=wrapA(TILT.phi-TILT.zero);return Math.abs(d)<.03?0:clamp(d/.45,-1,1)};
+// steering, -1 (full left) to 1 (full right): keys and on-screen pads win, then the controller's stick, then tilt
+function steerIn(){if(locked)return 0;const k=((keys.arrowright||keys.d||pad.R)?1:0)-((keys.arrowleft||keys.a||pad.L)?1:0);if(k)return k;if(GP.on&&GP.steer)return GP.steer;return tiltSteer()}
+const gasIn=()=>locked?0:(keys.arrowup||keys.w||pad.G)?1:GP.gas>.05?GP.gas:0;
+const brakeIn=()=>locked?0:(keys.arrowdown||keys.s||pad.B)?1:GP.brake>.05?GP.brake:0;
+const kL=()=>steerIn()<-.3;
+const kR=()=>steerIn()>.3;
+const kB=()=>brakeIn()>0;
 // auto gas waits after the car is placed at a standstill (map travel, reset, leaving the dealer)
 // until the player touches a control, so the car doesn't roll away from where it was put
-const kG=()=>{if(locked)return false;if(autoHold&&(keys.arrowup||keys.w||pad.G||kB()||kL()||kR()||kH()))autoHold=false;return !!(keys.arrowup||keys.w||pad.G||(save.auto&&!autoHold&&!kB()))};
-const kH=()=>!locked&&(keys[" "]||pad.H);
+const kG=()=>{if(locked)return false;if(autoHold&&(gasIn()||kB()||kL()||kR()||kH()))autoHold=false;return !!(gasIn()||(save.auto&&!autoHold&&!kB()))};
+const kH=()=>!locked&&(keys[" "]||pad.H||GP.hb);
+// how far the pedals are pressed: keys, pads and auto gas are all the way; a controller's triggers anywhere between
+const gasAmt=()=>{const g=gasIn();return g>0?g:kG()?1:0};
 
 /* ================================================================ PLAYER CAR PHYSICS
    Arcade model: throttle/brake along the car, tyres bleed
@@ -2397,6 +2441,7 @@ function kphNow(){return Math.abs(speedF())*3.6}
 // Nov 2026 playtest: engines 15% stronger (pBase, pAcc); the corner-speed assist takes bends closer to the tyres'
 // grip (csGrip, was .76); at speed the wheel turns in more slowly and short presses are softer (rUpHi was 3.4,
 // expHi 1.3, and both now reach their high-speed value by 140 km/h, steerV), so a tap at 100 km/h moves the car less
+const STEER_SENS=[.7,1,1.35];
 const HD={latBase:1.2,latGrip:.6,latLow:.25,rUp:6,rUpHi:2,rBack:10,rBackHi:7,rCounter:14,steerEase:25,expHi:1.6,steerV:39,
   asK:2.6,asLim:.9,csGrip:.83,csBrake:7,thrUp:3.2,pBase:3.7,pAcc:9.2,offDrag:2.2,offDragV:.035,yawResp:10,rMin0:5,rMinV:.7,laneK:1.0};
 // fastest speed for a bend of curvature k: limited by grip, and in tight
@@ -2455,7 +2500,7 @@ function stepPlayer(dt){
   const th=groundH(P.x,P.z),sand=!onRoad&&th<3.4;
   const surf=onRoad?1:sand?.55:.72;
   // past the finish line the car brakes itself to a stop (the controls are locked) before the result shows
-  const gas=kG(),brake=kB()||(!!ev&&ev.phase==="finish"&&vF>.5),hb=kH(),sp0=Math.abs(vF);
+  const gas=kG(),brake=kB()||(!!ev&&ev.phase==="finish"&&vF>.5),hb=kH(),sp0=Math.abs(vF),gA=gas?gasAmt():0,bA=kB()?brakeIn():1;
   const vMax=onRoad?cd.top/3.6:sand?Math.min(cd.top/3.6*.35,20):Math.min(cd.top/3.6*.45,30),power=HD.pBase+cd.acc*HD.pAcc;
   // tyre grip: arcade-strong on asphalt, a bit more at low speed
   const vN=clamp(sp0/55,0,1),aLatRoad=9.81*(HD.latBase+cd.grip*HD.latGrip)*(1+HD.latLow*(1-vN)),aLat=aLatRoad*surf;
@@ -2464,7 +2509,7 @@ function stepPlayer(dt){
   const alongRoad=!!nr&&Math.abs(wrapA(Math.atan2(nr.dx*rdir,nr.dz*rdir)-P.h))<.6;
   // corner speed assist: holding W into a bend the car cannot make eases off and brakes gently
   // and holding a steering key into a junction slows the car enough to make the turn
-  const tgt0=(kR()?1:0)-(kL()?1:0);
+  const si=steerIn(),tgt0=Math.abs(si)>.5?Math.sign(si):0;
   P.holdT=tgt0&&tgt0===P.holdDir?(P.holdT||0)+dt:0;P.holdDir=tgt0;
   let over=0;P.aBrk=false;
   if(save.assist&&vF>12&&!brake&&!hb&&nr&&nr.d<nr.e.half+5){
@@ -2477,10 +2522,10 @@ function stepPlayer(dt){
     if(!path&&P.holdT>.2&&Math.abs(P.steer)>.7&&(jD<32||junctionAt(P.x,P.z)))over=Math.max(over,vF-vCorner(1/16,aC));
   }
   // throttle comes in over a fraction of a second instead of all at once
-  P.thr=clamp((P.thr||0)+((gas&&!brake&&over<=0)?HD.thrUp:-8)*dt,0,1);
+  P.thr=clamp((P.thr||0)+((gas&&!brake&&over<=0)?HD.thrUp:-8)*dt,0,1);if(gas&&P.thr>gA)P.thr=Math.max(gA,P.thr-8*dt);
   if(!P.air){const sl=(surfH(P.x+fx*2,P.z+fz*2)-surfH(P.x-fx*2,P.z-fz*2))/4;vF-=9.81*sl*.75*dt}
   if(gas&&!brake&&vF<-.5)vF+=22*dt;
-  else if(brake){if(vF>.5)vF-=26*dt;else vF=Math.max(vF-5*dt,-11)}
+  else if(brake){if(vF>.5)vF-=26*bA*dt;else vF=Math.max(vF-5*bA*dt,-11)}
   else if(P.thr>0&&!P.air)vF+=power*P.thr*Math.max(0,1-(vF/vMax)**2)*dt;
   if(!gas&&!brake||over>0){const dec=(.7+.00042*vF*vF)*dt;vF=Math.abs(vF)<=dec?0:vF-Math.sign(vF)*dec}
   if(over>.6){vF-=Math.min(HD.csBrake,(over-.6)*3)*dt;P.aBrk=true}
@@ -2490,8 +2535,10 @@ function stepPlayer(dt){
   if(!P.air)vS*=Math.exp(-(7+cd.grip*8)*surf*(hb?.16:1)*dt);
   // steering. Keys turn the wheel in quickly, a little more gently at speed,
   // and the turn rate is capped by the tyres' grip.
-  const tgt=(kR()?1:0)-(kL()?1:0),sp=Math.abs(vF),dirV=vF>=0?1:-1,vNs=clamp(sp/HD.steerV,0,1);
-  const rate=!tgt?lerp(HD.rBack,HD.rBackHi,vN):(P.steer*tgt<0?HD.rCounter:lerp(HD.rUp,HD.rUpHi,vNs));
+  // the steering input can be anywhere from -1 to 1 (a controller's stick, tilt); STEERING sensitivity scales how fast
+  // the wheel turns in
+  const tgt=si,on=Math.abs(tgt)>=.05,sp=Math.abs(vF),dirV=vF>=0?1:-1,vNs=clamp(sp/HD.steerV,0,1);
+  const rate=!on?lerp(HD.rBack,HD.rBackHi,vN):(P.steer*tgt<0?HD.rCounter:lerp(HD.rUp,HD.rUpHi,vNs)*STEER_SENS[save.steer]);
   P.steer+=clamp(tgt-P.steer,-rate*dt,rate*dt);
   // a short easing on top rounds off the start and end of each key press so the turn builds and lets go smoothly
   P.steerS=(P.steerS||0)+(P.steer-(P.steerS||0))*(1-Math.exp(-dt*HD.steerEase));
@@ -2516,7 +2563,7 @@ function stepPlayer(dt){
     let want=Math.atan2(q.dx*rdir,q.dz*rdir);
     // the line to hold: while you steer, and until the car has straightened
     // up after you let go, it follows the car; then it stays put
-    if(tgt||P.laneT==null){P.laneT=sideDrv;P.laneLock=false;P.laneWait=0}
+    if(on||P.laneT==null){P.laneT=sideDrv;P.laneLock=false;P.laneWait=0}
     if(!P.laneLock){P.laneT=sideDrv;P.laneWait+=dt;if(Math.abs(wrapA(want-P.h))<.03||P.laneWait>1.5){P.laneLock=true;P.laneT=laneNear(nr.e,sideDrv)}}
     const laneT=clamp(P.laneT,-band,band);
     const pb=edgePos(nr.e,nr.s+rdir*(ant-6)),pf=edgePos(nr.e,nr.s+rdir*(ant+6));
@@ -2529,7 +2576,7 @@ function stepPlayer(dt){
     const lim=junctionAt(P.x,P.z)?.35:HD.asLim,aw=1-smooth(lim*.6,lim,Math.abs(err));
     if(aw>0){
       const rA=clamp(rFF-err*HD.asK,-rCap,rCap)*aw;
-      if(!tgt)rT+=rA*(1-Math.abs(P.steer));
+      if(!on)rT+=rA*(1-Math.abs(P.steer));
       else if(Math.sign(rA)===Math.sign(rT)&&Math.abs(rA)>Math.abs(rT))rT=rA;
       // already on the edge at speed: steering further towards it is softened, more the closer it gets
       else if(onRoad&&sp>15&&gap<.6&&Math.sign(rT)===Math.sign(sideDrv))rT*=lerp(1,.5,aw*(1-Math.max(0,gap)/.6));
@@ -4257,9 +4304,9 @@ function pauseOn(){if(state!=="DRIVE")return;setState("PAUSE");clearInput();audi
   $("pHome").textContent=job?"GO HOME · ENDS CONTRACT":"GO HOME";
   show("pQuit",!!(ev||testDrive));$("pQuit").textContent=testDrive?"END TEST DRIVE":ev&&ev.fin?"SEE RESULT":"QUIT EVENT";show("pHome",!testDrive);
   syncPause();$("pFb").classList.toggle("wide",[...document.querySelectorAll("#pause .mbtn")].filter(b=>b.id!=="pRes"&&!b.classList.contains("hide")).length%2===1);show("pause",true)}
-function pauseOff(){show("pause",false);if(state==="PAUSE"){setState("DRIVE");audioOn(true)}}
+function pauseOff(){show("pause",false);if(state==="PAUSE"){setState("DRIVE");audioOn(true);TILT.zero=TILT.phi}}
 const TODS=[["AUTO",null],["MORNING",8.5],["NOON",13],["SUNSET",17.75],["NIGHT",22.5]];
-function syncPause(){$("pAssist").textContent="DRIVING ASSIST: "+(save.assist?"ON":"OFF");$("pTime").textContent="TIME OF DAY: "+TODS[save.todMode][0];$("pAuto").textContent="AUTO GAS: "+(save.auto?"ON":"OFF");$("pSnd").textContent="SOUND FX: "+(save.sound?"ON":"OFF");$("pMus").textContent=$("gMus").textContent="MUSIC: "+(save.music?"ON":"OFF");$("pGfx").textContent="GRAPHICS: "+["AUTO","SHARP","SMOOTH"][save.gfx];$("pGhost").textContent="GHOST CAR: "+(save.ghostOn?"ON":"OFF")}
+function syncPause(){$("pAssist").textContent="DRIVING ASSIST: "+(save.assist?"ON":"OFF");$("pTime").textContent="TIME OF DAY: "+TODS[save.todMode][0];$("pAuto").textContent="AUTO GAS: "+(save.auto?"ON":"OFF");$("pSnd").textContent="SOUND FX: "+(save.sound?"ON":"OFF");$("pMus").textContent=$("gMus").textContent="MUSIC: "+(save.music?"ON":"OFF");$("pGfx").textContent="GRAPHICS: "+["AUTO","SHARP","SMOOTH"][save.gfx];$("pGhost").textContent="GHOST CAR: "+(save.ghostOn?"ON":"OFF");$("pSteer").textContent="STEERING: "+["LOW","NORMAL","HIGH"][save.steer];$("pTilt").textContent="TILT STEERING: "+(save.tilt?"ON":"OFF");show("pTilt",isTouch)}
 $("pRes").onclick=pauseOff;
 $("pMap").onclick=()=>{show("pause",false);setState("DRIVE");openMap()};
 $("pQuit").onclick=()=>{if(testDrive){endTestDrive();return}if(ev&&ev.fin){pauseOff();showResult();return}endEvent();pauseOff();toast("EVENT CANCELLED","Back to free ride")};
@@ -4271,6 +4318,14 @@ function applyGfx(){gfxLimits();const p=clamp(save.gfx===0?Math.max(prNow,PR_MIN
   if(p!==prNow){prNow=p;renderer.setPixelRatio(p);renderer.setSize(W,H,false)}}
 $("pGfx").onclick=()=>{save.gfx=(save.gfx+1)%3;applyGfx();syncPause();persist();toast("GRAPHICS: "+GFX[save.gfx],["Sharp, eases off a little if frames slow down","Always full sharpness","Lighter on weak phones and battery"][save.gfx])};
 $("pAssist").onclick=()=>{save.assist=!save.assist;syncPause();persist()};
+$("pSteer").onclick=()=>{save.steer=(save.steer+1)%3;syncPause();persist()};
+// iPhones only send tilt after the player allows it, which must be asked from a tap
+$("pTilt").onclick=()=>{
+  if(save.tilt){save.tilt=false;syncPause();persist();return}
+  const on=()=>{save.tilt=true;TILT.zero=TILT.phi;syncPause();persist();toast("TILT STEERING","Hold the phone the way you want to drive straight, then resume")};
+  const D=window.DeviceOrientationEvent;
+  if(D&&typeof D.requestPermission==="function")D.requestPermission().then(r=>{if(r==="granted")on();else toast("TILT NOT ALLOWED","Allow motion and orientation access to steer by tilting","bad")}).catch(()=>toast("TILT NOT ALLOWED","Allow motion and orientation access to steer by tilting","bad"));
+  else on()};
 $("pGhost").onclick=()=>{save.ghostOn=!save.ghostOn;syncPause();persist();if(!save.ghostOn)ghostHide()};
 $("pSnd").onclick=()=>{save.sound=!save.sound;if(save.sound)audioInit();syncPause();persist()};
 $("pMus").onclick=$("gMus").onclick=()=>{save.music=!save.music;audioInit();musicInit();syncPause();persist()};
@@ -4390,7 +4445,7 @@ function adaptRes(dt){
   if(p!==prNow){prNow=p;renderer.setPixelRatio(p);renderer.setSize(W,H,false);RES.wait=3}
 }
 function frame(ts){
-  requestAnimationFrame(frame);
+  requestAnimationFrame(frame);pollPad();
   const raw=(ts-prevTs)/1000||.016,dt=Math.min(.05,raw);prevTs=ts;adaptRes(raw);
   // automatic time: an hour every 30 s by day, and the night passes about twice as fast
   if(save.todMode===0&&(state==="DRIVE"||state==="GARAGE"||state==="EXIT"))save.tod=(save.tod+dt/30*(1+1.4*night))%24;
