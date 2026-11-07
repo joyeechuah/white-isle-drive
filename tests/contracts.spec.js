@@ -89,6 +89,16 @@ test.describe("contracts", () => {
   test("every contract can be driven start to finish, and pays its reward exactly once", async ({ game }) => {
     test.setTimeout(600_000);
     await ready(game);
+    // no traffic: the autopilot doesn't steer round cars, so with traffic its times say more about how many it ran
+    // into than about the contracts (the longest courier run sometimes timed out that way)
+    await game.eval(() => {
+      for (const t of __T.TRAFFIC) {
+        t.e = null;
+        t.c.G.visible = false;
+        t.wx = t.wz = 1e6;
+        t.lost = false;
+      }
+    });
     const ids = await game.eval(() => __T.JOBS.map((j) => j.id));
     const results = {};
     for (const id of ids) {
@@ -105,6 +115,17 @@ test.describe("contracts", () => {
         T.P.z = t.z;
         T.resetToRoad(false);
         T.P.vx = T.P.vz = 0;
+        // facing the way the GPS leads from there: the autopilot can't make a U-turn from the lane by the verge (with
+        // traffic on the left it drove off the road trying, and the longest courier run timed out)
+        T.driveUpdate(1 / 60);
+        const R = T.gps.route;
+        if (R && R.pts.length > 2) {
+          const a = R.pts[0],
+            b = R.pts[Math.min(R.pts.length - 1, 4)];
+          T.P.h = Math.atan2(b.x - a.x, b.z - a.z);
+          T.resetToRoad(false);
+          T.P.vx = T.P.vz = 0;
+        }
         window.__bot = null;
         return { started, c0, runs0 };
       }, id);

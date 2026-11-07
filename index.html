@@ -431,6 +431,7 @@ body.touch #phExit kbd{display:none}
   <button class="mbtn" id="pGhost">GHOST CAR: ON</button>
   <button class="mbtn" id="pSteer">STEERING: NORMAL</button>
   <button class="mbtn hide" id="pTilt">TILT STEERING: OFF</button>
+  <button class="mbtn" id="pSide">DRIVE ON: LEFT</button>
   <a class="mbtn" id="pFb" href="https://forms.gle/bPk18BbmhaGLNJtD9" target="_blank" rel="noopener">SEND FEEDBACK &#8599;</a>
 </div></div>
 
@@ -593,7 +594,7 @@ const GARAGE_CAP=12;
 
 /* ================================================================ SAVE */
 const SAVE_KEY="white-isle-drive-v1";
-const save={v:2,cr:120000,xp:0,owned:STARTERS.slice(),cur:"golf",paint:{},rec:{},radar:{},auto:false,assist:true,sound:true,music:true,gfx:0,cam:0,todMode:0,tod:16.6,found:{},passBonus:false,jobs:{},jobActive:null,diff:1,ghost:{},ghostOn:true,steer:1,tilt:false,champ:{}};
+const save={v:2,cr:120000,xp:0,owned:STARTERS.slice(),cur:"golf",paint:{},rec:{},radar:{},auto:false,assist:true,sound:true,music:true,gfx:0,cam:0,todMode:0,tod:16.6,found:{},passBonus:false,jobs:{},jobActive:null,diff:1,ghost:{},ghostOn:true,steer:1,tilt:false,champ:{},side:"L"};
 let loadedV=0;
 try{
   const s=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
@@ -629,6 +630,8 @@ try{
   if(typeof save.ghostOn!=="boolean")save.ghostOn=true;
   // steering sensitivity (0 LOW, 1 NORMAL, 2 HIGH) and tilt-to-steer on phones (off unless switched on)
   save.steer=Math.round(num(save.steer,1,0,2));if(typeof save.tilt!=="boolean")save.tilt=false;
+  // which side of the road traffic keeps to: L (the default, as in Malaysia or the UK) or R (as in Spain)
+  save.side=save.side==="R"?"R":"L";
   // class championships, by class: rounds driven (0 to 3), the points from each, and whether the cup was ever won
   {const c=save.champ&&typeof save.champ==="object"&&!Array.isArray(save.champ)?save.champ:{},o={};
    for(const k of ["A1","A2","A3","A4","A5","A6","A7"]){const v=c[k];if(!v||typeof v!=="object")continue;
@@ -902,6 +905,8 @@ const RT={
   town:{half:5.2,lanes:[1.9],spd:10.5,prio:1},
   drive:{half:3.4,lanes:[1.4],spd:6,prio:0}
 };
+// lane offsets in RT are for driving on the right; SIDE() turns them to the side the player chose (-1 = left)
+const SIDE=()=>save.side==="R"?1:-1;
 const YO=.16,WALK_W=2.8;            // road surface above its bed; town pavement width beyond the kerb
 const ROADS=[],NODES=[],EDGES=[];
 const ringPt=a=>{const R=coastR(Math.cos(a),Math.sin(a))*.8;return[Math.cos(a)*R,Math.sin(a)*R]};
@@ -2469,9 +2474,15 @@ function kphNow(){return Math.abs(speedF())*3.6}
 // Nov 2026 playtest: engines 15% stronger (pBase, pAcc); the corner-speed assist takes bends closer to the tyres'
 // grip (csGrip, was .76); at speed the wheel turns in more slowly and short presses are softer (rUpHi was 3.4,
 // expHi 1.3, and both now reach their high-speed value by 140 km/h, steerV), so a tap at 100 km/h moves the car less
+// Playtest, 8 Nov: holding W in a bend at speed, the car ran up to about a metre wide of its lane (towards the centre
+// line on a bend away from it, which read as pulling left). The assist now pulls back to the lane three times as hard
+// (laneK, was 1): in the GT-R at about 125 km/h, 90% of the time within 0.34 m of the lane centre (was 0.75 m)
+// Out of the tightest hairpin that stronger pull (and the throttle) still took the car across the centre line, 2 m
+// off its lane, because the tyres were already at their limit: now, while the assist is turning as hard as grip
+// allows and the road wants more (satAt), the car lifts off and brakes gently (satLift) instead. Worst case 0.8 m
 const STEER_SENS=[.7,1,1.35];
 const HD={latBase:1.2,latGrip:.6,latLow:.25,rUp:6,rUpHi:2,rBack:10,rBackHi:7,rCounter:14,steerEase:25,expHi:1.6,steerV:39,
-  asK:2.6,asLim:.9,csGrip:.83,csBrake:7,thrUp:3.2,pBase:3.7,pAcc:9.2,offDrag:2.2,offDragV:.035,yawResp:10,rMin0:5,rMinV:.7,laneK:1.0};
+  asK:2.6,asLim:.9,csGrip:.83,csBrake:7,thrUp:3.2,pBase:3.7,pAcc:9.2,offDrag:2.2,offDragV:.035,yawResp:10,rMin0:5,rMinV:.7,laneK:3,laneMax:.15,antT:.15,antMax:12,satAt:.97,satLift:2};
 // fastest speed for a bend of curvature k: limited by grip, and in tight
 // corners by the smallest circle the car turns at that speed
 const vCorner=(k,aC)=>Math.min(Math.sqrt(aC/k),Math.max(4,(.92/k-HD.rMin0)/HD.rMinV));
@@ -2549,6 +2560,9 @@ function stepPlayer(dt){
     else if(alongRoad){const c=cornerLimit(nr,rdir,vF,aC);over=vF-c.lim;jD=c.jD}
     if(!path&&P.holdT>.2&&Math.abs(P.steer)>.7&&(jD<32||junctionAt(P.x,P.z)))over=Math.max(over,vF-vCorner(1/16,aC));
   }
+  // the assist is already turning the car as hard as the tyres allow and the road wants more: lift off rather than
+  // accelerate wide (out of a hairpin the car used to power across the centre line)
+  if(save.assist&&P.asSat&&!brake)over=Math.max(over,HD.satLift);
   // throttle comes in over a fraction of a second instead of all at once
   P.thr=clamp((P.thr||0)+((gas&&!brake&&over<=0)?HD.thrUp:-8)*dt,0,1);if(gas&&P.thr>gA)P.thr=Math.max(gA,P.thr-8*dt);
   if(!P.air){const sl=(surfH(P.x+fx*2,P.z+fz*2)-surfH(P.x-fx*2,P.z-fz*2))/4;vF-=9.81*sl*.75*dt}
@@ -2588,10 +2602,11 @@ function stepPlayer(dt){
   // bends, it makes sure the car turns at least enough to follow it. Steering
   // against it (changing lanes, turning off) always wins, and the line is re-set
   // to the nearest lane wherever you let go.
+  P.asSat=false;
   if(save.assist&&!hb&&nr&&sp>4&&dirV>0&&(onRoad||nr.d<nr.e.half+5)){
     const sideDrv=nr.side*rdir,gap=nr.e.half-Math.abs(sideDrv),band=Math.max(.6,nr.e.half-1.3);
     // road direction just ahead (covers the car's reaction lag) and its bend
-    const ant=Math.min(12,sp*.15),q=edgePos(nr.e,nr.s+rdir*ant);
+    const ant=Math.min(HD.antMax,sp*HD.antT),q=edgePos(nr.e,nr.s+rdir*ant);
     let want=Math.atan2(q.dx*rdir,q.dz*rdir);
     // the line to hold: while you steer, and until the car has straightened
     // up after you let go, it follows the car; then it stays put
@@ -2601,13 +2616,14 @@ function stepPlayer(dt){
     const pb=edgePos(nr.e,nr.s+rdir*(ant-6)),pf=edgePos(nr.e,nr.s+rdir*(ant+6));
     const rFF=-wrapA(Math.atan2(pf.dx*rdir,pf.dz*rdir)-Math.atan2(pb.dx*rdir,pb.dz*rdir))/12*sp;
     // back toward the held line (positive heading = to the left)
-    if(P.laneLock||Math.abs(sideDrv)>band)want+=clamp(Math.atan2(HD.laneK*(sideDrv-laneT),Math.max(sp,6)),-.15,.15);
+    if(P.laneLock||Math.abs(sideDrv)>band)want+=clamp(Math.atan2(HD.laneK*(sideDrv-laneT),Math.max(sp,6)),-HD.laneMax,HD.laneMax);
     const err=wrapA(want-P.h);
     // the assist fades out as the car points further from the road, instead of switching off at a
     // fixed angle, so the turn rate never jumps
     const lim=junctionAt(P.x,P.z)?.35:HD.asLim,aw=1-smooth(lim*.6,lim,Math.abs(err));
     if(aw>0){
-      const rA=clamp(rFF-err*HD.asK,-rCap,rCap)*aw;
+      const dem=rFF-err*HD.asK,rA=clamp(dem,-rCap,rCap)*aw;
+      P.asSat=aw>.5&&Math.abs(dem)>rCap*HD.satAt&&(!on||Math.sign(tgt)===Math.sign(dem));
       if(!on)rT+=rA*(1-Math.abs(P.steer));
       else if(Math.sign(rA)===Math.sign(rT)&&Math.abs(rA)>Math.abs(rT))rT=rA;
       // already on the edge at speed: steering further towards it is softened, more the closer it gets
@@ -2672,7 +2688,7 @@ function initTraffic(){
   for(let i=0;i<n;i++){const c=buildTrafficCar(TCOLS[i%TCOLS.length],i%3===0?"hatch":"sedan");scene.add(c.G);TRAFFIC.push({c,e:null,dir:1,s:0,lane:0,off:0,offCur:0,base:0,v:0,stopT:0,hitT:0,waitT:0,passT:0,pa:null,wx:1e6,wz:1e6,yaw:0})}
 }
 function pickEdge(){const r=Math.random()*TEDGE_CUM[TEDGE_CUM.length-1];let i=0;while(TEDGE_CUM[i]<r)i++;return TEDGES[i]}
-function setLane(t){const ln=RT[t.e.type].lanes;t.lane=Math.min(t.lane,ln.length-1);t.off=ln[t.lane];t.offCur=t.off;t.passT=0;t.waitT=0;t.base=RT[t.e.type].spd*(.85+Math.random()*.3)}
+function setLane(t){const ln=RT[t.e.type].lanes;t.lane=Math.min(t.lane,ln.length-1);t.off=ln[t.lane]*SIDE();t.offCur=t.off;t.passT=0;t.waitT=0;t.base=RT[t.e.type].spd*(.85+Math.random()*.3)}
 // during a race or time trial, traffic on the route only drives the same way as the race: a car coming the other
 // way blocks overtaking. evDirs maps each road the route uses to the race's direction along it (0 = both ways)
 let evDirs=null;
@@ -2706,18 +2722,24 @@ function clearOncoming(){
     t.e=null;t.c.G.visible=false;t.wx=t.wz=1e6;
     t.lost=!spawnTraffic(t,220,560,true)}
 }
-function junction(t,node,over){
+// the roads a car could take at a junction (not back the way it came, nor against a race), and which of them are
+// free to turn into now: none whose first few metres hold a car going the same way, none where a race rival is about
+// to pass where it would join
+function exitsAt(t,node){
   const opts=node.adj.filter(a=>a.e!==t.e&&a.e.type!=="drive"&&!oncoming(a.e,a.end==="a"?1:-1));
+  const free=opts.filter(a=>{const d2=a.end==="a"?1:-1,s0=d2>0?0:a.e.len;if(TRAFFIC.some(o=>o!==t&&o.e===a.e&&o.dir===d2&&(o.s-s0)*d2<9))return false;
+    if(ev&&ev.ai.length){const q=edgePos(a.e,s0);if(ev.ai.some(r=>Math.hypot(r.x-q.x,r.z-q.z)<16))return false}
+    return true});
+  return{opts,free};
+}
+function junction(t,node,over){
+  const{opts,free}=exitsAt(t,node);
   if(!opts.length){
     // a dead end: turn round, unless that would mean driving against a race, then reappear elsewhere
     if(oncoming(t.e,-t.dir)){t.e=null;t.c.G.visible=false;t.wx=t.wz=1e6;t.lost=!spawnTraffic(t,220,560,true);return}
     t.dir*=-1;t.s=t.dir>0?Math.min(over,t.e.len):Math.max(0,t.e.len-over);return}
-  // give way: a road whose first few metres already hold a car going the same way can't be turned into yet (cars
-  // used to merge into each other here); with every way out taken, the car waits at the end of its road
-  const free=opts.filter(a=>{const d2=a.end==="a"?1:-1,s0=d2>0?0:a.e.len;if(TRAFFIC.some(o=>o!==t&&o.e===a.e&&o.dir===d2&&(o.s-s0)*d2<9))return false;
-    // nor pull out in front of a race rival close to where it would join
-    if(ev&&ev.ai.length){const q=edgePos(a.e,s0);if(ev.ai.some(r=>Math.hypot(r.x-q.x,r.z-q.z)<16))return false}
-    return true});
+  // give way: a road that isn't free can't be turned into yet (cars used to merge into each other here). A car
+  // normally waits at the stop line when no way out is free (updateTraffic); one that got here anyway stops at the end
   if(!free.length){t.s=t.dir>0?t.e.len-.01:.01;t.v=0;return}
   const a=free[Math.floor(Math.random()*free.length)];
   t.e=a.e;if(a.end==="a"){t.dir=1;t.s=Math.min(over,t.e.len)}else{t.dir=-1;t.s=Math.max(0,t.e.len-over)}
@@ -2736,18 +2758,24 @@ function updateTraffic(dt){
     // junction on the next, stop a car length short of it, and brake harder when that close (cars on the next road used to be missed,
     // and the one behind drove into them)
     let close=false;
-    for(const o of TRAFFIC){if(o===t||!o.e)continue;const ox=o.wx-t.wx,oz=o.wz-t.wz;if(Math.abs(ox)>20||Math.abs(oz)>20)continue;
-      const gap=ox*tx+oz*tz;if(gap<=0||gap>=20||Math.abs(ox*-tz+oz*tx)>=1.6)continue;
+    // (it looks as far ahead as it needs to stop at a comfortable 7 m/s2: at highway speed a car used to see the
+    // queue 20 m ahead too late to stop, and ran into the back of it)
+    const look=Math.max(20,10+t.v*t.v/14);
+    for(const o of TRAFFIC){if(o===t||!o.e)continue;const ox=o.wx-t.wx,oz=o.wz-t.wz;if(Math.abs(ox)>look||Math.abs(oz)>look)continue;
+      const gap=ox*tx+oz*tz;if(gap<=0||gap>=look||Math.abs(ox*-tz+oz*tx)>=1.6)continue;
       // only cars going its way: one waiting to cross, or coming the other way, is not followed (that could lock both)
       if(Math.sin(o.yaw)*tx+Math.cos(o.yaw)*tz<.5)continue;
-      target=Math.min(target,gap<6.5?0:o.v*(gap<9?.4:.95));if(gap<9)close=true}
+      target=Math.min(target,gap<6.5?0:Math.min(o.v*(gap<9?.4:.95)+Math.sqrt(14*Math.max(0,gap-9)),Math.sqrt(o.v*o.v+14*(gap-6.5))));if(gap<9)close=true}
     // where roads meet, one car crosses at a time: it holds the junction from 12 m out until it is 14 m clear of it,
     // and the others wait 7.5 m short, clear of the road they cross (cars crossing a junction together used to drive
     // through each other)
     const jn=t.dir>0?t.e.b:t.e.a,dEnd=t.dir>0?t.e.len-t.s:t.s;
-    if(jn.adj.length>2&&dEnd<18){
+    if(jn.adj.length>2&&dEnd<Math.max(18,11.5+t.v*t.v/14)){
       const h=jn.res;if(h&&h!==t&&!(h.e&&Math.hypot(h.wx-jn.x,h.wz-jn.z)<14))jn.res=null;
-      if(jn.res&&jn.res!==t){target=Math.min(target,Math.max(0,(dEnd-7.5)*1.2));if(dEnd<12)close=true}
+      // with no way out free yet, it waits at the stop line too, and lets the others cross meanwhile (it used to roll
+      // up to the middle of the junction and wait there, in the way of cars crossing)
+      const ex=exitsAt(t,jn),stuck=ex.opts.length&&!ex.free.length;
+      if((jn.res&&jn.res!==t)||stuck){target=Math.min(target,Math.sqrt(14*Math.max(0,dEnd-7.5)),Math.max(0,(dEnd-7.5)*1.2+(dEnd>12?6:0)));if(dEnd<12)close=true;if(stuck&&jn.res===t)jn.res=null}
       else if(dEnd<12)jn.res=t;
     }
     const ddx=P.x-t.wx,ddz=P.z-t.wz,ah=ddx*tx+ddz*tz,lt=ddx*-tz+ddz*tx;
@@ -2757,7 +2785,7 @@ function updateTraffic(dt){
       // counts from wherever it stopped: a car that pulled up more than 16 m back used to wait for good
       if(pv<1.5){t.waitT+=dt;if(t.waitT>2){t.waitT=0;t.passT=4.5}}}
     else t.waitT=Math.max(0,t.waitT-dt);
-    const ln=RT[t.e.type].lanes,offT=t.passT>0?(ln.length>1&&t.lane===0?ln[1]:-ln[0]):t.off;
+    const ln=RT[t.e.type].lanes,offT=t.passT>0?(ln.length>1&&t.lane===0?ln[1]:-ln[0])*SIDE():t.off;
     t.offCur+=clamp(offT-t.offCur,-2.2*dt,2.2*dt);
     t.v+=clamp(target-t.v,-(close?20:9)*dt,3*dt);
     t.s+=t.v*dt*t.dir;
@@ -2797,7 +2825,7 @@ function updateStreak(dt){
   const nr=P.nr;
   if(nr&&P.onRoad&&nr.e.type!=="drive"&&kph>70){
     const f=fwdOf(P.h),al=f.x*nr.dx+f.z*nr.dz;
-    if((al>.3&&nr.side<-.8)||(al<-.3&&nr.side>.8))streakAction("ONCOMING",kph*.55*dt,false);
+    const sd=nr.side*SIDE();if((al>.3&&sd<-.8)||(al<-.3&&sd>.8))streakAction("ONCOMING",kph*.55*dt,false);
   }
   const vF=speedF(),vS=P.vx*-Math.cos(P.h)+P.vz*Math.sin(P.h),ang=Math.abs(Math.atan2(vS,Math.abs(vF)))*57.3;
   if(ang>12&&kph>40&&!P.air)streakAction("DRIFT",ang*4*dt,false);
@@ -2926,10 +2954,12 @@ function startEvent(E,cup){
   const R=E.route,me=curCar(),idx=CARS.indexOf(me);
   ev={E,R,t:-3,phase:"count",cp:0,hint:0,s:14,sNow:14,d:99,ai:[],done:false,wrongT:0,last:4,px:null,pz:null,gate:gateOf(R,E.cps[0]),reT:0,missT:0,diff:E.type==="race"?save.diff:1,obs:[],cup:cup||null,tg:cup&&E.type==="tt"?cupTimes(E,cup.cls):E,rec:E.type==="tt"?[]:null,ghost:E.type==="tt"&&save.ghost[E.id]?save.ghost[E.id]:null};
   const p=edgePos(R,14);
-  P.x=p.x-p.dz*-1.7;P.z=p.z+p.dx*-1.7;P.h=Math.atan2(p.dx,p.dz);P.vx=P.vz=0;P.r=0;P.steer=0;P.steerS=0;P.ty=surfH(P.x,P.z);P.y=P.ty;P.air=false;
+  // the grid: you on the outer side of the road, rivals beside and behind (mirrored when driving on the left)
+  const S=SIDE(),L1=1.9*S,L2=-1.7*S;
+  P.x=p.x-p.dz*L2;P.z=p.z+p.dx*L2;P.h=Math.atan2(p.dx,p.dz);P.vx=P.vz=0;P.r=0;P.steer=0;P.steerS=0;P.ty=surfH(P.x,P.z);P.y=P.ty;P.air=false;
   if(E.type==="race"){
     // second row far enough back that the chase camera is not inside the car behind you
-    const grid=[[14,1.9],[3,-1.7],[3,1.9]],used=new Set();AIM.forEach(m=>m&&(m.G.visible=false));
+    const grid=[[14,L1],[3,L2],[3,L1]],used=new Set();ev.lanes=[L1,L2];AIM.forEach(m=>m&&(m.G.visible=false));
     // in a championship the rivals drive cars of the cup's class
     const pool=cup?CARS.filter(c=>c.cls===cup.cls&&c.id!==me.id):[];
     for(let i=0;i<3;i++){
@@ -2986,7 +3016,7 @@ function updateEvent(dt){
       // used to drive through each other)
       let ahead=null,ag=1e9;
       for(const b of obs){const g=b.s-a.s;if(b!==a&&g>0&&g<(b.tc?30:16)&&Math.abs(b.lat-a.lat)<2.2&&g<ag){ag=g;ahead=b}}
-      if(ahead){const other=a.lane>0?-1.7:1.9;
+      if(ahead){const other=Math.abs(a.lane-ev.lanes[0])<.1?ev.lanes[1]:ev.lanes[0];
         if(ahead.v<a.v+1&&obs.every(b=>b===a||Math.abs(b.lat-other)>2.2||b.s-a.s<-7||b.s-a.s>(b.tc?25:12)))a.lane=other;
         if(ag<(ahead.tc?22:10))vt=Math.min(vt,Math.max(0,ahead.v-(ag<6.5?1.5:0))+(ahead.tc?Math.max(0,ag-8)*.6:0))}
       a.v+=clamp(vt-a.v,-11*dt,a.acc*pace*Math.max(.15,1-(a.v/a.vmax)**2)*dt);
@@ -2999,12 +3029,13 @@ function updateEvent(dt){
       if(ds>-3&&ds<9&&Math.abs(P.lat-a.lat)<2.4)nl+=Math.sign(a.lat-P.lat||1)*3*dt;
       else nl+=clamp(a.lane-a.lat,-1.4*dt,1.4*dt);
       nl=clamp(nl,-3.2,3.2);
-      // a sideways move never takes it into a car level with it (that left one inside the other, and the spacing below
-      // then made the one behind jump back)
-      if(!obs.some(b=>b!==a&&Math.abs(b.s-a.s)<5.2&&Math.abs(b.lat-nl)<1.8&&Math.abs(b.lat-a.lat)>=1.8))a.lat=nl;
-      // and never closer than a car length to a rival ahead that is still level with it across the road; behind a
-      // traffic car that has only just come onto the route that close, it brakes hard instead of jumping back
-      for(const b of obs){const g=b.s-a.s;if(b!==a&&g>=0&&g<5&&Math.abs(b.lat-a.lat)<1.8){if(b.tc)a.v=Math.min(a.v,b.v*.7);else{a.s=b.s-5;a.v=Math.min(a.v,b.v)}}}
+      // a sideways move never takes it closer to a car level with it along the road (that left one inside the other,
+      // and the spacing below then made the one behind drop back)
+      if(!obs.some(b=>b!==a&&Math.abs(b.s-a.s)<5.4&&Math.abs(b.lat-nl)<1.9&&Math.abs(b.lat-nl)<Math.abs(b.lat-a.lat)))a.lat=nl;
+      // and never closer than a car length to a rival ahead that is still level with it across the road (it drops back
+      // to that at most 0.3 m a frame, so it never moves backwards on screen); behind a traffic car that has only just
+      // come onto the route that close, it brakes hard instead
+      for(const b of obs){const g=b.s-a.s;if(b!==a&&g>=0&&g<5&&Math.abs(b.lat-a.lat)<1.8){if(b.tc)a.v=Math.min(a.v,b.v*.7);else{a.s=Math.max(b.s-5,a.s-.3);a.v=Math.min(a.v,b.v*.9)}}}
       // note any traffic car this rival is inside (dealt with below, once every rival has been seen)
       for(const b of obs)if(b.tc&&Math.abs(b.s-a.s)<4.6&&Math.abs(b.lat-a.lat)<1.8)b.tc.ovHit=true;
     }
@@ -4124,7 +4155,7 @@ function updateLampLights(){
     l.position.set(L.x,L.y-.4,L.z);l.intensity=night*1.9*(1-smooth(9,21,Math.sqrt(d2)))});
 }
 function placeOnRoad(nr,dirSign){
-  const ux=nr.dx*dirSign,uz=nr.dz*dirSign,off=RT[nr.e.type].lanes[0];
+  const ux=nr.dx*dirSign,uz=nr.dz*dirSign,off=RT[nr.e.type].lanes[0]*SIDE();
   P.x=nr.x-uz*off;P.z=nr.z+ux*off;P.h=Math.atan2(ux,uz);P.vx=P.vz=P.vy=0;P.r=0;P.steer=0;P.steerS=0;P.air=false;
   P.ty=surfH(P.x,P.z);P.y=P.ty;P.pitch=0;P.roll=0;streakReset();autoHold=true;
 }
@@ -4414,7 +4445,7 @@ function pauseOn(){if(state!=="DRIVE")return;setState("PAUSE");clearInput();audi
   syncPause();$("pFb").classList.toggle("wide",[...document.querySelectorAll("#pause .mbtn")].filter(b=>b.id!=="pRes"&&!b.classList.contains("hide")).length%2===1);show("pause",true)}
 function pauseOff(){show("pause",false);if(state==="PAUSE"){setState("DRIVE");audioOn(true);TILT.zero=TILT.phi}}
 const TODS=[["AUTO",null],["MORNING",8.5],["NOON",13],["SUNSET",17.75],["NIGHT",22.5]];
-function syncPause(){$("pAssist").textContent="DRIVING ASSIST: "+(save.assist?"ON":"OFF");$("pTime").textContent="TIME OF DAY: "+TODS[save.todMode][0];$("pAuto").textContent="AUTO GAS: "+(save.auto?"ON":"OFF");$("pSnd").textContent="SOUND FX: "+(save.sound?"ON":"OFF");$("pMus").textContent=$("gMus").textContent="MUSIC: "+(save.music?"ON":"OFF");$("pGfx").textContent="GRAPHICS: "+["AUTO","SHARP","SMOOTH"][save.gfx];$("pGhost").textContent="GHOST CAR: "+(save.ghostOn?"ON":"OFF");$("pSteer").textContent="STEERING: "+["LOW","NORMAL","HIGH"][save.steer];$("pTilt").textContent="TILT STEERING: "+(save.tilt?"ON":"OFF");show("pTilt",isTouch)}
+function syncPause(){$("pAssist").textContent="DRIVING ASSIST: "+(save.assist?"ON":"OFF");$("pTime").textContent="TIME OF DAY: "+TODS[save.todMode][0];$("pAuto").textContent="AUTO GAS: "+(save.auto?"ON":"OFF");$("pSnd").textContent="SOUND FX: "+(save.sound?"ON":"OFF");$("pMus").textContent=$("gMus").textContent="MUSIC: "+(save.music?"ON":"OFF");$("pGfx").textContent="GRAPHICS: "+["AUTO","SHARP","SMOOTH"][save.gfx];$("pGhost").textContent="GHOST CAR: "+(save.ghostOn?"ON":"OFF");$("pSteer").textContent="STEERING: "+["LOW","NORMAL","HIGH"][save.steer];$("pTilt").textContent="TILT STEERING: "+(save.tilt?"ON":"OFF");show("pTilt",isTouch);$("pSide").textContent="DRIVE ON: "+(save.side==="R"?"RIGHT":"LEFT")}
 $("pRes").onclick=pauseOff;
 $("pMap").onclick=()=>{show("pause",false);setState("DRIVE");openMap()};
 $("pQuit").onclick=()=>{if(testDrive){endTestDrive();return}if(ev&&ev.fin){pauseOff();showResult();return}endEvent();pauseOff();toast("EVENT CANCELLED","Back to free ride")};
@@ -4426,6 +4457,9 @@ function applyGfx(){gfxLimits();const p=clamp(save.gfx===0?Math.max(prNow,PR_MIN
   if(p!==prNow){prNow=p;renderer.setPixelRatio(p);renderer.setSize(W,H,false)}}
 $("pGfx").onclick=()=>{save.gfx=(save.gfx+1)%3;applyGfx();syncPause();persist();toast("GRAPHICS: "+GFX[save.gfx],["Sharp, eases off a little if frames slow down","Always full sharpness","Lighter on weak phones and battery"][save.gfx])};
 $("pAssist").onclick=()=>{save.assist=!save.assist;syncPause();persist()};
+// which side traffic keeps to; the cars on the road move over to it straight away
+$("pSide").onclick=()=>{save.side=save.side==="R"?"L":"R";for(const t of TRAFFIC)if(t.e){const ln=RT[t.e.type].lanes;t.off=ln[Math.min(t.lane,ln.length-1)]*SIDE();t.offCur=t.off;t.passT=0}
+  syncPause();persist();toast("DRIVE ON THE "+(save.side==="R"?"RIGHT":"LEFT"),"Traffic keeps to the "+(save.side==="R"?"right":"left")+(ev?" · the race's grid changes from the next start":""))};
 $("pSteer").onclick=()=>{save.steer=(save.steer+1)%3;syncPause();persist()};
 // iPhones only send tilt after the player allows it, which must be asked from a tap
 $("pTilt").onclick=()=>{

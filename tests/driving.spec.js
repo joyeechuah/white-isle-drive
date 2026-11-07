@@ -52,6 +52,104 @@ test.describe("driving", () => {
     expect(hold.s).toBeGreaterThan(1.3);
   });
 
+  test("holding only W through bends at speed, the assist keeps the GT-R in its lane, on either side of the road", async ({
+    game,
+  }) => {
+    test.setTimeout(300_000);
+    const r = await game.eval(() => {
+      const T = __T,
+        P = T.P,
+        bends = [],
+        runs = [];
+      for (const t of T.TRAFFIC) {
+        t.e = null;
+        t.c.G.visible = false;
+        t.wx = t.wz = 1e6;
+      }
+      T.save.assist = true;
+      T.save.auto = false;
+      T.attachCar("gtr");
+      for (const side of ["L", "R"]) {
+        T.save.side = side;
+        const S = side === "R" ? 1 : -1;
+        // every long road, both ways, from rest 35 m from one end, 20 s of W only
+        for (const e of T.EDGES.filter((e) => e.type !== "drive" && e.len > 500))
+          for (const dirS of [1, -1]) {
+            const lane = T.RT[e.type].lanes[0],
+              q = T.edgePos(e, dirS > 0 ? 35 : e.len - 35),
+              ux = q.dx * dirS,
+              uz = q.dz * dirS;
+            P.x = q.x - uz * lane * S;
+            P.z = q.z + ux * lane * S;
+            P.h = Math.atan2(ux, uz);
+            P.vx = P.vz = P.vy = 0;
+            P.r = P.steer = P.steerS = P.thr = P.brkT = P.holdT = P.holdDir = 0;
+            P.laneT = null;
+            P.air = false;
+            for (const k in T.keys) T.keys[k] = false;
+            // the lane it starts in is the one to hold, measured across the road (+ = right of the way it drives)
+            let worst = 0,
+              across = 0;
+            for (let i = 0; i < 1200; i++) {
+              T.keys.w = true;
+              T.driveUpdate(1 / 60);
+              const nr = T.nearestRoad(P.x, P.z, 20);
+              if (!nr || nr.e !== e) break;
+              if (T.junctionAt(P.x, P.z)) continue;
+              const dir = Math.sin(P.h) * nr.dx + Math.cos(P.h) * nr.dz >= 0 ? 1 : -1,
+                a = nr.side * dir,
+                off = a - S * lane;
+              worst = Math.max(worst, Math.abs(off));
+              // the car's centre over the centre line, into the other side's lane
+              if (a * S < 0) across += 1 / 60;
+              if (i % 6) continue;
+              const k1 = T.edgePos(e, nr.s),
+                k2 = T.edgePos(e, nr.s + 12 * dir),
+                bend = Math.atan2(k1.dx * k2.dz - k1.dz * k2.dx, k1.dx * k2.dx + k1.dz * k2.dz) * dir;
+              // metres off the lane centre towards the outside of the bend
+              if (Math.abs(bend) >= 0.03) bends.push(bend > 0 ? off : -off);
+            }
+            runs.push({
+              side,
+              edge: T.EDGES.indexOf(e),
+              dirS,
+              worst: +worst.toFixed(2),
+              across: +across.toFixed(2),
+            });
+          }
+      }
+      T.keys.w = false;
+      bends.sort((a, b) => a - b);
+      const at = (f) => +bends[Math.floor(bends.length * f)].toFixed(2);
+      return {
+        n: bends.length,
+        p50: at(0.5),
+        p90: at(0.9),
+        p99: at(0.99),
+        runs,
+      };
+    });
+    const worst = r.runs.reduce((a, b) => (b.worst > a.worst ? b : a));
+    test.info().annotations.push({
+      type: "metres wide of the lane in bends (GT-R, W only)",
+      description: JSON.stringify({
+        n: r.n,
+        p50: r.p50,
+        p90: r.p90,
+        p99: r.p99,
+        worst,
+      }),
+    });
+    expect(r.runs.length).toBeGreaterThanOrEqual(24);
+    expect(r.n).toBeGreaterThan(600);
+    // it used to run up to about a metre wide (90% of the time within 0.75 m)
+    expect(r.p90).toBeLessThan(0.5);
+    expect(r.p99).toBeLessThan(0.8);
+    // out of the tightest hairpin it used to power across the centre line (2 m off, for 0.45 s)
+    expect(r.runs.filter((x) => x.across > 0)).toEqual([]);
+    expect(worst.worst).toBeLessThan(1.1);
+  });
+
   test("steering left and right turn the car opposite ways, and only when it moves", async ({ game }) => {
     const still = await game.steps(60, { a: true });
     const h0 = await game.eval(() => __T.P.h);

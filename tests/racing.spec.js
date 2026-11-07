@@ -409,7 +409,7 @@ test.describe("races and time trials", () => {
       T.save.diff = 2;
       T.startEvent(T.EVENTS[3]);
       const R = T.ev.R;
-      // four slow traffic cars in the race's direction on the route ahead, in the lane two rivals start in
+      // four slow traffic cars in the race's direction on the route ahead
       const placed = [];
       for (const [k, s] of [200, 420, 640, 900].entries()) {
         const q = T.edgePos(R, s),
@@ -421,7 +421,8 @@ test.describe("races and time trials", () => {
         t.s = nr.s;
         t.dir = dir;
         t.lane = 0;
-        t.off = t.offCur = 1.9;
+        // in the lane the rivals start in, on whichever side traffic keeps to
+        t.off = t.offCur = 1.9 * (T.save.side === "R" ? 1 : -1);
         t.base = t.v = 6;
         t.passT = 0;
         t.waitT = 0;
