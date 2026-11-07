@@ -32,7 +32,7 @@ In the garage, `←` / `→` choose a car and `Enter` drives it. On the map, dra
 
 In photo mode, drag (or use the arrow keys) to move around the car and scroll, pinch or press `+` / `−` to move closer. The ZOOM and DISTANCE sliders do the same, `1` to `4` pick a look (AS IS, GOLDEN HOUR, NIGHT DRIVE, COASTAL SUNSET), `R` resets the camera, `Enter` takes the picture and `Esc` or `V` goes back to the game. The world stands still while it's open, and the looks change the light only in photo mode.
 
-The pause menu opens photo mode, the Island Passport, the Contracts board and the Championships board, and sets the time of day, driving assist (keeps the car stable and in its lane), auto gas (off by default, handy on phones), sound effects (SOUND FX), music, graphics quality (AUTO, SHARP or SMOOTH), the time trial ghost, steering sensitivity (STEERING: LOW, NORMAL or HIGH) and, on phones and tablets, TILT STEERING (off by default; the way you hold the phone when you switch it on or resume is straight ahead). The two sound switches are independent. The garage also has its own MUSIC button.
+The pause menu opens photo mode, the Island Passport, the Contracts board and the Championships board, and sets the time of day, driving assist (keeps the car stable and in its lane), auto gas (off by default, handy on phones), sound effects (SOUND FX), music, graphics quality (AUTO, SHARP or SMOOTH), the time trial ghost, steering sensitivity (STEERING: LOW, NORMAL or HIGH) and, on phones and tablets, TILT STEERING (off by default; the way you hold the phone when you switch it on or resume is straight ahead), and which side traffic keeps to (DRIVE ON: LEFT, the default, or RIGHT, as in Spain). The two sound switches are independent. The garage also has its own MUSIC button.
 
 ## Features
 
@@ -47,7 +47,7 @@ The pause menu opens photo mode, the Island Passport, the Contracts board and th
 - An Island Passport of 18 landmarks to find by driving to them, from the highest road to the far capes and the villages, each paying credits once, with a bonus for finding them all
 - Contracts: parcel deliveries, timed courier runs and scenic tours between the towns, with the GPS guiding you and a reward on completion
 - Speed radars, plus a free-ride points streak for speed, near misses, oncoming-lane driving and drifts that you bank as credits
-- Traffic on the roads, a GPS minimap that draws the route to any marker or waypoint, and a full map with fast travel
+- Traffic on the roads, keeping to the left by default or to the right (DRIVE ON in the pause menu), a GPS minimap that draws the route to any marker or waypoint, and a full map with fast travel
 - A three-track soundtrack: a Mediterranean lounge groove in the garage and dealership, Balearic house for free driving and a faster track for races, looping without a gap, quieter behind menus and softer after dark
 - Engine, tyre, surface and impact sound synthesised live with the Web Audio API
 - Responsive HUD for desktop and touch screens in landscape or portrait
@@ -86,6 +86,7 @@ The tests run against the real `index.html`, read fresh on every run. For tests 
 - **Traffic**: cars keep their distance at junctions, in queues and where they appear, and none waits for good, even behind a parked car.
 - **Ghost**: a record run is saved and a slower one isn't, the replay follows the recorded path, is see-through, shows the gap and can't be hit, the switch, and damaged ghosts in a save.
 - **Championships**: which cups are open in which car, points, NEXT ROUND, the prize paid once, 22 points to win, quitting a round, class medal times (with the autopilot getting a medal in an A1 and an A7 car), the garage's cups won, and damaged saves.
+- **Driving side**: traffic and the car on the left by default, switching to the right at once and after a reload, the mirrored race grid, and ONCOMING points on each side.
 - **Controls**: steering sensitivity, a simulated game controller (triggers part-way and fully, stick, buttons) and simulated tilt steering on a phone.
 - **Camera**: the chase camera keeps the road ahead in view for small, large and low cars; the chosen camera is remembered.
 - **Rendering**: real WebGL drawing by day and night and at each graphics setting.
