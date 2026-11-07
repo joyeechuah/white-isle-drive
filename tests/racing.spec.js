@@ -172,6 +172,146 @@ test.describe("races and time trials", () => {
     expect(await game.eval(() => ({ t: __T.ev.t <= -2.5, cp: __T.ev.cp, phase: __T.ev.phase }))).toEqual({ t: true, cp: 0, phase: "count" });
   });
 
+  test("past the finish line the car brakes to a stop before the result, which keeps the time at the line", async ({ game, page }) => {
+    await ready(game);
+    await start(game, page, 0);
+    await game.eval(() => {
+      __T.save.auto = true; // auto gas on: the car must still stay put after the result
+    });
+    const r = await game.eval(() => {
+      const T = __T,
+        P = T.P;
+      // the autopilot drives to the line
+      for (let i = 0; i < 20000 && T.ev && !T.ev.fin; i++) {
+        const R = T.ev.R,
+          la = Math.min(R.len, T.ev.s + 18 + Math.hypot(P.vx, P.vz) * 0.5);
+        let lo = 0,
+          hi = R.cum.length - 1;
+        while (hi - lo > 1) {
+          const m = (lo + hi) >> 1;
+          if (R.cum[m] <= la) lo = m;
+          else hi = m;
+        }
+        const p = R.pts[hi],
+          err = ((Math.atan2(p.x - P.x, p.z - P.z) - P.h + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+        T.keys.a = err > 0.03;
+        T.keys.d = err < -0.03;
+        T.keys.w = true;
+        T.driveUpdate(1 / 60);
+      }
+      const atLine = { kph: Math.hypot(P.vx, P.vz) * 3.6, t: T.ev.fin.t, banner: document.getElementById("count").textContent };
+      // the throttle stays held: past the line it does nothing
+      T.driveUpdate(1 / 60);
+      atLine.shown = document.getElementById("evTime").textContent;
+      let steps = 1,
+        same = true;
+      while (T.state === "DRIVE" && steps < 600) {
+        T.driveUpdate(1 / 60);
+        steps++;
+        if (T.ev && document.getElementById("evTime").textContent !== atLine.shown) same = false;
+      }
+      T.keys.a = T.keys.d = T.keys.w = false;
+      return { atLine, steps, same, state: T.state, kph: Math.hypot(P.vx, P.vz) * 3.6, rec: T.save.rec.cubells, rows: document.getElementById("rRows").textContent };
+    });
+    expect(r.atLine.kph, "km/h crossing the line").toBeGreaterThan(60);
+    expect(r.atLine.banner).toBe("FINISH");
+    expect(r.state).toBe("RESULT");
+    expect(r.steps / 60, "seconds from the line to the result").toBeLessThanOrEqual(4.05);
+    expect(r.kph, "km/h when the result shows").toBe(0);
+    expect(r.same, "the race panel holds the finishing time").toBe(true);
+    expect(r.rec).toBe(r.atLine.t);
+    expect(r.rows).toContain(r.atLine.shown);
+    // closing the result leaves the car where it stopped, even with auto gas on, until a control is touched
+    await page.locator("#rOk").click();
+    await game.waitState("DRIVE");
+    const p0 = await game.eval(() => [__T.P.x, __T.P.z]);
+    const after = await game.steps(120, {});
+    expect(Math.hypot(after.x - p0[0], after.z - p0[1]), "metres moved in 2 s after OK").toBeLessThan(0.5);
+  });
+
+  test("pausing past the finish line offers the result instead of quitting the event", async ({ game, page }) => {
+    await ready(game);
+    await start(game, page, 2);
+    await game.steps(200, {});
+    const cr0 = await game.eval(() => __T.save.cr);
+    await game.eval(() => {
+      const T = __T;
+      // a clean run straight to the last gate, then over the line
+      T.ev.cp = T.ev.E.cps.length - 1;
+      T.ev.gate = T.gateOf(T.ev.R, T.ev.E.cps[T.ev.cp]);
+      // over the line at speed, and paused straight away, while the car is still braking
+      T.P.vx = Math.sin(T.P.h) * 30;
+      T.P.vz = Math.cos(T.P.h) * 30;
+      T.finishEvent();
+      T.pauseOn();
+    });
+    await game.waitState("PAUSE");
+    await expect(page.locator("#pQuit")).toHaveText("SEE RESULT");
+    await page.locator("#pQuit").click();
+    await game.waitState("RESULT");
+    await expect(page.locator("#rTitle")).toHaveText(/GOLD|SILVER|BRONZE|NO MEDAL/);
+    // paid once, at the line
+    const paid = await game.eval(() => __T.save.cr);
+    await page.locator("#rOk").click();
+    await game.waitState("DRIVE");
+    await game.steps(60, {});
+    expect(await game.eval(() => __T.save.cr)).toBe(paid);
+    expect(paid).toBeGreaterThanOrEqual(cr0);
+  });
+
+  test("race rivals never drive through each other", async ({ game }) => {
+    test.setTimeout(400_000);
+    await ready(game);
+    const r = await game.eval(() => {
+      const T = __T,
+        P = T.P,
+        out = {};
+      for (const E of T.EVENTS) {
+        if (E.type !== "race") continue;
+        T.startEvent(E);
+        let overlap = 0,
+          passes = 0;
+        const order0 = T.ev.ai.map((a) => a.s);
+        for (let i = 0; i < 200; i++) T.driveUpdate(1 / 60);
+        for (let i = 0; i < 20000 && T.ev; i++) {
+          const R = T.ev.R,
+            la = Math.min(R.len, T.ev.s + 18 + Math.hypot(P.vx, P.vz) * 0.5);
+          let lo = 0,
+            hi = R.cum.length - 1;
+          while (hi - lo > 1) {
+            const m = (lo + hi) >> 1;
+            if (R.cum[m] <= la) lo = m;
+            else hi = m;
+          }
+          const p = R.pts[hi],
+            err = ((Math.atan2(p.x - P.x, p.z - P.z) - P.h + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+          T.keys.a = err > 0.03;
+          T.keys.d = err < -0.03;
+          T.keys.w = true;
+          const ai = T.ev.ai,
+            before = ai.map((a) => a.s);
+          T.driveUpdate(1 / 60);
+          if (!T.ev) break;
+          for (let a = 0; a < ai.length; a++)
+            for (let b = a + 1; b < ai.length; b++) {
+              // a car length along the route and level across it: one drawn inside the other
+              if (Math.abs(ai[a].s - ai[b].s) < 4.6 && Math.abs(ai[a].lat - ai[b].lat) < 1.7) overlap++;
+              if (Math.sign(before[a] - before[b]) !== Math.sign(ai[a].s - ai[b].s)) passes++;
+            }
+        }
+        T.keys.a = T.keys.d = T.keys.w = false;
+        out[E.id] = { overlap, passes, order0, state: T.state };
+        if (T.state === "RESULT") document.getElementById("rOk").click();
+      }
+      return out;
+    });
+    test.info().annotations.push({ type: "rivals in each race", description: JSON.stringify(r) });
+    for (const [id, x] of Object.entries(r)) {
+      expect(x.overlap, `${id}: frames with one rival inside another`).toBe(0);
+      expect(x.state, `${id}: the race still finishes`).toBe("RESULT");
+    }
+  });
+
   test("no traffic comes the other way along a race or time trial route", async ({ game }) => {
     test.setTimeout(400_000);
     await ready(game);

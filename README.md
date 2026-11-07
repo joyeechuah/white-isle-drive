@@ -72,12 +72,13 @@ The tests run against the real `index.html`, read fresh on every run. For tests 
 - **Smoke**: the untouched page loads, START, the garage, driving, pause and home; site files and the 404 page.
 - **Driving**: throttle, brakes, reverse, steering, handbrake, the sea reset, R to reset, map travel, keys held while menus are open.
 - **Garage and dealership**: buying (charged once), not enough credits, the 12-car limit, selling, test drives, paint.
-- **Races and time trials**: rewards paid once, checkpoints in order, the finish line, quitting and restarting, and no oncoming traffic on any event route.
+- **Races and time trials**: rewards paid once, checkpoints in order, the finish line, quitting and restarting, no oncoming traffic on any event route, rivals never driving through each other, and the car braking to a stop past the line before the result.
 - **Map and GPS**: waypoints and routes, mouse and touch zoom and pan, turning a phone, travelling from a marker.
 - **Photo Mode**: where it opens, the world standing still, camera and looks, a real PNG capture, everything restored.
 - **Island Passport** and **Contracts**: every landmark and all 9 contracts, each paid once, failures and cancellations.
 - **Saves**: reloads, a save from the first release, corrupt and malformed saves, storage being refused.
 - **Phones**: touch controls, and layouts at six screen sizes (including 360 px tall phones held sideways), and turning the device, the race panel kept clear of the car and the road, and the BRAKE / REVERSE label.
+- **Traffic**: cars keep their distance at junctions, in queues and where they appear, and none waits for good, even behind a parked car.
 - **Camera**: the chase camera keeps the road ahead in view for small, large and low cars; the chosen camera is remembered.
 - **Rendering**: real WebGL drawing by day and night and at each graphics setting.
 - **Stability and performance**: no leftovers after many screen changes, long frame gaps, a hidden tab, memory over a long drive, and measurements of frame cost, GPU load, load time and memory.

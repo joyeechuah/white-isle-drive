@@ -1887,7 +1887,7 @@ function foamTex(){
   const t=new THREE.CanvasTexture(c);t.wrapS=THREE.RepeatWrapping;return t;
 }
 function buildFoam(){
-  const N=1500,P=[],U=[],I=[];let run=0,prev=null,cum=0;
+  const N=1500,P=[],U=[],I=[];let prev=null,cum=0;
   for(let k=0;k<=N;k++){const a=k/N*TAU,r=waterline(a);
     if(r===null){prev=null;continue}
     const cx=Math.cos(a),cz=Math.sin(a),x=cx*r,z=cz*r;
@@ -2153,7 +2153,7 @@ function wallRun(pts,H){
 function railRun(e,sg,ss){
   const first=ss[0]-4,last=ss[ss.length-1]+4,list=[];for(let s=Math.max(1,first);s<=Math.min(e.len-1,last);s+=4)list.push(s);
   const o=e.half+1.15,P=list.map(s=>{const p=edgePos(e,s),rx=-p.dz*sg,rz=p.dx*sg;return{x:p.x+rx*o,z:p.z+rz*o,y:edgeY(e,s)+YO,rx,rz}});
-  const t=rtl(P[0].x,P[0].z);let cum=0;
+  const t=rtl(P[0].x,P[0].z);
   for(let i=0;i<P.length;i++){const A=P[i];
     t.solid.push({g:GEO.box,m:mat(A.x+A.rx*.14,A.y+.38,A.z+A.rz*.14,Math.atan2(A.rx,A.rz),.12,.8,.1),c:0x7d8288});
     if(i===P.length-1)break;const B=P[i+1],L=Math.hypot(B.x-A.x,B.z-A.z);
@@ -2163,7 +2163,7 @@ function railRun(e,sg,ss){
       gquad(t.rail,a,b,c,d,[-A.rx,0,-A.rz],[[0,0],[1,0],[1,1],[0,1]]);
       const bk=.05;gquad(t.rail,[a[0]+A.rx*bk,a[1],a[2]+A.rz*bk],[b[0]+B.rx*bk,b[1],b[2]+B.rz*bk],[c[0]+B.rx*bk,c[1],c[2]+B.rz*bk],[d[0]+A.rx*bk,d[1],d[2]+A.rz*bk],[A.rx,0,A.rz],[[0,0],[1,0],[1,1],[0,1]]);
     }
-    addBox((A.x+B.x)/2,(A.z+B.z)/2,.2,L/2,Math.atan2(B.x-A.x,B.z-A.z));cum+=L;
+    addBox((A.x+B.x)/2,(A.z+B.z)/2,.2,L/2,Math.atan2(B.x-A.x,B.z-A.z));
   }
 }
 /* ================================================================ CAR MODELS
@@ -2441,7 +2441,8 @@ function stepPlayer(dt){
   const onRoad=(!!nr&&nr.d<nr.e.half+.7)||!!junctionAt(P.x,P.z);P.onRoad=onRoad;
   const th=groundH(P.x,P.z),sand=!onRoad&&th<3.4;
   const surf=onRoad?1:sand?.55:.72;
-  const gas=kG(),brake=kB(),hb=kH(),sp0=Math.abs(vF);
+  // past the finish line the car brakes itself to a stop (the controls are locked) before the result shows
+  const gas=kG(),brake=kB()||(!!ev&&ev.phase==="finish"&&vF>.5),hb=kH(),sp0=Math.abs(vF);
   const vMax=onRoad?cd.top/3.6:sand?Math.min(cd.top/3.6*.35,20):Math.min(cd.top/3.6*.45,30),power=HD.pBase+cd.acc*HD.pAcc;
   // tyre grip: arcade-strong on asphalt, a bit more at low speed
   const vN=clamp(sp0/55,0,1),aLatRoad=9.81*(HD.latBase+cd.grip*HD.latGrip)*(1+HD.latLow*(1-vN)),aLat=aLatRoad*surf;
@@ -2597,7 +2598,11 @@ function spawnTraffic(t,dmin,dmax,avoidView){
     if(d<dmin||d>dmax)continue;
     if(avoidView){const cf=new V3();camera.getWorldDirection(cf);if((dx*cf.x+dz*cf.z)/d>.2)continue}
     let dir=Math.random()<.5?1:-1;if(oncoming(e,dir)){dir=-dir;if(oncoming(e,dir))continue}
-    t.e=e;t.s=s;t.dir=dir;t.lane=Math.floor(Math.random()*2);setLane(t);t.v=t.base;t.stopT=0;t.pa=null;return true;
+    // never on top of another car
+    if(TRAFFIC.some(o=>o!==t&&o.e&&Math.abs(o.wx-p.x)<14&&Math.abs(o.wz-p.z)<14))continue;
+    t.e=e;t.s=s;t.dir=dir;t.lane=Math.floor(Math.random()*2);setLane(t);t.v=t.base;t.stopT=0;t.pa=null;
+    // where it stands now, so a car placed next in the same frame sees it
+    const ux=p.dx*dir,uz=p.dz*dir;t.wx=p.x-uz*t.off;t.wz=p.z+ux*t.off;return true;
   }
   return false;
 }
@@ -2614,7 +2619,11 @@ function junction(t,node,over){
     // a dead end: turn round, unless that would mean driving against a race, then reappear elsewhere
     if(oncoming(t.e,-t.dir)){t.e=null;t.c.G.visible=false;t.wx=t.wz=1e6;t.lost=!spawnTraffic(t,220,560,true);return}
     t.dir*=-1;t.s=t.dir>0?Math.min(over,t.e.len):Math.max(0,t.e.len-over);return}
-  const a=opts[Math.floor(Math.random()*opts.length)];
+  // give way: a road whose first few metres already hold a car going the same way can't be turned into yet (cars
+  // used to merge into each other here); with every way out taken, the car waits at the end of its road
+  const free=opts.filter(a=>{const d2=a.end==="a"?1:-1,s0=d2>0?0:a.e.len;return !TRAFFIC.some(o=>o!==t&&o.e===a.e&&o.dir===d2&&(o.s-s0)*d2<9)});
+  if(!free.length){t.s=t.dir>0?t.e.len-.01:.01;t.v=0;return}
+  const a=free[Math.floor(Math.random()*free.length)];
   t.e=a.e;if(a.end==="a"){t.dir=1;t.s=Math.min(over,t.e.len)}else{t.dir=-1;t.s=Math.max(0,t.e.len-over)}
   setLane(t);
 }
@@ -2627,16 +2636,34 @@ function updateTraffic(dt){
     if(t.stopT>0){t.stopT-=dt;target=0}
     t.hitT-=dt;
     const p0=edgePos(t.e,t.s),tx=p0.dx*t.dir,tz=p0.dz*t.dir;
-    for(const o of TRAFFIC){if(o===t||o.e!==t.e||o.dir!==t.dir||o.lane!==t.lane)continue;const gap=(o.s-t.s)*t.dir;if(gap>0&&gap<20)target=Math.min(target,o.v*(gap<9?.4:.95))}
+    // following: ease off behind any car ahead in its path going its way, on this road or just round a corner or
+    // junction on the next, stop a car length short of it, and brake harder when that close (cars on the next road used to be missed,
+    // and the one behind drove into them)
+    let close=false;
+    for(const o of TRAFFIC){if(o===t||!o.e)continue;const ox=o.wx-t.wx,oz=o.wz-t.wz;if(Math.abs(ox)>20||Math.abs(oz)>20)continue;
+      const gap=ox*tx+oz*tz;if(gap<=0||gap>=20||Math.abs(ox*-tz+oz*tx)>=1.6)continue;
+      // only cars going its way: one waiting to cross, or coming the other way, is not followed (that could lock both)
+      if(Math.sin(o.yaw)*tx+Math.cos(o.yaw)*tz<.5)continue;
+      target=Math.min(target,gap<6.5?0:o.v*(gap<9?.4:.95));if(gap<9)close=true}
+    // where roads meet, one car crosses at a time: it holds the junction from 12 m out until it is 14 m clear of it,
+    // and the others wait 7.5 m short, clear of the road they cross (cars crossing a junction together used to drive
+    // through each other)
+    const jn=t.dir>0?t.e.b:t.e.a,dEnd=t.dir>0?t.e.len-t.s:t.s;
+    if(jn.adj.length>2&&dEnd<18){
+      const h=jn.res;if(h&&h!==t&&!(h.e&&Math.hypot(h.wx-jn.x,h.wz-jn.z)<14))jn.res=null;
+      if(jn.res&&jn.res!==t){target=Math.min(target,Math.max(0,(dEnd-7.5)*1.2));if(dEnd<12)close=true}
+      else if(dEnd<12)jn.res=t;
+    }
     const ddx=P.x-t.wx,ddz=P.z-t.wz,ah=ddx*tx+ddz*tz,lt=ddx*-tz+ddz*tx;
     // slow down behind you; if you stay stopped in its way it pulls out and drives round you
     if(t.passT>0){t.passT-=dt;target=Math.min(target,8)}
     else if(ah>0&&ah<24&&Math.abs(lt)<2.4){const pv=P.vx*tx+P.vz*tz;target=Math.min(target,Math.max(0,pv*(ah<10?.5:.95)));
-      if(ah<16&&pv<1.5){t.waitT+=dt;if(t.waitT>2){t.waitT=0;t.passT=4.5}}}
+      // counts from wherever it stopped: a car that pulled up more than 16 m back used to wait for good
+      if(pv<1.5){t.waitT+=dt;if(t.waitT>2){t.waitT=0;t.passT=4.5}}}
     else t.waitT=Math.max(0,t.waitT-dt);
     const ln=RT[t.e.type].lanes,offT=t.passT>0?(ln.length>1&&t.lane===0?ln[1]:-ln[0]):t.off;
     t.offCur+=clamp(offT-t.offCur,-2.2*dt,2.2*dt);
-    t.v+=clamp(target-t.v,-9*dt,3*dt);
+    t.v+=clamp(target-t.v,-(close?20:9)*dt,3*dt);
     t.s+=t.v*dt*t.dir;
     if(t.s>t.e.len)junction(t,t.e.b,t.s-t.e.len);else if(t.s<0)junction(t,t.e.a,-t.s);
     const q=edgePos(t.e,t.s),ux=q.dx*t.dir,uz=q.dz*t.dir;
@@ -2791,6 +2818,8 @@ function endEvent(){ev=null;evDirs=null;AIM.forEach(m=>m&&(m.G.visible=false));g
 function updateEvent(dt){
   const R=ev.R,E=ev.E;
   ev.t+=dt;
+  // over the line: the car brakes to a stop (stepPlayer), then the result shows; at most 4 s
+  if(ev.phase==="finish"){ev.fin.T+=dt;locked=true;if(kphNow()<5||ev.fin.T>4){showResult();return}}
   if(ev.phase==="count"){
     locked=true;P.vx*=.9;P.vz*=.9;
     const c=Math.ceil(-ev.t);$("count").classList.remove("hide");$("count").textContent=c>0?c:"GO";
@@ -2810,10 +2839,18 @@ function updateEvent(dt){
   ev.wrongT=along<-2?ev.wrongT+dt:0;$("wrong").classList.toggle("hide",ev.wrongT<1.2);
   // AI rivals
   for(const a of ev.ai){
-    if(ev.phase==="run"){
+    if(ev.phase!=="count"){
       const i=Math.min(E.vp.length-1,Math.floor(a.s/4));
       const lead=a.s-ev.s,rb=lead>120?.9:lead<-150?1.07:1;
-      const vt=Math.min(a.vmax,E.vp[i]*a.sk)*rb;
+      let vt=Math.min(a.vmax,E.vp[i]*a.sk)*rb;
+      // room for each other: closing on a rival in its lane, a rival moves out to pass once the other lane is clear
+      // beside it, and holds back behind until then (two of them start in the same lane, and used to drive through
+      // each other)
+      let ahead=null,ag=1e9;
+      for(const b of ev.ai){const g=b.s-a.s;if(b!==a&&g>0&&g<16&&Math.abs(b.lat-a.lat)<2.2&&g<ag){ag=g;ahead=b}}
+      if(ahead){const other=a.lane>0?-1.7:1.9;
+        if(ev.ai.every(b=>b===a||Math.abs(b.lat-other)>2.2||b.s-a.s<-7||b.s-a.s>12))a.lane=other;
+        if(ag<10)vt=Math.min(vt,Math.max(0,ahead.v-(ag<6.5?1.5:0)))}
       a.v+=clamp(vt-a.v,-11*dt,a.acc*Math.max(.15,1-(a.v/a.vmax)**2)*dt);
       // past the line a rival rolls on and slows gently, clearing the finish for the cars behind
       if(!a.fin){a.s+=a.v*dt;if(a.s>=R.len)a.fin=ev.t}
@@ -2821,8 +2858,10 @@ function updateEvent(dt){
       // keep out of the player's way
       const ds=ev.s-a.s;
       if(ds>-3&&ds<9&&Math.abs(P.lat-a.lat)<2.4)a.lat+=Math.sign(a.lat-P.lat||1)*3*dt;
-      else a.lat+=clamp(a.lane-a.lat,-.8*dt,.8*dt);
+      else a.lat+=clamp(a.lane-a.lat,-1.4*dt,1.4*dt);
       a.lat=clamp(a.lat,-3.2,3.2);
+      // and never closer than a car length to one ahead that is still level with it across the road
+      for(const b of ev.ai){const g=b.s-a.s;if(b!==a&&g>=0&&g<5&&Math.abs(b.lat-a.lat)<1.8){a.s=b.s-5;a.v=Math.min(a.v,b.v)}}
     }
     const q=edgePos(R,Math.min(a.s,R.len)),over=Math.max(0,a.s-R.len);a.x=q.x-q.dz*a.lat+q.dx*over;a.z=q.z+q.dx*a.lat+q.dz*over;a.yaw=Math.atan2(q.dx,q.dz);
     // on all four wheels on hills and crests (they used to sit level, nose in the road and tail in the air)
@@ -2848,14 +2887,16 @@ function updateEvent(dt){
   $("evhud").classList.remove("hide");
   const pos=1+ev.ai.filter(a=>a.s>ev.s).length;
   $("evL1").textContent=E.type==="race"?"POSITION":"TARGET";
-  $("evPos").textContent=E.type==="race"?pos+"/"+(ev.ai.length+1):(ev.t<E.gold?"GOLD":ev.t<E.silver?"SILVER":ev.t<E.bronze?"BRONZE":"--");
-  $("evTime").textContent=fmtT(Math.max(0,ev.t));
+  // over the line, the panel holds the time and place you finished with
+  const tt=ev.fin?ev.fin.t:ev.t;
+  $("evPos").textContent=E.type==="race"?(ev.fin?ev.fin.pos:pos)+"/"+(ev.ai.length+1):(tt<E.gold?"GOLD":tt<E.silver?"SILVER":tt<E.bronze?"BRONZE":"--");
+  $("evTime").textContent=fmtT(Math.max(0,tt));
   $("evCp").textContent=ev.cp+"/"+cps.length;
 }
 function finishEvent(){
-  const E=ev.E,t=ev.t;let title,rew=0,rows=[];
+  const E=ev.E,t=ev.t;let title,rew=0,rows=[],pos=0;
   if(E.type==="race"){
-    const pos=1+ev.ai.filter(a=>a.fin&&a.fin<t).length;
+    pos=1+ev.ai.filter(a=>a.fin&&a.fin<t).length;
     title=["1ST PLACE","2ND PLACE","3RD PLACE","4TH PLACE"][pos-1];rew=E.rewards[pos-1]||0;
     rows.push(["Position",pos+" of 4"]);
   }else{
@@ -2865,9 +2906,16 @@ function finishEvent(){
   const best=save.rec[E.id];const isRec=!best||t<best;if(isRec)save.rec[E.id]=t;
   rows.unshift(["Your time",fmtT(t)]);rows.push(["Best",fmtT(save.rec[E.id])+(isRec?"  · new record":"")],["Reward",rew?"+"+fmtCr(rew)+" CR":"none"]);
   if(rew)earn(rew);persist();
-  $("rType").textContent=E.name.toUpperCase();$("rTitle").textContent=title;
-  $("rRows").innerHTML=rows.map(r=>`<div class="row"><span>${r[0]}</span><b>${r[1]}</b></div>`).join("");
-  endEvent();setState("RESULT");audioOn(false);$("result").classList.remove("hide");beep(990);
+  // the result shows once the car has stopped past the line (updateEvent): it used to show at once, with the car
+  // frozen at race speed, which carried on the moment you pressed OK
+  ev.phase="finish";ev.fin={t,pos,title,rows,T:0};locked=true;
+  $("count").textContent="FINISH";$("count").classList.remove("hide");beep(990);
+}
+function showResult(){
+  const f=ev.fin;
+  $("rType").textContent=ev.E.name.toUpperCase();$("rTitle").textContent=f.title;
+  $("rRows").innerHTML=f.rows.map(r=>`<div class="row"><span>${r[0]}</span><b>${r[1]}</b></div>`).join("");
+  endEvent();P.vx=P.vz=0;P.r=0;autoHold=true;setState("RESULT");audioOn(false);$("result").classList.remove("hide");
 }
 function openIntro(E){
   const rows=[["Distance",(E.route.len/1000).toFixed(1)+" km"]];
@@ -4120,14 +4168,14 @@ $("prompt").onclick=()=>{if(state==="DRIVE"&&promptAct)promptAct()};
 function pauseOn(){if(state!=="DRIVE")return;setState("PAUSE");clearInput();audioOn(false);
   $("pTitle").textContent=ev?ev.E.name:testDrive?"Test drive · "+carById(testDrive.id).md:job?"Contract · "+job.def.title:"Free ride";
   $("pHome").textContent=job?"GO HOME · ENDS CONTRACT":"GO HOME";
-  show("pQuit",!!(ev||testDrive));$("pQuit").textContent=testDrive?"END TEST DRIVE":"QUIT EVENT";show("pHome",!testDrive);
+  show("pQuit",!!(ev||testDrive));$("pQuit").textContent=testDrive?"END TEST DRIVE":ev&&ev.fin?"SEE RESULT":"QUIT EVENT";show("pHome",!testDrive);
   syncPause();$("pFb").classList.toggle("wide",[...document.querySelectorAll("#pause .mbtn")].filter(b=>b.id!=="pRes"&&!b.classList.contains("hide")).length%2===1);show("pause",true)}
 function pauseOff(){show("pause",false);if(state==="PAUSE"){setState("DRIVE");audioOn(true)}}
 const TODS=[["AUTO",null],["MORNING",8.5],["NOON",13],["SUNSET",17.75],["NIGHT",22.5]];
 function syncPause(){$("pAssist").textContent="DRIVING ASSIST: "+(save.assist?"ON":"OFF");$("pTime").textContent="TIME OF DAY: "+TODS[save.todMode][0];$("pAuto").textContent="AUTO GAS: "+(save.auto?"ON":"OFF");$("pSnd").textContent="SOUND FX: "+(save.sound?"ON":"OFF");$("pMus").textContent=$("gMus").textContent="MUSIC: "+(save.music?"ON":"OFF");$("pGfx").textContent="GRAPHICS: "+["AUTO","SHARP","SMOOTH"][save.gfx]}
 $("pRes").onclick=pauseOff;
 $("pMap").onclick=()=>{show("pause",false);setState("DRIVE");openMap()};
-$("pQuit").onclick=()=>{if(testDrive){endTestDrive();return}endEvent();pauseOff();toast("EVENT CANCELLED","Back to free ride")};
+$("pQuit").onclick=()=>{if(testDrive){endTestDrive();return}if(ev&&ev.fin){pauseOff();showResult();return}endEvent();pauseOff();toast("EVENT CANCELLED","Back to free ride")};
 $("pHome").onclick=()=>{show("pause",false);goGarage(false)};
 $("pTime").onclick=()=>{save.todMode=(save.todMode+1)%TODS.length;if(TODS[save.todMode][1]!==null)save.tod=TODS[save.todMode][1];syncPause();persist()};
 $("pAuto").onclick=()=>{save.auto=!save.auto;syncPause();persist()};
