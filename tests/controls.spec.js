@@ -154,6 +154,20 @@ test.describe("controls", () => {
     await game.waitState("MAP");
     await tap(1);
     await game.waitState("DRIVE");
+    // in the dealership, A buys the car shown and X takes it for a test drive
+    await game.eval(() => __T.openDealer());
+    await game.waitState("DEALER");
+    const buy = await game.eval(() => ({ cr: __T.save.cr, owned: __T.save.owned.length, id: __T.CARS[__T.dSel].id, price: __T.CARS[__T.dSel].price }));
+    await tap(0);
+    expect(await game.eval(() => ({ cr: __T.save.cr, owned: __T.save.owned.length }))).toEqual({ cr: buy.cr - buy.price, owned: buy.owned + 1 });
+    await game.eval(() => __T.dPick(__T.CARS.findIndex((c) => !__T.save.owned.includes(c.id))));
+    await tap(2);
+    await game.waitState("DRIVE");
+    expect(await game.eval(() => !!__T.testDrive)).toBe(true);
+    await game.eval(() => __T.endTestDrive());
+    await game.waitState("DEALER");
+    await tap(1);
+    await game.waitState("DRIVE");
     const cam0 = await game.eval(() => __T.camMode);
     await tap(3);
     expect(await game.eval(() => __T.camMode)).toBe((cam0 + 1) % 4);
