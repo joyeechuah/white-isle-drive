@@ -140,3 +140,66 @@ test.describe("turning the device", () => {
     }
   });
 });
+
+// the race panel (position, time, checkpoint) must stay clear of the car, the road just ahead of it and the
+// rest of the HUD
+for (const [w, h] of [
+  [412, 780],
+  [390, 844],
+  [360, 640],
+  [844, 390],
+  [800, 360],
+]) {
+  test.describe(`race panel: ${w}x${h}`, () => {
+    test.use({ viewport: { width: w, height: h }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+
+    test("stays clear of the car, the road ahead and the rest of the HUD", async ({ game }) => {
+      await game.open();
+      await game.driveOut();
+      await game.eval(() => __T.startEvent(__T.EVENTS[1]));
+      await game.steps(200, {});
+      await game.steps(240, { w: true });
+      await game.frames(3);
+      const r = await game.eval(() => {
+        const T = __T,
+          cam = T.camera;
+        cam.updateMatrixWorld();
+        T.pc.G.updateMatrixWorld(true);
+        const b = new THREE.Box3().setFromObject(T.pc.G);
+        let l = 1e9,
+          t = 1e9,
+          rr = -1e9,
+          bb = -1e9;
+        for (const x of [b.min.x, b.max.x])
+          for (const y of [b.min.y, b.max.y])
+            for (const z of [b.min.z, b.max.z]) {
+              const v = new THREE.Vector3(x, y, z).project(cam),
+                sx = ((v.x + 1) / 2) * innerWidth,
+                sy = ((1 - v.y) / 2) * innerHeight;
+              l = Math.min(l, sx);
+              rr = Math.max(rr, sx);
+              t = Math.min(t, sy);
+              bb = Math.max(bb, sy);
+            }
+        const box = (el) => {
+          const q = el.getBoundingClientRect();
+          return { l: q.left, t: q.top, r: q.right, b: q.bottom };
+        };
+        const e = box(document.getElementById("evhud"));
+        // the car, and a margin of road above it
+        const others = { car: { l, t: t - 20, r: rr, b: bb } };
+        for (const id of ["speedo", "mini", "gpsTxt", "chips", "tl", "bL", "bR", "bG", "bB", "bH"]) {
+          const el = document.getElementById(id);
+          if (el && el.offsetParent) others[id] = box(el);
+        }
+        const hit = Object.entries(others)
+          .filter(([, o]) => Math.min(e.r, o.r) - Math.max(e.l, o.l) > 1 && Math.min(e.b, o.b) - Math.max(e.t, o.t) > 1)
+          .map(([k]) => k);
+        return { evhud: e, onScreen: e.l >= 0 && e.t >= 0 && e.r <= innerWidth && e.b <= innerHeight, hit, shown: !document.getElementById("evhud").classList.contains("hide") };
+      });
+      expect(r.shown).toBe(true);
+      expect(r.onScreen).toBe(true);
+      expect(r.hit, "covers").toEqual([]);
+    });
+  });
+}

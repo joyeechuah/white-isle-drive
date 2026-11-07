@@ -171,4 +171,62 @@ test.describe("races and time trials", () => {
     await start(game, page, 1);
     expect(await game.eval(() => ({ t: __T.ev.t <= -2.5, cp: __T.ev.cp, phase: __T.ev.phase }))).toEqual({ t: true, cp: 0, phase: "count" });
   });
+
+  test("no traffic comes the other way along a race or time trial route", async ({ game }) => {
+    test.setTimeout(400_000);
+    await ready(game);
+    const r = await game.eval(() => {
+      const T = __T,
+        P = T.P,
+        out = {};
+      for (const E of T.EVENTS) {
+        T.startEvent(E);
+        let against = 0,
+          checks = 0,
+          same = 0;
+        const look = () => {
+          const R = T.ev.R;
+          for (const t of T.TRAFFIC) {
+            if (!t.e || Math.hypot(t.wx - P.x, t.wz - P.z) > 400) continue;
+            const f = T.trackRouteFull(R, t.wx, t.wz, R.len);
+            if (!f || f.d > 6) continue;
+            const q = T.edgePos(R, f.s),
+              al = Math.sin(t.yaw) * q.dx + Math.cos(t.yaw) * q.dz;
+            checks++;
+            if (al < -0.5) against++;
+            else if (al > 0.5) same++;
+          }
+        };
+        // the countdown, then the whole event with the autopilot, looking every half second
+        for (let i = 0; i < 200; i++) T.driveUpdate(1 / 60);
+        look();
+        for (let i = 0; i < 20000 && T.ev; i++) {
+          const R = T.ev.R,
+            la = Math.min(R.len, T.ev.s + 18 + Math.hypot(P.vx, P.vz) * 0.5);
+          let lo = 0,
+            hi = R.cum.length - 1;
+          while (hi - lo > 1) {
+            const m = (lo + hi) >> 1;
+            if (R.cum[m] <= la) lo = m;
+            else hi = m;
+          }
+          const p = R.pts[hi],
+            err = ((Math.atan2(p.x - P.x, p.z - P.z) - P.h + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+          T.keys.a = err > 0.03;
+          T.keys.d = err < -0.03;
+          T.keys.w = true;
+          T.driveUpdate(1 / 60);
+          if (i % 30 === 0 && T.ev) look();
+        }
+        T.keys.a = T.keys.d = T.keys.w = false;
+        out[E.id] = { against, same, checks };
+        if (T.state === "RESULT") document.getElementById("rOk").click();
+      }
+      return out;
+    });
+    test.info().annotations.push({ type: "traffic seen on each route", description: JSON.stringify(r) });
+    for (const [id, x] of Object.entries(r)) expect(x.against, `${id}: traffic cars seen driving against the race`).toBe(0);
+    // traffic going the same way is still there
+    expect(Object.values(r).reduce((a, x) => a + x.same, 0)).toBeGreaterThan(0);
+  });
 });

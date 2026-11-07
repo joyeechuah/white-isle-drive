@@ -213,8 +213,13 @@ body.touch #keys,body.touch #prompt kbd,body.touch #mapClose kbd{display:none}
   #tl{top:calc(56px + var(--st))}
   body.touch #speedo{top:calc(56px + var(--st))}
   body.touch #minWrap{top:calc(164px + var(--st))}
-  #evhud,#streak,#hud #tdPill{top:calc(318px + var(--st))}
-  #evhud>div{min-width:0;padding:6px 10px}
+  #streak,#hud #tdPill{top:calc(318px + var(--st))}
+  /* the race panel (position, time, checkpoint) goes in a small column under the speedometer, so it no longer
+     sits over the road just ahead of the car */
+  #evhud{top:calc(192px + var(--st));left:auto;right:calc(14px + var(--sr));transform:none;flex-direction:column;gap:3px;width:136px}
+  #evhud>div{min-width:0;padding:4px 9px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  #evhud span{font-size:8px;letter-spacing:.16em}
+  #evhud b{font-size:17px}
   #toasts,body.touch #toasts{top:calc(394px + var(--st));right:auto;left:50%;transform:translateX(-50%);align-items:center;width:min(300px,calc(100% - 32px))}
   #count{top:58%;font-size:96px}
   #wrong{top:48%}
@@ -2575,17 +2580,40 @@ function initTraffic(){
 }
 function pickEdge(){const r=Math.random()*TEDGE_CUM[TEDGE_CUM.length-1];let i=0;while(TEDGE_CUM[i]<r)i++;return TEDGES[i]}
 function setLane(t){const ln=RT[t.e.type].lanes;t.lane=Math.min(t.lane,ln.length-1);t.off=ln[t.lane];t.offCur=t.off;t.passT=0;t.waitT=0;t.base=RT[t.e.type].spd*(.85+Math.random()*.3)}
+// during a race or time trial, traffic on the route only drives the same way as the race: a car coming the other
+// way blocks overtaking. evDirs maps each road the route uses to the race's direction along it (0 = both ways)
+let evDirs=null;
+function routeDirs(R){
+  const m=new Map();
+  for(let s=0;s<=R.len;s+=4){const q=edgePos(R,s),nr=nearestRoad(q.x,q.z,3);if(!nr||nr.d>1.5)continue;
+    const al=q.dx*nr.dx+q.dz*nr.dz;if(Math.abs(al)<.8)continue;
+    const d=al>0?1:-1,o=m.get(nr.e);m.set(nr.e,o===undefined||o===d?d:0)}
+  return m;
+}
+const oncoming=(e,dir)=>!!evDirs&&evDirs.has(e)&&evDirs.get(e)!==dir;
 function spawnTraffic(t,dmin,dmax,avoidView){
   for(let k=0;k<50;k++){
     const e=pickEdge(),s=Math.random()*e.len,p=edgePos(e,s),dx=p.x-P.x,dz=p.z-P.z,d=Math.hypot(dx,dz);
     if(d<dmin||d>dmax)continue;
     if(avoidView){const cf=new V3();camera.getWorldDirection(cf);if((dx*cf.x+dz*cf.z)/d>.2)continue}
-    t.e=e;t.s=s;t.dir=Math.random()<.5?1:-1;t.lane=Math.floor(Math.random()*2);setLane(t);t.v=t.base;t.stopT=0;t.pa=null;return;
+    let dir=Math.random()<.5?1:-1;if(oncoming(e,dir)){dir=-dir;if(oncoming(e,dir))continue}
+    t.e=e;t.s=s;t.dir=dir;t.lane=Math.floor(Math.random()*2);setLane(t);t.v=t.base;t.stopT=0;t.pa=null;return true;
   }
+  return false;
+}
+// at the start of an event: every car driving against the race on its route goes somewhere else, out of sight
+// (a car with nowhere to go for now tries again every half second)
+function clearOncoming(){
+  for(const t of TRAFFIC){if(!t.e||!oncoming(t.e,t.dir))continue;
+    t.e=null;t.c.G.visible=false;t.wx=t.wz=1e6;
+    t.lost=!spawnTraffic(t,220,560,true)}
 }
 function junction(t,node,over){
-  const opts=node.adj.filter(a=>a.e!==t.e&&a.e.type!=="drive");
-  if(!opts.length){t.dir*=-1;t.s=t.dir>0?Math.min(over,t.e.len):Math.max(0,t.e.len-over);return}
+  const opts=node.adj.filter(a=>a.e!==t.e&&a.e.type!=="drive"&&!oncoming(a.e,a.end==="a"?1:-1));
+  if(!opts.length){
+    // a dead end: turn round, unless that would mean driving against a race, then reappear elsewhere
+    if(oncoming(t.e,-t.dir)){t.e=null;t.c.G.visible=false;t.wx=t.wz=1e6;t.lost=!spawnTraffic(t,220,560,true);return}
+    t.dir*=-1;t.s=t.dir>0?Math.min(over,t.e.len):Math.max(0,t.e.len-over);return}
   const a=opts[Math.floor(Math.random()*opts.length)];
   t.e=a.e;if(a.end==="a"){t.dir=1;t.s=Math.min(over,t.e.len)}else{t.dir=-1;t.s=Math.max(0,t.e.len-over)}
   setLane(t);
@@ -2594,7 +2622,7 @@ function updateTraffic(dt){
   bubbleT-=dt;const bubble=bubbleT<=0;if(bubble)bubbleT=.5;
   const pf=fwdOf(P.h),kph=kphNow();
   for(const t of TRAFFIC){
-    if(!t.e)continue;
+    if(!t.e){if(bubble&&t.lost)t.lost=!spawnTraffic(t,220,560,true);continue}
     let target=t.base;
     if(t.stopT>0){t.stopT-=dt;target=0}
     t.hitT-=dt;
@@ -2756,9 +2784,10 @@ function startEvent(E){
       ev.ai.push({m,s:grid[i][0],lat:grid[i][1],lane:grid[i][1],v:0,sk:[.95,.91,.98][i],vmax:pick.top/3.6*[.91,.88,.94][i],acc:HD.pBase+pick.acc*HD.pAcc,fin:0,x:0,z:0,yaw:0,name:pick.mk+" "+pick.md});
     }
   }
+  evDirs=routeDirs(R);clearOncoming();
   streakReset();snapCam();
 }
-function endEvent(){ev=null;AIM.forEach(m=>m&&(m.G.visible=false));gates.forEach(g=>g.g.visible=false);$("evhud").classList.add("hide");$("wrong").classList.add("hide");$("count").classList.add("hide");locked=false}
+function endEvent(){ev=null;evDirs=null;AIM.forEach(m=>m&&(m.G.visible=false));gates.forEach(g=>g.g.visible=false);$("evhud").classList.add("hide");$("wrong").classList.add("hide");$("count").classList.add("hide");locked=false}
 function updateEvent(dt){
   const R=ev.R,E=ev.E;
   ev.t+=dt;
