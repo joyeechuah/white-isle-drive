@@ -350,12 +350,21 @@ test.describe("races and time trials", () => {
       for (const d of [0, 2]) {
         T.save.diff = d;
         T.startEvent(T.EVENTS[1]);
+        // no traffic, so only their pace counts (a rival held up behind a slow car would say nothing about it)
+        for (const t of T.TRAFFIC) {
+          t.e = null;
+          t.c.G.visible = false;
+          t.wx = t.wz = 1e6;
+          t.lost = false;
+        }
         for (let i = 0; i < 200; i++) T.driveUpdate(1 / 60);
-        // the player stays at the start, so no rival is slowed for being far ahead of the player: just their own pace
-        // over the first 25 s
+        // the player stays at the start, marked far ahead so no rival is held back for leading: the metres they drive
+        // from 5 s to 25 s
         T.ev.s = 1e4;
-        for (let i = 0; i < 1500; i++) T.driveUpdate(1 / 60);
-        out[d] = T.ev.ai.reduce((s, a) => s + a.s, 0) / 3;
+        for (let i = 0; i < 300; i++) T.driveUpdate(1 / 60);
+        const s0 = T.ev.ai.reduce((s, a) => s + a.s, 0) / 3;
+        for (let i = 0; i < 1200; i++) T.driveUpdate(1 / 60);
+        out[d] = T.ev.ai.reduce((s, a) => s + a.s, 0) / 3 - s0;
         // a win at this difficulty
         for (const a of T.ev.ai) a.fin = 0;
         const cr0 = T.save.cr;
@@ -368,7 +377,8 @@ test.describe("races and time trials", () => {
       }
       return out;
     });
-    expect(r[2], "metres driven by HARD rivals in 25 s vs EASY").toBeGreaterThan(r[0] * 1.1);
+    test.info().annotations.push({ type: "metres driven by rivals from 5 s to 25 s, EASY and HARD", description: JSON.stringify([r[0], r[2]]) });
+    expect(r[2], "metres driven by HARD rivals vs EASY").toBeGreaterThan(r[0] * 1.1);
     expect(r.paid0).toBe(r.expect0);
     expect(r.paid2).toBe(r.expect2);
     expect(r.paid2).toBeGreaterThan(r.paid0);

@@ -2605,8 +2605,9 @@ function spawnTraffic(t,dmin,dmax,avoidView){
     // never on top of another car
     if(TRAFFIC.some(o=>o!==t&&o.e&&Math.abs(o.wx-p.x)<14&&Math.abs(o.wz-p.z)<14))continue;
     t.e=e;t.s=s;t.dir=dir;t.lane=Math.floor(Math.random()*2);setLane(t);t.v=t.base;t.stopT=0;t.pa=null;
-    // where it stands now, so a car placed next in the same frame sees it
-    const ux=p.dx*dir,uz=p.dz*dir;t.wx=p.x-uz*t.off;t.wz=p.z+ux*t.off;return true;
+    // where it stands now and which way it faces, so a car placed next in the same frame sees it, and nothing reads
+    // its old heading at its new place
+    const ux=p.dx*dir,uz=p.dz*dir;t.wx=p.x-uz*t.off;t.wz=p.z+ux*t.off;t.yaw=Math.atan2(ux,uz);return true;
   }
   return false;
 }
@@ -2720,7 +2721,8 @@ const EVENTS=[
   {id:"south",name:"Sant Josep Descent",type:"tt",wp:()=>[[62,-8],[110,260],[150,520],[24,795]]},
   {id:"antoni",name:"Sant Antoni Loop",type:"race",wp:()=>[ringPt(2.3),ringPt(2.8),ringPt(3.3),ringPt(3.8),ringPt(4.2)]},
 ];
-// race difficulty: rivals' pace (HARD is the pace rivals had before difficulty existed) and the reward multiplier
+// race difficulty: rivals' pace, their top speed and acceleration alike (HARD is how rivals drove before difficulty
+// existed), and the reward multiplier
 const DIFFS=[{n:"EASY",pace:.85,pay:.75},{n:"NORMAL",pace:.93,pay:1},{n:"HARD",pace:1,pay:1.3}];
 const raceRewards=(E,d)=>E.rewards.map(r=>Math.round(r*DIFFS[d].pay/100)*100);
 function routeTime(k,aLat,vTop,acc,brk){
@@ -2865,7 +2867,7 @@ function updateEvent(dt){
       if(ahead){const other=a.lane>0?-1.7:1.9;
         if(ahead.v<a.v+1&&obs.every(b=>b===a||Math.abs(b.lat-other)>2.2||b.s-a.s<-7||b.s-a.s>(b.tc?25:12)))a.lane=other;
         if(ag<(ahead.tc?22:10))vt=Math.min(vt,Math.max(0,ahead.v-(ag<6.5?1.5:0))+(ahead.tc?Math.max(0,ag-8)*.6:0))}
-      a.v+=clamp(vt-a.v,-11*dt,a.acc*Math.max(.15,1-(a.v/a.vmax)**2)*dt);
+      a.v+=clamp(vt-a.v,-11*dt,a.acc*pace*Math.max(.15,1-(a.v/a.vmax)**2)*dt);
       // past the line a rival rolls on and slows gently, clearing the finish for the cars behind
       if(!a.fin){a.s+=a.v*dt;if(a.s>=R.len)a.fin=ev.t}
       else{a.v=Math.max(0,a.v-2.5*dt);a.s+=a.v*dt}
