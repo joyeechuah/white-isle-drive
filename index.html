@@ -119,6 +119,7 @@ body.touch #lhint{display:none}
 #evhud>div{background:var(--panel2);padding:6px 12px;text-align:center;min-width:76px}
 #evhud span{display:block;font-size:9px;letter-spacing:.25em;color:var(--mute);font-weight:700}
 #evhud b{font-family:var(--f-num);font-size:22px;font-variant-numeric:tabular-nums}
+#evGap.ahead{color:#7be08f}#evGap.behind{color:#ff8a7a}
 #wrong{position:absolute;top:30%;left:50%;transform:translateX(-50%);background:var(--bad);color:#fff;font-weight:800;letter-spacing:.4em;padding:10px 26px;font-size:14px}
 #count{position:absolute;top:34%;left:50%;transform:translate(-50%,-50%);font-family:var(--f-num);font-size:120px;font-weight:800;text-shadow:0 6px 30px rgba(0,0,0,.6)}
 #toasts{position:absolute;top:calc(64px + var(--st));right:calc(14px + var(--sr));display:flex;flex-direction:column;gap:6px;align-items:flex-end;width:min(300px,70vw)}
@@ -380,6 +381,7 @@ body.touch #phExit kbd{display:none}
     <div><span id="evL1">POSITION</span><b id="evPos">1/4</b></div>
     <div><span>TIME</span><b id="evTime">0:00.00</b></div>
     <div><span>CHECKPOINT</span><b id="evCp">0/0</b></div>
+    <div id="evGhost" class="hide"><span>GHOST</span><b id="evGap">--</b></div>
   </div>
   <div id="jobhud" class="hide"><div id="jbType"></div><div id="jbObj"></div><div class="jm"><b id="jbTime" class="num"></b><b id="jbPay" class="num"></b></div></div>
   <div id="wrong" class="hide">WRONG WAY</div>
@@ -419,6 +421,7 @@ body.touch #phExit kbd{display:none}
   <button class="mbtn" id="pSnd">SOUND FX: ON</button>
   <button class="mbtn" id="pMus">MUSIC: ON</button>
   <button class="mbtn" id="pGfx">GRAPHICS: AUTO</button>
+  <button class="mbtn" id="pGhost">GHOST CAR: ON</button>
   <a class="mbtn" id="pFb" href="https://forms.gle/bPk18BbmhaGLNJtD9" target="_blank" rel="noopener">SEND FEEDBACK &#8599;</a>
 </div></div>
 
@@ -574,7 +577,7 @@ const GARAGE_CAP=12;
 
 /* ================================================================ SAVE */
 const SAVE_KEY="white-isle-drive-v1";
-const save={v:2,cr:120000,xp:0,owned:STARTERS.slice(),cur:"golf",paint:{},rec:{},radar:{},auto:false,assist:true,sound:true,music:true,gfx:0,cam:0,todMode:0,tod:16.6,found:{},passBonus:false,jobs:{},jobActive:null,diff:1};
+const save={v:2,cr:120000,xp:0,owned:STARTERS.slice(),cur:"golf",paint:{},rec:{},radar:{},auto:false,assist:true,sound:true,music:true,gfx:0,cam:0,todMode:0,tod:16.6,found:{},passBonus:false,jobs:{},jobActive:null,diff:1,ghost:{},ghostOn:true};
 let loadedV=0;
 try{
   const s=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
@@ -602,6 +605,12 @@ try{
   save.gfx=Math.round(num(save.gfx,0,0,2));save.cam=Math.round(num(save.cam,0,0,3));
   // race difficulty: 0 EASY, 1 NORMAL, 2 HARD
   save.diff=Math.round(num(save.diff,1,0,2));
+  // time trial ghosts: the record run of each, by event id: the car, the time, and every 0.1 s [x, z, heading, metres
+  // along the route]. Anything malformed is dropped whole
+  save.ghost=dict(save.ghost,g=>!!g&&typeof g==="object"&&typeof g.c==="string"&&CARS.some(c=>c.id===g.c)&&typeof g.t==="number"&&g.t>0&&Number.isFinite(g.t)&&
+    Array.isArray(g.d)&&g.d.length>=8&&g.d.length%4===0&&g.d.length<=12000&&g.d.every(v=>typeof v==="number"&&Number.isFinite(v)));
+  for(const k in save.ghost){const g=save.ghost[k];save.ghost[k]={c:g.c,t:g.t,d:g.d}}
+  if(typeof save.ghostOn!=="boolean")save.ghostOn=true;
   // Island Passport: landmarks found, by stable id (ids not in this version are kept, so nothing is lost), and the one-time bonus
   save.found=dict(save.found,v=>v===1||v===true);for(const k in save.found)save.found[k]=1;
   if(typeof save.passBonus!=="boolean")save.passBonus=false;
@@ -2674,6 +2683,8 @@ function updateTraffic(dt){
     t.v+=clamp(target-t.v,-(close?20:9)*dt,3*dt);
     t.s+=t.v*dt*t.dir;
     if(t.s>t.e.len)junction(t,t.e.b,t.s-t.e.len);else if(t.s<0)junction(t,t.e.a,-t.s);
+    // a car that had nowhere to go here was taken off the road (and will try to reappear elsewhere): nothing more to do
+    if(!t.e)continue;
     const q=edgePos(t.e,t.s),ux=q.dx*t.dir,uz=q.dz*t.dir;
     t.wx=q.x-uz*t.offCur;t.wz=q.z+ux*t.offCur;t.yaw=Math.atan2(ux,uz);
     const dpx=t.wx-P.x,dpz=t.wz-P.z,d=Math.hypot(dpx,dpz);
@@ -2728,6 +2739,31 @@ const EVENTS=[
 // existed), and the reward multiplier
 const DIFFS=[{n:"EASY",pace:.85,pay:.75},{n:"NORMAL",pace:.93,pay:1},{n:"HARD",pace:1,pay:1.3}];
 const raceRewards=(E,d)=>E.rewards.map(r=>Math.round(r*DIFFS[d].pay/100)*100);
+// ---- time trial ghost: your record run replayed as a see-through car, with the live gap to it
+const GH={m:null,id:null,o:{}};
+function ghostModel(id){
+  if(GH.m&&GH.id===id)return GH.m;
+  if(GH.m)disposeHeroCar(GH.m);
+  const m=buildHeroCar(carById(id));
+  // its own see-through copy of every material (some are shared with the other cars), and no shadow
+  m.G.traverse(o=>{if(!o.isMesh)return;o.castShadow=false;o.material=(Array.isArray(o.material)?o.material:[o.material]).map(x=>{const c=x.clone();c.transparent=true;c.opacity=.36;c.depthWrite=false;return c});
+    if(o.material.length===1)o.material=o.material[0]});
+  if(m.inside)m.inside.visible=false;
+  m.G.visible=false;scene.add(m.G);GH.m=m;GH.id=id;GH.o={};return m;
+}
+// the ghost's place at time t (seconds since GO), or null once it has finished
+function ghostAt(g,t){
+  const d=g.d,n=d.length/4,k=Math.max(0,t*10),i=Math.floor(k),f=k-i;
+  if(i>=n-1)return null;
+  const a=i*4,b=a+4;return{x:lerp(d[a],d[b],f),z:lerp(d[a+1],d[b+1],f),h:d[a+2]+wrapA(d[b+2]-d[a+2])*f,s:lerp(d[a+3],d[b+3],f)};
+}
+// when the ghost had driven s metres along the route
+function ghostTimeAt(g,s){
+  const d=g.d,n=d.length/4;if(s<=d[3])return 0;if(s>=d[(n-1)*4+3])return null;
+  let lo=0,hi=n-1;while(hi-lo>1){const m=(lo+hi)>>1;if(d[m*4+3]<s)lo=m;else hi=m}
+  const s0=d[lo*4+3],s1=d[hi*4+3];return (lo+(s1>s0?(s-s0)/(s1-s0):0))/10;
+}
+function ghostHide(){if(GH.m)GH.m.G.visible=false;show("evGhost",false)}
 function routeTime(k,aLat,vTop,acc,brk){
   const n=k.length,v=new Array(n);
   for(let i=0;i<n;i++)v[i]=Math.min(vTop,Math.sqrt(aLat/k[i]));
@@ -2809,7 +2845,7 @@ function rivalModel(cd,key){
 }
 function startEvent(E){
   const R=E.route,me=curCar(),idx=CARS.indexOf(me);
-  ev={E,R,t:-3,phase:"count",cp:0,hint:0,s:14,sNow:14,d:99,ai:[],done:false,wrongT:0,last:4,px:null,pz:null,gate:gateOf(R,E.cps[0]),reT:0,missT:0,diff:E.type==="race"?save.diff:1,obs:[]};
+  ev={E,R,t:-3,phase:"count",cp:0,hint:0,s:14,sNow:14,d:99,ai:[],done:false,wrongT:0,last:4,px:null,pz:null,gate:gateOf(R,E.cps[0]),reT:0,missT:0,diff:E.type==="race"?save.diff:1,obs:[],rec:E.type==="tt"?[]:null,ghost:E.type==="tt"&&save.ghost[E.id]?save.ghost[E.id]:null};
   const p=edgePos(R,14);
   P.x=p.x-p.dz*-1.7;P.z=p.z+p.dx*-1.7;P.h=Math.atan2(p.dx,p.dz);P.vx=P.vz=0;P.r=0;P.steer=0;P.steerS=0;P.ty=surfH(P.x,P.z);P.y=P.ty;P.air=false;
   if(E.type==="race"){
@@ -2826,7 +2862,7 @@ function startEvent(E){
   evDirs=routeDirs(R);clearOncoming();
   streakReset();snapCam();
 }
-function endEvent(){ev=null;evDirs=null;AIM.forEach(m=>m&&(m.G.visible=false));gates.forEach(g=>g.g.visible=false);$("evhud").classList.add("hide");$("wrong").classList.add("hide");$("count").classList.add("hide");locked=false}
+function endEvent(){ev=null;evDirs=null;ghostHide();AIM.forEach(m=>m&&(m.G.visible=false));gates.forEach(g=>g.g.visible=false);$("evhud").classList.add("hide");$("wrong").classList.add("hide");$("count").classList.add("hide");locked=false}
 function updateEvent(dt){
   const R=ev.R,E=ev.E;
   ev.t+=dt;
@@ -2888,12 +2924,20 @@ function updateEvent(dt){
       // and never closer than a car length to a rival ahead that is still level with it across the road; behind a
       // traffic car that has only just come onto the route that close, it brakes hard instead of jumping back
       for(const b of obs){const g=b.s-a.s;if(b!==a&&g>=0&&g<5&&Math.abs(b.lat-a.lat)<1.8){if(b.tc)a.v=Math.min(a.v,b.v*.7);else{a.s=b.s-5;a.v=Math.min(a.v,b.v)}}}
+      // note any traffic car this rival is inside (dealt with below, once every rival has been seen)
+      for(const b of obs)if(b.tc&&Math.abs(b.s-a.s)<4.6&&Math.abs(b.lat-a.lat)<1.8)b.tc.ovHit=true;
     }
     const q=edgePos(R,Math.min(a.s,R.len)),over=Math.max(0,a.s-R.len);a.x=q.x-q.dz*a.lat+q.dx*over;a.z=q.z+q.dx*a.lat+q.dz*over;a.yaw=Math.atan2(q.dx,q.dz);
     // on all four wheels on hills and crests (they used to sit level, nose in the road and tail in the air)
     seatCar(a,a.m.G,a.x,a.z,a.yaw,a.m.wb||1.45,a.m.tr||.92,dt,0);
     for(const w of a.m.wheels)w.rotation.x+=a.v*dt/.36;
   }
+  // a traffic car that stays inside any rival for 0.3 s (it came onto the route right there) is taken off the road and
+  // put back somewhere out of sight, rather than the two staying inside each other. The time counts while it is inside
+  // one rival or another (it used to start again whenever a rival it wasn't touching was looked at, so with three
+  // rivals it could stay inside one for a second or more)
+  for(const b of obs){const t=b.tc;if(!t||!t.e)continue;t.ovT=t.ovHit?(t.ovT||0)+dt:0;t.ovHit=false;
+    if(t.ovT>.3){t.ovT=0;t.e=null;t.c.G.visible=false;t.wx=t.wz=1e6;t.lost=!spawnTraffic(t,220,560,true)}}
   // checkpoints
   const cps=E.cps;
   if(ev.phase==="run"&&ev.cp<cps.length&&ev.px!==null&&crossedGate(ev.gate,ev.px,ev.pz,P.x,P.z)){
@@ -2913,6 +2957,16 @@ function updateEvent(dt){
   $("evhud").classList.remove("hide");
   const pos=1+ev.ai.filter(a=>a.s>ev.s).length;
   $("evL1").textContent=E.type==="race"?"POSITION":"TARGET";
+  // time trials: record this run every 0.1 s (kept as the ghost if it's a record), and show the record's ghost
+  if(ev.rec&&ev.phase==="run"&&ev.rec.length<12000&&ev.t>=ev.rec.length/40){ev.rec.push(+P.x.toFixed(1),+P.z.toFixed(1),+P.h.toFixed(2),+ev.s.toFixed(1))}
+  const g=ev.ghost&&save.ghostOn?ev.ghost:null;
+  if(g){const at=ghostAt(g,ev.phase==="count"?0:ev.t),m=ghostModel(g.c);m.G.visible=!!at;
+    if(at)seatCar(GH.o,m.G,at.x,at.z,at.h,m.wb||1.45,m.tr||.92,dt,rideH(m));
+    for(const w of m.wheels)w.rotation.x+=(at?30:0)*dt/.36;
+    // the gap: how much later than the ghost you reached the point you're at (+ behind, − ahead)
+    let gap=null;if(ev.fin)gap=ev.fin.t-g.t;else if(ev.phase==="run"){const tg=ghostTimeAt(g,ev.s);if(tg!==null)gap=ev.t-tg}
+    show("evGhost",true);const el=$("evGap");el.textContent=gap===null?"--":(gap>=0?"+":"\u2212")+Math.abs(gap).toFixed(1);el.classList.toggle("ahead",gap!==null&&gap<0);el.classList.toggle("behind",gap!==null&&gap>0)}
+  else ghostHide();
   // over the line, the panel holds the time and place you finished with
   const tt=ev.fin?ev.fin.t:ev.t;
   $("evPos").textContent=E.type==="race"?(ev.fin?ev.fin.pos:pos)+"/"+(ev.ai.length+1):(tt<E.gold?"GOLD":tt<E.silver?"SILVER":tt<E.bronze?"BRONZE":"--");
@@ -2930,6 +2984,8 @@ function finishEvent(){
     rows.push(["Gold time",fmtT(E.gold)]);
   }
   const best=save.rec[E.id];const isRec=!best||t<best;if(isRec)save.rec[E.id]=t;
+  // a record time trial run becomes the ghost (the last sample is the line itself)
+  if(isRec&&ev.rec&&ev.rec.length>=8&&ev.rec.length<12000){ev.rec.push(+P.x.toFixed(1),+P.z.toFixed(1),+P.h.toFixed(2),+E.route.len.toFixed(1));save.ghost[E.id]={c:curId,t,d:ev.rec}}
   rows.unshift(["Your time",fmtT(t)]);rows.push(["Best",fmtT(save.rec[E.id])+(isRec?"  · new record":"")],["Reward",rew?"+"+fmtCr(rew)+" CR":"none"]);
   if(rew)earn(rew);persist();
   // the result shows once the car has stopped past the line (updateEvent): it used to show at once, with the car
@@ -4203,7 +4259,7 @@ function pauseOn(){if(state!=="DRIVE")return;setState("PAUSE");clearInput();audi
   syncPause();$("pFb").classList.toggle("wide",[...document.querySelectorAll("#pause .mbtn")].filter(b=>b.id!=="pRes"&&!b.classList.contains("hide")).length%2===1);show("pause",true)}
 function pauseOff(){show("pause",false);if(state==="PAUSE"){setState("DRIVE");audioOn(true)}}
 const TODS=[["AUTO",null],["MORNING",8.5],["NOON",13],["SUNSET",17.75],["NIGHT",22.5]];
-function syncPause(){$("pAssist").textContent="DRIVING ASSIST: "+(save.assist?"ON":"OFF");$("pTime").textContent="TIME OF DAY: "+TODS[save.todMode][0];$("pAuto").textContent="AUTO GAS: "+(save.auto?"ON":"OFF");$("pSnd").textContent="SOUND FX: "+(save.sound?"ON":"OFF");$("pMus").textContent=$("gMus").textContent="MUSIC: "+(save.music?"ON":"OFF");$("pGfx").textContent="GRAPHICS: "+["AUTO","SHARP","SMOOTH"][save.gfx]}
+function syncPause(){$("pAssist").textContent="DRIVING ASSIST: "+(save.assist?"ON":"OFF");$("pTime").textContent="TIME OF DAY: "+TODS[save.todMode][0];$("pAuto").textContent="AUTO GAS: "+(save.auto?"ON":"OFF");$("pSnd").textContent="SOUND FX: "+(save.sound?"ON":"OFF");$("pMus").textContent=$("gMus").textContent="MUSIC: "+(save.music?"ON":"OFF");$("pGfx").textContent="GRAPHICS: "+["AUTO","SHARP","SMOOTH"][save.gfx];$("pGhost").textContent="GHOST CAR: "+(save.ghostOn?"ON":"OFF")}
 $("pRes").onclick=pauseOff;
 $("pMap").onclick=()=>{show("pause",false);setState("DRIVE");openMap()};
 $("pQuit").onclick=()=>{if(testDrive){endTestDrive();return}if(ev&&ev.fin){pauseOff();showResult();return}endEvent();pauseOff();toast("EVENT CANCELLED","Back to free ride")};
@@ -4215,6 +4271,7 @@ function applyGfx(){gfxLimits();const p=clamp(save.gfx===0?Math.max(prNow,PR_MIN
   if(p!==prNow){prNow=p;renderer.setPixelRatio(p);renderer.setSize(W,H,false)}}
 $("pGfx").onclick=()=>{save.gfx=(save.gfx+1)%3;applyGfx();syncPause();persist();toast("GRAPHICS: "+GFX[save.gfx],["Sharp, eases off a little if frames slow down","Always full sharpness","Lighter on weak phones and battery"][save.gfx])};
 $("pAssist").onclick=()=>{save.assist=!save.assist;syncPause();persist()};
+$("pGhost").onclick=()=>{save.ghostOn=!save.ghostOn;syncPause();persist();if(!save.ghostOn)ghostHide()};
 $("pSnd").onclick=()=>{save.sound=!save.sound;if(save.sound)audioInit();syncPause();persist()};
 $("pMus").onclick=$("gMus").onclick=()=>{save.music=!save.music;audioInit();musicInit();syncPause();persist()};
 function openMap(){if(state!=="DRIVE")return;setState("MAP");clearInput();audioOn(false);show("map",true);show("mapPop",false);MV.z=1;MV.cx=0;MV.cz=0}

@@ -123,6 +123,16 @@ test.describe("races and time trials", () => {
   test("driving past the finish line beside its posts doesn't finish, and says to drive through it", async ({ game, page }) => {
     await ready(game);
     await start(game, page, 2);
+    // no traffic: a car in the way would stop it short of the 25 m it has to drive past the line, saying nothing about
+    // the finish (it failed once that way)
+    await game.eval(() => {
+      for (const t of __T.TRAFFIC) {
+        t.e = null;
+        t.c.G.visible = false;
+        t.wx = t.wz = 1e6;
+        t.lost = false;
+      }
+    });
     await game.steps(200, {});
     const last = await game.eval(() => __T.ev.E.cps.length - 1);
     const reach = await game.eventBot(20000, last);
@@ -477,6 +487,83 @@ test.describe("races and time trials", () => {
     expect(r.gap, "metres between the rival and the traffic car").toBeLessThan(60);
     expect(r.err).toBeNull();
     expect(r.ev).toBe(true);
+  });
+
+  test("a traffic car with no way on during a race and nowhere to reappear doesn't break the frame", async ({ game }) => {
+    await ready(game);
+    const r = await game.eval(() => {
+      const T = __T,
+        P = T.P;
+      T.startEvent(T.EVENTS[0]);
+      // a car on a road of the race, going the race's way, comes to a junction where every way on runs against the race
+      // and turning round would too (there are no dead ends on the island, so the junction is set up that way by hand)
+      const R = T.ev.R,
+        q = T.edgePos(R, 300),
+        nr = T.nearestRoad(q.x, q.z, 3),
+        dead = nr.e,
+        node = dead.b;
+      T.evDirs.set(dead, 1);
+      for (const a of node.adj) if (a.e !== dead) T.evDirs.set(a.e, a.end === "a" ? -1 : 1);
+      const t = T.TRAFFIC[0];
+      t.e = dead;
+      t.dir = 1;
+      t.s = dead.len - 0.05;
+      t.v = 10;
+      t.lost = false;
+      // and nowhere to reappear: every road is too far from the player, who is put far out at sea
+      const x0 = P.x,
+        z0 = P.z;
+      P.x = P.z = 5e4;
+      let err = null;
+      try {
+        T.updateTraffic(1 / 60);
+        T.updateTraffic(1 / 60);
+      } catch (e) {
+        err = String(e);
+      }
+      P.x = x0;
+      P.z = z0;
+      return { err, gone: !t.e, waiting: !!t.lost };
+    });
+    expect(r.err).toBeNull();
+    // it's off the road, and tries again to reappear
+    expect([r.gone, r.waiting]).toEqual([true, true]);
+  });
+
+  test("a traffic car inside one of three rivals is taken off the road within half a second", async ({ game }) => {
+    await ready(game);
+    const r = await game.eval(() => {
+      const T = __T;
+      T.startEvent(T.EVENTS[3]);
+      for (let i = 0; i < 200; i++) T.driveUpdate(1 / 60);
+      const R = T.ev.R,
+        ai = T.ev.ai;
+      // the rivals spread out along the route, and a traffic car placed right inside the last one, going its way
+      ai.forEach((a, k) => {
+        a.s = 300 + k * 60;
+        a.v = 0;
+      });
+      for (let i = 0; i < 2; i++) T.driveUpdate(1 / 60);
+      const a = ai[2],
+        q = T.edgePos(R, a.s),
+        nr = T.nearestRoad(a.x, a.z, 4),
+        t = T.TRAFFIC[0];
+      t.e = nr.e;
+      t.s = nr.s;
+      t.dir = q.dx * nr.dx + q.dz * nr.dz > 0 ? 1 : -1;
+      // at the rival's own place across the road
+      t.off = t.offCur = a.lat;
+      t.v = t.base = 0;
+      t.lost = false;
+      let n = 0;
+      for (; n < 120 && t.e === nr.e; n++) {
+        for (const b of ai) b.v = 0;
+        T.driveUpdate(1 / 60);
+      }
+      return { seconds: n / 60, gone: t.e !== nr.e };
+    });
+    expect(r.gone).toBe(true);
+    expect(r.seconds).toBeLessThan(0.5);
   });
 
   test("no traffic comes the other way along a race or time trial route", async ({ game }) => {

@@ -200,46 +200,73 @@ for (const [w, h] of [
       await game.steps(200, {});
       await game.steps(240, { w: true });
       await game.frames(3);
-      const r = await game.eval(() => {
+      const r = await game.eval(PANEL);
+      expect(r.shown).toBe(true);
+      expect(r.onScreen).toBe(true);
+      expect(r.hit, "covers").toEqual([]);
+    });
+
+    test("with the ghost's gap in a time trial, it still stays clear", async ({ game }) => {
+      await game.open();
+      await game.driveOut();
+      await game.eval(() => {
         const T = __T,
-          cam = T.camera;
-        cam.updateMatrixWorld();
-        T.pc.G.updateMatrixWorld(true);
-        const b = new THREE.Box3().setFromObject(T.pc.G);
-        let l = 1e9,
-          t = 1e9,
-          rr = -1e9,
-          bb = -1e9;
-        for (const x of [b.min.x, b.max.x])
-          for (const y of [b.min.y, b.max.y])
-            for (const z of [b.min.z, b.max.z]) {
-              const v = new THREE.Vector3(x, y, z).project(cam),
-                sx = ((v.x + 1) / 2) * innerWidth,
-                sy = ((1 - v.y) / 2) * innerHeight;
-              l = Math.min(l, sx);
-              rr = Math.max(rr, sx);
-              t = Math.min(t, sy);
-              bb = Math.max(bb, sy);
-            }
-        const box = (el) => {
-          const q = el.getBoundingClientRect();
-          return { l: q.left, t: q.top, r: q.right, b: q.bottom };
-        };
-        const e = box(document.getElementById("evhud"));
-        // the car, and a margin of road above it
-        const others = { car: { l, t: t - 20, r: rr, b: bb } };
-        for (const id of ["speedo", "mini", "gpsTxt", "chips", "tl", "bL", "bR", "bG", "bB", "bH"]) {
-          const el = document.getElementById(id);
-          if (el && el.offsetParent) others[id] = box(el);
+          R = T.EVENTS[0].route,
+          d = [];
+        for (let k = 0; k * 3 < R.len; k++) {
+          const q = T.edgePos(R, k * 3);
+          d.push(+q.x.toFixed(1), +q.z.toFixed(1), +Math.atan2(q.dx, q.dz).toFixed(2), k * 3);
         }
-        const hit = Object.entries(others)
-          .filter(([, o]) => Math.min(e.r, o.r) - Math.max(e.l, o.l) > 1 && Math.min(e.b, o.b) - Math.max(e.t, o.t) > 1)
-          .map(([k]) => k);
-        return { evhud: e, onScreen: e.l >= 0 && e.t >= 0 && e.r <= innerWidth && e.b <= innerHeight, hit, shown: !document.getElementById("evhud").classList.contains("hide") };
+        T.save.ghost.cubells = { c: "golf", t: R.len / 30, d };
+        T.startEvent(T.EVENTS[0]);
       });
+      await game.steps(200, {});
+      await game.steps(240, { w: true });
+      await game.frames(3);
+      const r = await game.eval(PANEL);
+      expect(await game.eval(() => !document.getElementById("evGhost").classList.contains("hide"))).toBe(true);
       expect(r.shown).toBe(true);
       expect(r.onScreen).toBe(true);
       expect(r.hit, "covers").toEqual([]);
     });
   });
 }
+
+// boxes of the race panel, the car (with a margin of road above it) and the rest of the HUD, and what the panel covers
+const PANEL = () => {
+  const T = __T,
+    cam = T.camera;
+  cam.updateMatrixWorld();
+  T.pc.G.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(T.pc.G);
+  let l = 1e9,
+    t = 1e9,
+    rr = -1e9,
+    bb = -1e9;
+  for (const x of [b.min.x, b.max.x])
+    for (const y of [b.min.y, b.max.y])
+      for (const z of [b.min.z, b.max.z]) {
+        const v = new THREE.Vector3(x, y, z).project(cam),
+          sx = ((v.x + 1) / 2) * innerWidth,
+          sy = ((1 - v.y) / 2) * innerHeight;
+        l = Math.min(l, sx);
+        rr = Math.max(rr, sx);
+        t = Math.min(t, sy);
+        bb = Math.max(bb, sy);
+      }
+  const box = (el) => {
+    const q = el.getBoundingClientRect();
+    return { l: q.left, t: q.top, r: q.right, b: q.bottom };
+  };
+  const e = box(document.getElementById("evhud"));
+  // the car, and a margin of road above it
+  const others = { car: { l, t: t - 20, r: rr, b: bb } };
+  for (const id of ["speedo", "mini", "gpsTxt", "chips", "tl", "bL", "bR", "bG", "bB", "bH"]) {
+    const el = document.getElementById(id);
+    if (el && el.offsetParent) others[id] = box(el);
+  }
+  const hit = Object.entries(others)
+    .filter(([, o]) => Math.min(e.r, o.r) - Math.max(e.l, o.l) > 1 && Math.min(e.b, o.b) - Math.max(e.t, o.t) > 1)
+    .map(([k]) => k);
+  return { evhud: e, onScreen: e.l >= 0 && e.t >= 0 && e.r <= innerWidth && e.b <= innerHeight, hit, shown: !document.getElementById("evhud").classList.contains("hide") };
+};

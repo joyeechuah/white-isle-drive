@@ -39,6 +39,7 @@ The pause menu opens photo mode, the Island Passport and the Contracts board, an
 - 24 cars from hatchbacks to hypercars across classes A1 to A7, with paint colours, a 12-car garage and a dealership where you can buy, sell and take a 90-second test drive
 - 6 events (time trials and races against AI drivers) with medals and personal bests; traffic on the route only drives your way, so you can overtake
 - Race difficulty (EASY, NORMAL or HARD) on the race screen: how fast the rivals drive, and rewards of ×0.75, ×1 or ×1.3. Rivals keep their distance, pass slower cars when the other lane is clear and hold back when it isn't
+- Time trial ghost: your record run comes back as a see-through car on your next attempt, with the live gap to it in the race panel (GHOST CAR in the pause menu turns it off)
 - Photo mode: a free camera around your car, a zoom control, three looks (Golden Hour, Night Drive, Coastal Sunset) and a PNG of the scene without the game's on-screen display
 - An Island Passport of 18 landmarks to find by driving to them, from the highest road to the far capes and the villages, each paying credits once, with a bonus for finding them all
 - Contracts: parcel deliveries, timed courier runs and scenic tours between the towns, with the GPS guiding you and a reward on completion
@@ -80,6 +81,7 @@ The tests run against the real `index.html`, read fresh on every run. For tests 
 - **Saves**: reloads, a save from the first release, corrupt and malformed saves, storage being refused.
 - **Phones**: touch controls, and layouts at six screen sizes (including 360 px tall phones held sideways), and turning the device, the race panel kept clear of the car and the road, and the BRAKE / REVERSE label.
 - **Traffic**: cars keep their distance at junctions, in queues and where they appear, and none waits for good, even behind a parked car.
+- **Ghost**: a record run is saved and a slower one isn't, the replay follows the recorded path, is see-through, shows the gap and can't be hit, the switch, and damaged ghosts in a save.
 - **Camera**: the chase camera keeps the road ahead in view for small, large and low cars; the chosen camera is remembered.
 - **Rendering**: real WebGL drawing by day and night and at each graphics setting.
 - **Stability and performance**: no leftovers after many screen changes, long frame gaps, a hidden tab, memory over a long drive, and measurements of frame cost, GPU load, load time and memory.
