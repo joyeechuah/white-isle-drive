@@ -52,6 +52,56 @@ test.describe("driving", () => {
     expect(hold.s).toBeGreaterThan(1.3);
   });
 
+  test("holding only W through bends at speed, the assist keeps the GT-R in its lane", async ({ game }) => {
+    test.setTimeout(300_000);
+    const r = await game.eval(() => {
+      const T = __T,
+        P = T.P,
+        out = [];
+      T.save.assist = true;
+      T.save.auto = false;
+      T.attachCar("gtr");
+      const S = T.save.side === "R" ? 1 : -1;
+      for (const e of T.EDGES.filter((e) => e.type !== "drive" && e.len > 500).slice(0, 24))
+        for (const dirS of [1, -1]) {
+          const q = T.edgePos(e, dirS > 0 ? 40 : e.len - 40),
+            ux = q.dx * dirS,
+            uz = q.dz * dirS;
+          P.x = q.x - uz * 1.9 * S;
+          P.z = q.z + ux * 1.9 * S;
+          P.h = Math.atan2(ux, uz);
+          P.vx = ux * 20;
+          P.vz = uz * 20;
+          P.r = P.steer = P.steerS = P.thr = 0;
+          P.laneT = null;
+          for (let i = 0; i < 600; i++) {
+            T.keys.w = true;
+            T.driveUpdate(1 / 60);
+            const nr = T.nearestRoad(P.x, P.z, 20);
+            if (!nr || nr.e !== e) break;
+            if (i % 6) continue;
+            const dir = Math.sin(P.h) * nr.dx + Math.cos(P.h) * nr.dz >= 0 ? 1 : -1,
+              k1 = T.edgePos(e, nr.s),
+              k2 = T.edgePos(e, nr.s + 12 * dir),
+              bend = Math.atan2(k1.dx * k2.dz - k1.dz * k2.dx, k1.dx * k2.dx + k1.dz * k2.dz) * dir;
+            if (Math.abs(bend) < 0.03) continue;
+            // metres off the lane centre towards the outside of the bend
+            const a = nr.side * dir,
+              off = a - Math.sign(a) * 1.9;
+            out.push(bend > 0 ? off : -off);
+          }
+        }
+      T.keys.w = false;
+      out.sort((a, b) => a - b);
+      return { n: out.length, p50: out[Math.floor(out.length / 2)], p90: out[Math.floor(out.length * 0.9)], p99: out[Math.floor(out.length * 0.99)] };
+    });
+    test.info().annotations.push({ type: "metres wide of the lane in bends (GT-R, W only)", description: JSON.stringify(r) });
+    expect(r.n).toBeGreaterThan(300);
+    // it used to run up to about a metre wide (90% of the time within 0.75 m)
+    expect(r.p90).toBeLessThan(0.5);
+    expect(r.p99).toBeLessThan(0.8);
+  });
+
   test("steering left and right turn the car opposite ways, and only when it moves", async ({ game }) => {
     const still = await game.steps(60, { a: true });
     const h0 = await game.eval(() => __T.P.h);

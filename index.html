@@ -2474,9 +2474,12 @@ function kphNow(){return Math.abs(speedF())*3.6}
 // Nov 2026 playtest: engines 15% stronger (pBase, pAcc); the corner-speed assist takes bends closer to the tyres'
 // grip (csGrip, was .76); at speed the wheel turns in more slowly and short presses are softer (rUpHi was 3.4,
 // expHi 1.3, and both now reach their high-speed value by 140 km/h, steerV), so a tap at 100 km/h moves the car less
+// Playtest, 8 Nov: holding W in a bend at speed, the car ran up to about a metre wide of its lane (towards the centre
+// line on a bend away from it, which read as pulling left). The assist now pulls back to the lane three times as hard
+// (laneK, was 1): in the GT-R at about 125 km/h, 90% of the time within 0.34 m of the lane centre (was 0.75 m)
 const STEER_SENS=[.7,1,1.35];
 const HD={latBase:1.2,latGrip:.6,latLow:.25,rUp:6,rUpHi:2,rBack:10,rBackHi:7,rCounter:14,steerEase:25,expHi:1.6,steerV:39,
-  asK:2.6,asLim:.9,csGrip:.83,csBrake:7,thrUp:3.2,pBase:3.7,pAcc:9.2,offDrag:2.2,offDragV:.035,yawResp:10,rMin0:5,rMinV:.7,laneK:1.0};
+  asK:2.6,asLim:.9,csGrip:.83,csBrake:7,thrUp:3.2,pBase:3.7,pAcc:9.2,offDrag:2.2,offDragV:.035,yawResp:10,rMin0:5,rMinV:.7,laneK:3,laneMax:.15,antT:.15,antMax:12};
 // fastest speed for a bend of curvature k: limited by grip, and in tight
 // corners by the smallest circle the car turns at that speed
 const vCorner=(k,aC)=>Math.min(Math.sqrt(aC/k),Math.max(4,(.92/k-HD.rMin0)/HD.rMinV));
@@ -2596,7 +2599,7 @@ function stepPlayer(dt){
   if(save.assist&&!hb&&nr&&sp>4&&dirV>0&&(onRoad||nr.d<nr.e.half+5)){
     const sideDrv=nr.side*rdir,gap=nr.e.half-Math.abs(sideDrv),band=Math.max(.6,nr.e.half-1.3);
     // road direction just ahead (covers the car's reaction lag) and its bend
-    const ant=Math.min(12,sp*.15),q=edgePos(nr.e,nr.s+rdir*ant);
+    const ant=Math.min(HD.antMax,sp*HD.antT),q=edgePos(nr.e,nr.s+rdir*ant);
     let want=Math.atan2(q.dx*rdir,q.dz*rdir);
     // the line to hold: while you steer, and until the car has straightened
     // up after you let go, it follows the car; then it stays put
@@ -2606,7 +2609,7 @@ function stepPlayer(dt){
     const pb=edgePos(nr.e,nr.s+rdir*(ant-6)),pf=edgePos(nr.e,nr.s+rdir*(ant+6));
     const rFF=-wrapA(Math.atan2(pf.dx*rdir,pf.dz*rdir)-Math.atan2(pb.dx*rdir,pb.dz*rdir))/12*sp;
     // back toward the held line (positive heading = to the left)
-    if(P.laneLock||Math.abs(sideDrv)>band)want+=clamp(Math.atan2(HD.laneK*(sideDrv-laneT),Math.max(sp,6)),-.15,.15);
+    if(P.laneLock||Math.abs(sideDrv)>band)want+=clamp(Math.atan2(HD.laneK*(sideDrv-laneT),Math.max(sp,6)),-HD.laneMax,HD.laneMax);
     const err=wrapA(want-P.h);
     // the assist fades out as the car points further from the road, instead of switching off at a
     // fixed angle, so the turn rate never jumps
