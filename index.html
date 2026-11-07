@@ -2279,7 +2279,7 @@ function carEnvTex(){if(!CAR_ENV.tex)updateCarEnv(true);return CAR_ENV.tex}
 function updateCarEnv(force){
   const k=[skyU.top.value,skyU.hor.value,skyU.sunCol.value].map(c=>c.r+c.g+c.b).concat([skyU.sunDir.value.x,skyU.sunDir.value.y]);
   const old=CAR_ENV.key,now=performance.now();
-  if(!force&&old&&(now-CAR_ENV.t<1500||k.every((v,i)=>Math.abs(v-old[i])<.03)))return;
+  if(!force&&old&&(now-CAR_ENV.t<4000||k.every((v,i)=>Math.abs(v-old[i])<.06)))return;
   if(!CAR_ENV.pm){CAR_ENV.pm=new THREE.PMREMGenerator(renderer);CAR_ENV.scene=carEnvScene()}
   CAR_ENV.ground.material.color.copy(hemi.groundColor).lerp(scene.fog.color,.35).multiplyScalar(.55);
   const rt=CAR_ENV.pm.fromScene(CAR_ENV.scene,.02,.1,200),old2=CAR_ENV.rt;CAR_ENV.rt=rt;CAR_ENV.tex=rt.texture;
