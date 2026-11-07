@@ -259,7 +259,7 @@ test.describe("races and time trials", () => {
     expect(paid).toBeGreaterThanOrEqual(cr0);
   });
 
-  test("race rivals never drive through each other", async ({ game }) => {
+  test("race rivals never drive through each other or jump back", async ({ game }) => {
     test.setTimeout(400_000);
     await ready(game);
     const r = await game.eval(() => {
@@ -270,7 +270,8 @@ test.describe("races and time trials", () => {
         if (E.type !== "race") continue;
         T.startEvent(E);
         let overlap = 0,
-          passes = 0;
+          passes = 0,
+          jumps = 0;
         const order0 = T.ev.ai.map((a) => a.s);
         for (let i = 0; i < 200; i++) T.driveUpdate(1 / 60);
         for (let i = 0; i < 20000 && T.ev; i++) {
@@ -292,6 +293,8 @@ test.describe("races and time trials", () => {
             before = ai.map((a) => a.s);
           T.driveUpdate(1 / 60);
           if (!T.ev) break;
+          // and never jumps back along the road
+          for (let a = 0; a < ai.length; a++) if (before[a] - ai[a].s > 0.3) jumps++;
           for (let a = 0; a < ai.length; a++)
             for (let b = a + 1; b < ai.length; b++) {
               // a car length along the route and level across it: one drawn inside the other
@@ -300,7 +303,7 @@ test.describe("races and time trials", () => {
             }
         }
         T.keys.a = T.keys.d = T.keys.w = false;
-        out[E.id] = { overlap, passes, order0, state: T.state };
+        out[E.id] = { overlap, passes, jumps, order0, state: T.state };
         if (T.state === "RESULT") document.getElementById("rOk").click();
       }
       return out;
@@ -308,6 +311,7 @@ test.describe("races and time trials", () => {
     test.info().annotations.push({ type: "rivals in each race", description: JSON.stringify(r) });
     for (const [id, x] of Object.entries(r)) {
       expect(x.overlap, `${id}: frames with one rival inside another`).toBe(0);
+      expect(x.jumps, `${id}: times a rival jumped back along the road`).toBe(0);
       expect(x.state, `${id}: the race still finishes`).toBe("RESULT");
     }
   });
@@ -436,6 +440,43 @@ test.describe("races and time trials", () => {
     expect(r.overlap, "frames with a rival inside a traffic car").toBe(0);
     // they got past it: every rival is beyond the last traffic car placed
     for (const s of r.progress) expect(s).toBeGreaterThan(950);
+  });
+
+  test("a rival rolling on past the finish next to traffic doesn't stop the game", async ({ game }) => {
+    await ready(game);
+    const r = await game.eval(() => {
+      const T = __T;
+      T.startEvent(T.EVENTS[3]);
+      for (let i = 0; i < 200; i++) T.driveUpdate(1 / 60);
+      const R = T.ev.R,
+        a = T.ev.ai[0],
+        end = T.edgePos(R, R.len);
+      // the first rival finished and has rolled 64 m on, beyond the route's last point, with a traffic car 30 m behind
+      // it (rivals look out for traffic within 60 m)
+      a.s = R.len + 64;
+      a.fin = 1;
+      a.v = 0;
+      const t = T.TRAFFIC[0],
+        nr = [30, 20, 10, 0].map((k) => T.nearestRoad(end.x + end.dx * k, end.z + end.dz * k, 8)).find((n) => n);
+      t.e = nr.e;
+      t.s = nr.s;
+      t.dir = 1;
+      t.lost = false;
+      let err = null,
+        gap = 1e9;
+      try {
+        for (let i = 0; i < 120; i++) {
+          T.driveUpdate(1 / 60);
+          gap = Math.min(gap, Math.hypot(a.x - t.wx, a.z - t.wz));
+        }
+      } catch (e) {
+        err = String(e);
+      }
+      return { err, ev: !!T.ev, gap: Math.round(gap) };
+    });
+    expect(r.gap, "metres between the rival and the traffic car").toBeLessThan(60);
+    expect(r.err).toBeNull();
+    expect(r.ev).toBe(true);
   });
 
   test("no traffic comes the other way along a race or time trial route", async ({ game }) => {

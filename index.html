@@ -2626,7 +2626,10 @@ function junction(t,node,over){
     t.dir*=-1;t.s=t.dir>0?Math.min(over,t.e.len):Math.max(0,t.e.len-over);return}
   // give way: a road whose first few metres already hold a car going the same way can't be turned into yet (cars
   // used to merge into each other here); with every way out taken, the car waits at the end of its road
-  const free=opts.filter(a=>{const d2=a.end==="a"?1:-1,s0=d2>0?0:a.e.len;return !TRAFFIC.some(o=>o!==t&&o.e===a.e&&o.dir===d2&&(o.s-s0)*d2<9)});
+  const free=opts.filter(a=>{const d2=a.end==="a"?1:-1,s0=d2>0?0:a.e.len;if(TRAFFIC.some(o=>o!==t&&o.e===a.e&&o.dir===d2&&(o.s-s0)*d2<9))return false;
+    // nor pull out in front of a race rival close to where it would join
+    if(ev&&ev.ai.length){const q=edgePos(a.e,s0);if(ev.ai.some(r=>Math.hypot(r.x-q.x,r.z-q.z)<16))return false}
+    return true});
   if(!free.length){t.s=t.dir>0?t.e.len-.01:.01;t.v=0;return}
   const a=free[Math.floor(Math.random()*free.length)];
   t.e=a.e;if(a.end==="a"){t.dir=1;t.s=Math.min(over,t.e.len)}else{t.dir=-1;t.s=Math.max(0,t.e.len-over)}
@@ -2851,7 +2854,9 @@ function updateEvent(dt){
   const obs=ev.obs;obs.length=0;
   if(ev.ai.length){for(const a of ev.ai)obs.push(a);
     for(const t of TRAFFIC){if(!t.e)continue;let near=null,nd=60;for(const a of ev.ai){const d=Math.hypot(t.wx-a.x,t.wz-a.z);if(d<nd){nd=d;near=a}}
-      if(!near)continue;const tr=trackRoute(R,t.wx,t.wz,Math.floor(near.s/4));if(tr.d>4.5)continue;
+      if(!near)continue;
+      // (a rival that has rolled on past the finish is beyond the route's last point: search from the end)
+      const tr=trackRoute(R,t.wx,t.wz,clamp(Math.floor(near.s/4),0,R.pts.length-1));if(tr.d>4.5)continue;
       const q=edgePos(R,tr.s);obs.push({s:tr.s,lat:tr.side,v:Math.max(0,t.v*(Math.sin(t.yaw)*q.dx+Math.cos(t.yaw)*q.dz)),tc:t})}}
   const pace=DIFFS[ev.diff].pace;
   for(const a of ev.ai){
@@ -2873,11 +2878,16 @@ function updateEvent(dt){
       else{a.v=Math.max(0,a.v-2.5*dt);a.s+=a.v*dt}
       // keep out of the player's way
       const ds=ev.s-a.s;
-      if(ds>-3&&ds<9&&Math.abs(P.lat-a.lat)<2.4)a.lat+=Math.sign(a.lat-P.lat||1)*3*dt;
-      else a.lat+=clamp(a.lane-a.lat,-1.4*dt,1.4*dt);
-      a.lat=clamp(a.lat,-3.2,3.2);
-      // and never closer than a car length to one ahead (rival or traffic) that is still level with it across the road
-      for(const b of obs){const g=b.s-a.s;if(b!==a&&g>=0&&g<5&&Math.abs(b.lat-a.lat)<1.8){a.s=b.s-5;a.v=Math.min(a.v,b.v)}}
+      let nl=a.lat;
+      if(ds>-3&&ds<9&&Math.abs(P.lat-a.lat)<2.4)nl+=Math.sign(a.lat-P.lat||1)*3*dt;
+      else nl+=clamp(a.lane-a.lat,-1.4*dt,1.4*dt);
+      nl=clamp(nl,-3.2,3.2);
+      // a sideways move never takes it into a car level with it (that left one inside the other, and the spacing below
+      // then made the one behind jump back)
+      if(!obs.some(b=>b!==a&&Math.abs(b.s-a.s)<5.2&&Math.abs(b.lat-nl)<1.8&&Math.abs(b.lat-a.lat)>=1.8))a.lat=nl;
+      // and never closer than a car length to a rival ahead that is still level with it across the road; behind a
+      // traffic car that has only just come onto the route that close, it brakes hard instead of jumping back
+      for(const b of obs){const g=b.s-a.s;if(b!==a&&g>=0&&g<5&&Math.abs(b.lat-a.lat)<1.8){if(b.tc)a.v=Math.min(a.v,b.v*.7);else{a.s=b.s-5;a.v=Math.min(a.v,b.v)}}}
     }
     const q=edgePos(R,Math.min(a.s,R.len)),over=Math.max(0,a.s-R.len);a.x=q.x-q.dz*a.lat+q.dx*over;a.z=q.z+q.dx*a.lat+q.dz*over;a.yaw=Math.atan2(q.dx,q.dz);
     // on all four wheels on hills and crests (they used to sit level, nose in the road and tail in the air)
