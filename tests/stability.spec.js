@@ -137,6 +137,25 @@ test.describe("stability", () => {
       await game.frames(2);
     };
     await round();
+    // everything already in the scene is drawn once, so it is on the GPU before the first count. The GPU only takes
+    // a geometry the first time it is drawn, so anything seen for the first time in a later round (the dealership
+    // camera circles to a new angle on each visit, a tile of trees comes into view) used to look like a leak. After
+    // this, only objects created during the rounds can raise the count, which is what a leak is
+    await game.eval(() => {
+      const T = __T,
+        was = [];
+      T.scene.traverse((o) => {
+        was.push([o, o.visible, o.frustumCulled]);
+        o.visible = true;
+        o.frustumCulled = false;
+      });
+      T.renderer.render(T.scene, T.camera);
+      for (const [o, v, f] of was) {
+        o.visible = v;
+        o.frustumCulled = f;
+      }
+    });
+    await game.frames(2);
     const a = await gpu();
     for (let i = 0; i < 3; i++) await round();
     const b = await gpu();
