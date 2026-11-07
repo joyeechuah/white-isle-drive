@@ -237,7 +237,9 @@ test.describe("photo mode", () => {
     await page.addInitScript(installProbes);
     await driving(game);
     const count = () =>
-      game.eval(() => ({ listeners: __probe.listeners(), timers: __probe.timers(), nodes: document.getElementsByTagName("*").length, blobs: !!__T.PH.shot }));
+      game.eval(() => ({ listeners: __probe.listeners(), timers: __probe.timers(), // on-screen messages come and go on their own (the FREE RIDE one may still be up at the first count), so
+      // they're left out, as in the stability tests
+      nodes: document.getElementsByTagName("*").length - document.querySelectorAll("#toasts *").length, blobs: !!__T.PH.shot }));
     const once = async () => {
       await game.key("v");
       await game.waitState("PHOTO");
