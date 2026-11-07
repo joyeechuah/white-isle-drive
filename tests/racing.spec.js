@@ -312,6 +312,122 @@ test.describe("races and time trials", () => {
     }
   });
 
+  test("the race intro sets the difficulty, which changes the rewards and is remembered; time trials have none", async ({ game, page }) => {
+    await ready(game);
+    await game.eval(() => __T.openIntro(__T.EVENTS[1]));
+    await game.waitState("INTRO");
+    const btns = page.locator("#iDiff button");
+    await expect(btns).toHaveText(["EASY", "NORMAL", "HARD"]);
+    await expect(btns.nth(1)).toHaveAttribute("aria-pressed", "true");
+    const rewards = () => page.locator("#iRows .row", { hasText: "Rewards" }).locator("b").textContent();
+    const normal = await rewards();
+    await btns.nth(2).click();
+    await expect(page.locator("#iDiff button").nth(2)).toHaveAttribute("aria-pressed", "true");
+    const hard = await rewards();
+    const exp = await game.eval(() => __T.raceRewards(__T.EVENTS[1], 2).map((r) => r.toLocaleString("en-US")));
+    expect(hard).not.toBe(normal);
+    for (const r of exp) expect(hard.replace(/[^0-9 /]/g, "")).toContain(r.replace(/[^0-9]/g, ""));
+    // the arrow keys change it too
+    await game.key("ArrowLeft");
+    await expect(page.locator("#iDiff button").nth(1)).toHaveAttribute("aria-pressed", "true");
+    await game.key("ArrowRight");
+    expect(await game.eval(() => __T.save.diff)).toBe(2);
+    expect((await game.readSave()).diff).toBe(2);
+    await page.locator("#iNo").click();
+    await game.waitState("DRIVE");
+    await game.eval(() => __T.openIntro(__T.EVENTS[0]));
+    await game.waitState("INTRO");
+    await expect(page.locator("#iDiff")).toBeHidden();
+  });
+
+  test("HARD rivals drive faster than EASY ones, and a race pays its reward times the difficulty", async ({ game }) => {
+    test.setTimeout(400_000);
+    await ready(game);
+    const r = await game.eval(() => {
+      const T = __T,
+        P = T.P,
+        out = {};
+      for (const d of [0, 2]) {
+        T.save.diff = d;
+        T.startEvent(T.EVENTS[1]);
+        for (let i = 0; i < 200; i++) T.driveUpdate(1 / 60);
+        // the player stays at the start, so no rival is slowed for being far ahead of the player: just their own pace
+        // over the first 25 s
+        T.ev.s = 1e4;
+        for (let i = 0; i < 1500; i++) T.driveUpdate(1 / 60);
+        out[d] = T.ev.ai.reduce((s, a) => s + a.s, 0) / 3;
+        // a win at this difficulty
+        for (const a of T.ev.ai) a.fin = 0;
+        const cr0 = T.save.cr;
+        T.finishEvent();
+        out["paid" + d] = T.save.cr - cr0;
+        out["expect" + d] = T.raceRewards(T.EVENTS[1], d)[0];
+        for (let i = 0; i < 400 && T.state === "DRIVE"; i++) T.driveUpdate(1 / 60);
+        out["row" + d] = document.getElementById("rRows").textContent;
+        document.getElementById("rOk").click();
+      }
+      return out;
+    });
+    expect(r[2], "metres driven by HARD rivals in 25 s vs EASY").toBeGreaterThan(r[0] * 1.1);
+    expect(r.paid0).toBe(r.expect0);
+    expect(r.paid2).toBe(r.expect2);
+    expect(r.paid2).toBeGreaterThan(r.paid0);
+    expect(r.row0).toContain("EASY");
+    expect(r.row2).toContain("HARD");
+  });
+
+  test("rivals slow behind or pass traffic on the route, never driving through it", async ({ game }) => {
+    test.setTimeout(400_000);
+    await ready(game);
+    const r = await game.eval(() => {
+      const T = __T,
+        P = T.P;
+      T.save.diff = 2;
+      T.startEvent(T.EVENTS[3]);
+      const R = T.ev.R;
+      // four slow traffic cars in the race's direction on the route ahead, in the lane two rivals start in
+      const placed = [];
+      for (const [k, s] of [200, 420, 640, 900].entries()) {
+        const q = T.edgePos(R, s),
+          nr = T.nearestRoad(q.x, q.z, 4);
+        if (!nr) continue;
+        const t = T.TRAFFIC[k],
+          dir = q.dx * nr.dx + q.dz * nr.dz > 0 ? 1 : -1;
+        t.e = nr.e;
+        t.s = nr.s;
+        t.dir = dir;
+        t.lane = 0;
+        t.off = t.offCur = 1.9;
+        t.base = t.v = 6;
+        t.passT = 0;
+        t.waitT = 0;
+        t.lost = false;
+        placed.push(t);
+      }
+      for (let i = 0; i < 200; i++) T.driveUpdate(1 / 60);
+      let overlap = 0,
+        minD = 99;
+      // the player waits at the start, so the rivals meet the traffic on their own
+      for (let i = 0; i < 4800 && T.ev; i++) {
+        T.driveUpdate(1 / 60);
+        if (!T.ev) break;
+        for (const a of T.ev.ai)
+          for (const t of placed) {
+            if (!t.e) continue;
+            const d = Math.hypot(a.x - t.wx, a.z - t.wz);
+            minD = Math.min(minD, d);
+            if (d < 2.4) overlap++;
+          }
+      }
+      return { placed: placed.length, overlap, minD, progress: T.ev ? T.ev.ai.map((a) => Math.round(a.s)) : null, len: Math.round(R.len) };
+    });
+    test.info().annotations.push({ type: "rivals and traffic", description: JSON.stringify(r) });
+    expect(r.placed).toBeGreaterThanOrEqual(3);
+    expect(r.overlap, "frames with a rival inside a traffic car").toBe(0);
+    // they got past it: every rival is beyond the last traffic car placed
+    for (const s of r.progress) expect(s).toBeGreaterThan(950);
+  });
+
   test("no traffic comes the other way along a race or time trial route", async ({ game }) => {
     test.setTimeout(400_000);
     await ready(game);
