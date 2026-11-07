@@ -17,6 +17,8 @@ const ROAD_PIXEL = () => {
         nr = T.nearestRoad(w.x, w.z, 12);
       if (!nr || nr.d > 2) continue;
       if (ms.some((m) => Math.hypot(m.x - w.x, m.z - w.z) < 40 / T.MV.s)) continue;
+      // nothing on top of the map there (a message from the game can still be on screen, and takes the click)
+      if (document.elementFromPoint(x, y) !== document.getElementById("mapc")) continue;
       return { x, y, wx: w.x, wz: w.z };
     }
   return null;
