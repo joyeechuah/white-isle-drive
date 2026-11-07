@@ -110,6 +110,36 @@ test.describe("time trial ghost", () => {
     expect(r.pushed).toBeLessThan(0.05);
   });
 
+  test("the gap shown is the right number of seconds, behind and ahead", async ({ game }) => {
+    await ready(game);
+    const r = await game.eval(() => {
+      const T = __T,
+        R = T.EVENTS[0].route,
+        d = [];
+      // a ghost that drove the route at exactly 30 m/s: at s metres after s/30 seconds
+      for (let k = 0; k * 3 < R.len; k++) {
+        const q = T.edgePos(R, k * 3);
+        d.push(+q.x.toFixed(1), +q.z.toFixed(1), +Math.atan2(q.dx, q.dz).toFixed(2), k * 3);
+      }
+      T.save.ghost.cubells = { c: "golf", t: R.len / 30, d };
+      T.startEvent(T.EVENTS[0]);
+      for (let i = 0; i < 200; i++) T.driveUpdate(1 / 60);
+      // standing still at the start (14 m along) for 6 s: the ghost was there at 14/30 s, so the gap is t - 0.47
+      while (T.ev.t < 6) T.driveUpdate(1 / 60);
+      const behind = { shown: document.getElementById("evGap").textContent, want: T.ev.t - 14 / 30 };
+      // progress marked 60 m beyond where the ghost is now: it gets there 2 s from now, so 2 s ahead
+      T.ev.s = 30 * T.ev.t + 60;
+      T.driveUpdate(1 / 60);
+      const ahead = { shown: document.getElementById("evGap").textContent, want: T.ev.t - T.ev.s / 30 };
+      return { behind, ahead };
+    });
+    const num = (t) => parseFloat(t.replace("\u2212", "-"));
+    expect(r.behind.shown).toMatch(/^\+\d+\.\d$/);
+    expect(Math.abs(num(r.behind.shown) - r.behind.want)).toBeLessThanOrEqual(0.06);
+    expect(r.ahead.shown).toMatch(/^\u2212\d+\.\d$/);
+    expect(Math.abs(num(r.ahead.shown) - r.ahead.want)).toBeLessThanOrEqual(0.06);
+  });
+
   test("GHOST CAR in the pause menu hides it and is remembered", async ({ game, page }) => {
     await ready(game);
     await game.eval(() => {
