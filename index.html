@@ -2909,7 +2909,7 @@ const GP={on:false,steer:0,gas:0,brake:0,hb:false,prev:[]};
 const PAUSE_SUBS=[["passport",()=>passportClose()],["jobs",()=>jobsClose()],["cups",()=>cupsClose()]];
 function pollPad(){
   let g=null;try{const l=navigator.getGamepads?navigator.getGamepads():[];for(const x of l)if(x&&x.connected){g=x;break}}catch(e){}
-  if(!g){GP.on=false;GP.steer=GP.gas=GP.brake=0;GP.hb=false;return}
+  if(!g){GP.on=false;GP.steer=GP.gas=GP.brake=0;GP.hb=false;GO.stick[0]=GO.stick[1]=0;return}
   const ax=g.axes[0]||0,b=i=>g.buttons[i]||{pressed:false,value:0},v=i=>{const q=b(i);return typeof q.value==="number"&&q.value>0?q.value:q.pressed?1:0};
   GP.on=true;GP.steer=Math.abs(ax)<.12?0:Math.sign(ax)*(Math.abs(ax)-.12)/.88;GP.gas=v(7);GP.brake=v(6);GP.hb=b(0).pressed;
   // buttons pressed since the last frame
@@ -2920,7 +2920,9 @@ function pollPad(){
   else if(state==="LOAD"){if(hit(0)&&!$("lstart").classList.contains("hide"))$("lstart").click()}
   else if(state==="MAP"){if(hit(8)||hit(1)){if(!$("passport").classList.contains("hide"))passportClose();else closeMap()}}
   else if(state==="PHOTO"){if(hit(1))photoExit()}
-  if(state==="GARAGE"&&(Math.abs(g.axes[2]||0)>.2||Math.abs(g.axes[3]||0)>.2)){GO.yaw-=(g.axes[2]||0)*.05;GO.pitch=clamp(GO.pitch+(g.axes[3]||0)*.05,GO_P[0],GO_P[1]);GO.user=true;if(GO.spin)goSpin(false)}
+  // the right stick turns the garage view; it's read here and applied by time in garageCam (per frame, it turned four
+  // times as fast at 120 fps as at 30)
+  {const dz=a=>Math.abs(a)<.2?0:Math.sign(a)*(Math.abs(a)-.2)/.8;GO.stick[0]=state==="GARAGE"?dz(g.axes[2]||0):0;GO.stick[1]=state==="GARAGE"?dz(g.axes[3]||0):0}
   if(state==="GARAGE"&&cuOpen()){if(hit(1))custClose(false);else if(hit(0))custClose(true)}
   else if(state==="GARAGE"){if(hit(0))goDrive();else if(hit(14))$("gprev").onclick();else if(hit(15))$("gnext").onclick()}
   // in the dealership A buys the car shown (or drives it, if it's yours), X takes it for a test drive
@@ -4232,7 +4234,7 @@ function photoEnter(){
   PH.prev=state;
   PH.saved={pos:camera.position.clone(),q:camera.quaternion.clone(),fov:camera.fov,
     inside:pc.inside.visible,glass:pc.glass.visible,shell:pc.shell.visible,
-    head:headLight?headLight.intensity:0,fill:fillLight?fillLight.intensity:0,tail:pc.tailM.color.getHex()};
+    head:headLight?headLight.intensity:0,fill:fillLight?fillLight.intensity:0,tail:pc.tailM.color.clone()};
   clearInput();
   if(PH.prev==="PAUSE")show("pause",false);else audioOn(false);
   setState("PHOTO");hudOn(false);show("photo",true);show("phShot",false);$("phMsg").classList.add("hide");
@@ -4253,7 +4255,7 @@ function photoExit(){
   // the zoom follows the screen's shape, which may have changed while photo mode was open (a phone turned round)
   camera.position.copy(S.pos);camera.quaternion.copy(S.q);camera.fov=S.fov;fitZoom();camera.updateProjectionMatrix();
   pc.inside.visible=S.inside;pc.glass.visible=S.glass;pc.shell.visible=S.shell;
-  if(headLight){headLight.intensity=S.head;fillLight.intensity=S.fill}pc.tailM.color.setHex(S.tail);
+  if(headLight){headLight.intensity=S.head;fillLight.intensity=S.fill}pc.tailM.color.copy(S.tail);   // copied, not set from hex: setHex converts from sRGB again, so each trip darkened it
   applyDayNight();updateLampLights();
   clearInput();hudOn(true);
   if(PH.prev==="PAUSE"){setState("PAUSE");show("pause",true)}else{setState("DRIVE");audioOn(true)}
@@ -4822,7 +4824,8 @@ let gSel=0,gT=0,exitT=0,exitCurve=null,exitLen=1,exitDoorU=1;
 // the garage view turns all the way round the picked car (drag, or a controller's right stick) and moves in and out
 // (mouse wheel or pinch); picking another car starts from the usual view again. While you've turned it, the view
 // stops its slow sway
-const GO={yaw:0,yawS:0,pitch:0,zoom:1,user:false,spin:false,ptr:new Map(),last:null,pinch:null,moved:0};
+const GO={yaw:0,yawS:0,pitch:0,zoom:1,user:false,spin:false,ptr:new Map(),last:null,pinch:null,moved:0,stick:[0,0]};
+const GO_STICK=2.4;   // radians (and pitch units) per second with the right stick all the way
 const GO_P=[-1.9,3.2],GO_Z=[.55,1.6];
 // SPIN on or off, with its button (style and aria-pressed) kept in step wherever it changes: the button, a drag,
 // a view button, opening, closing or picking another car
@@ -4882,6 +4885,7 @@ function garageWant(){
 function garageCam(dt){
   gT+=dt;
   // the view goes round the car along a circle (a straight line from front to back would pass through it)
+  if(GO.stick[0]||GO.stick[1]){GO.yaw-=GO.stick[0]*GO_STICK*dt;GO.pitch=clamp(GO.pitch+GO.stick[1]*GO_STICK*dt,GO_P[0],GO_P[1]);GO.user=true;if(GO.spin)goSpin(false)}
   if(GO.spin)GO.yaw+=dt*.4;GO.yawS+=(GO.yaw-GO.yawS)*(1-Math.exp(-dt*6));const g=garageWant();
   camP.lerp(g.pos,1-Math.exp(-dt*4));camL.lerp(g.look,1-Math.exp(-dt*6));
   camera.position.copy(camP);camera.lookAt(camL);camera.fov+=(50-camera.fov)*.06;camera.updateProjectionMatrix();
@@ -5159,7 +5163,9 @@ document.addEventListener("focusin",e=>{kbFocusEl=lastKeyT>=lastPtrT?e.target:nu
 function kbFocusedButton(){const el=document.activeElement;return !!el&&el===kbFocusEl&&(el.tagName==="BUTTON"||el.tagName==="A")}
 addEventListener("keydown",e=>{
   const k=e.key.toLowerCase();
-  if(e.target&&e.target.tagName==="INPUT"){if(k==="enter")e.target.blur();return}
+  // typing in a text field (the number plate) isn't driving or a shortcut; Enter or Escape leaves the field. Sliders (photo
+  // mode's zoom and distance) keep the shortcuts: they used to swallow Escape, V, R and Enter while they had focus
+  const tg=e.target;if(tg&&tg.tagName==="INPUT"&&tg.type!=="range"){if(k==="enter"||k==="escape")tg.blur();return}
   if(cuOpen()){if(k==="escape"&&!e.repeat)custClose(false);return}
   // Space is the handbrake while driving, focused button or not (a stray Tab mustn't turn it into a map or pause
   // key mid-race; Enter presses a Tab-focused button there). Anywhere else Space presses the focused button, as on

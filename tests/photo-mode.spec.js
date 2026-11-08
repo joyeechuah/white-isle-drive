@@ -51,6 +51,36 @@ test.describe("photo mode", () => {
     await expect(page.locator("#pause")).toBeVisible();
   });
 
+  test("shortcuts still work with a slider focused; leaving to the pause menu keeps the rear lights' colour", async ({ game, page }) => {
+    await driving(game);
+    // after dragging ZOOM the slider has focus: Escape still leaves (it used to be swallowed, like V, R and Enter)
+    await game.key("v");
+    await game.waitState("PHOTO");
+    await page.locator("#phZoom").focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(page.locator("#phZoom")).toBeFocused();
+    await game.key("Escape");
+    await game.waitState("DRIVE");
+    // at night, from the pause menu into photo mode and back, three times: the rear lights stay the same colour
+    // (each trip used to darken them: the colour was saved as hex and converted from sRGB again when put back)
+    await game.eval(() => {
+      __T.save.tod = 23;
+      __T.applyDayNight && __T.applyDayNight();
+    });
+    await game.frames(3);
+    await game.key("Escape");
+    await game.waitState("PAUSE");
+    const col = () => game.eval(() => __T.pc.tailM.color.toArray().map((v) => +v.toFixed(5)));
+    const before = await col();
+    for (let i = 0; i < 3; i++) {
+      await page.locator("#pPhoto").click();
+      await game.waitState("PHOTO");
+      await game.key("Escape");
+      await game.waitState("PAUSE");
+    }
+    expect(await col()).toEqual(before);
+  });
+
   test("doesn't open over the map, a screen fade, the garage or the dealership", async ({ game }) => {
     await driving(game);
     const tries = await game.eval(async () => {

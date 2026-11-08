@@ -268,6 +268,27 @@ test.describe("controller in menus", () => {
     await tap(1);
     await expect(page.locator("#cust")).toBeHidden();
     expect(await game.eval(() => __T.state)).toBe("GARAGE");
+    // the stick turns the view by time, not by frame: one second at 30 fps and at 120 fps turns it the same
+    // (it used to turn four times as far at 120)
+    const turn = await game.eval(() => {
+      const T = __T,
+        out = [];
+      for (const fps of [30, 120]) {
+        T.GO.yaw = T.GO.yawS = 0;
+        T.GO.pitch = 0;
+        __pad.axes[2] = 1;
+        for (let i = 0; i < fps; i++) {
+          T.pollPad();
+          T.garageCam(1 / fps);
+        }
+        __pad.axes[2] = 0;
+        T.pollPad();
+        out.push(-T.GO.yaw);
+      }
+      return out;
+    });
+    expect(turn[0], "radians in 1 s at 30 fps").toBeGreaterThan(2);
+    expect(Math.abs(turn[1] - turn[0]), "difference between 30 and 120 fps").toBeLessThan(0.01);
     // A applies with the plate field still being typed in: the typed plate is what's saved (it used to be lost)
     await page.locator("#gCust").click();
     await page.locator("#cuPlate").fill("PAD 77");
