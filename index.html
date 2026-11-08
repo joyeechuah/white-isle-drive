@@ -3507,8 +3507,16 @@ function buildRadars(){
     RADARS.push({id:"r"+(i++),x:p.x,z:p.z,dx:p.dx,dz:p.dz,half:e.half+2,prev:null});
   }
 }
-function updateRadars(){
-  if(ev)return;
+// where the car was at the last radar check: a jump since then (resetting to the road, map travel, the garage, the end
+// of an event) isn't a drive past a radar, so every radar forgets which side the car was on. A radar used to count a
+// "crossing" when the car was put down on its other side
+let radLast=null;
+function updateRadars(dt){
+  if(ev){radLast=null;return}
+  // a jump: further than the car could have driven since the last check (twice its speed over the frame, plus a metre)
+  const v=Math.hypot(P.vx,P.vz),far=Math.max(v,radLast?radLast.v:0)*(dt||.05)*2+1;
+  if(!radLast||Math.hypot(P.x-radLast.x,P.z-radLast.z)>far){for(const r of RADARS)r.prev=null;radLast={x:P.x,z:P.z,v}}
+  radLast.x=P.x;radLast.z=P.z;radLast.v=v;
   for(const r of RADARS){
     const dx=P.x-r.x,dz=P.z-r.z,al=dx*r.dx+dz*r.dz,side=Math.abs(dx*-r.dz+dz*r.dx);
     if(r.prev!==null&&Math.sign(al)!==Math.sign(r.prev)&&side<r.half&&Math.abs(al)<15){
@@ -4437,6 +4445,11 @@ $("pCups").onclick=cupsOpen;$("cpClose").onclick=cupsClose;
 /* ================================================================ STATE */
 let state="LOAD",camMode=save.cam,camYaw=0;
 const camP=new V3(),camL=new V3();
+// the chase camera smooths where it sits relative to the car, not where it is in the world: smoothing a world position
+// behind a moving car leaves a lag that depends on each frame's length, so with uneven frames (common on phones, 16 ms
+// then 33 ms) the car shook back and forth on screen at speed. camOff/camLOff are the eye's and the look point's offsets
+// from the car; camPSet is where the camera was left, so a move by anything else (snapCam, the garage exit) is noticed
+const camOff=new V3(),camLOff=new V3(),camPSet=new V3(1e9,0,0),camVel=new V3();
 const CAMS=["CHASE","FAR","BUMPER","COCKPIT"];$("chCam").textContent="CAM: "+CAMS[camMode];
 let headLight=null,fillLight=null,curId=save.cur,testDrive=null;
 // the two street lamps nearest the car shine for real, so the car (not just the road) lights up as it passes under them
@@ -4584,15 +4597,22 @@ function updateCam(dt){
     pc.G.updateMatrixWorld(true);
     const eye=camMode===3?pc.eye.clone():new V3(0,.78,pc.front_z+.05),look=camMode===3?new V3(pc.eye.x,pc.eye.y-.08,40):new V3(0,.72,40);
     camera.position.copy(pc.G.localToWorld(eye));camera.lookAt(pc.G.localToWorld(look));
-    camera.fov+=((camMode===3?66:70)+Math.min(12,v*.14)-camera.fov)*.1;
+    camera.fov+=((camMode===3?66:70)+Math.min(12,v*.14)-camera.fov)*(1-Math.exp(-dt*6.3));
   }else{
     camYaw+=wrapA(P.h-camYaw)*(1-Math.exp(-dt*(camMode===0?4.5:3.5)));
-    const c=camWant();
-    camP.lerp(c.pos,1-Math.exp(-dt*14));camL.lerp(c.look,1-Math.exp(-dt*20));
-    camP.y=Math.max(camP.y,camFloor(camP.x,camP.z,pc.G.position));
+    const c=camWant(),base=pc.G.position;
+    if(!camP.equals(camPSet)){camOff.subVectors(camP,base);camLOff.subVectors(camL,base)}
+    // the old follow trailed the car by its speed over the follow rate (v/14 for the eye, v/20 for the look point), which
+    // pulls the view back as you speed up; that lag is now asked for directly, so the look doesn't change
+    camVel.set(P.vx,P.vy||0,P.vz);
+    camOff.lerp(c.pos.sub(base).addScaledVector(camVel,-1/14),1-Math.exp(-dt*14));
+    camLOff.lerp(c.look.sub(base).addScaledVector(camVel,-1/20),1-Math.exp(-dt*20));
+    camP.copy(base).add(camOff);camL.copy(base).add(camLOff);
+    camP.y=Math.max(camP.y,camFloor(camP.x,camP.z,pc.G.position));camOff.y=camP.y-base.y;camPSet.copy(camP);
     camera.position.copy(camP);
     if(shake>.01){camera.position.x+=(Math.random()-.5)*shake*.6;camera.position.y+=(Math.random()-.5)*shake*.4}
-    camera.lookAt(camL);camera.fov+=(c.fov-camera.fov)*.08;
+    // the zoom with speed eases in by time, not by frame (uneven frames made it twitch too)
+    camera.lookAt(camL);camera.fov+=(c.fov-camera.fov)*(1-Math.exp(-dt*5));
   }
   camera.updateProjectionMatrix();
   shake*=Math.pow(.02,dt);
@@ -4935,7 +4955,7 @@ function driveUpdate(dt){
   if(ev)updateEvent(dt);
   if(state!=="DRIVE")return;
   if(testDrive){testDrive.t-=dt;if(testDrive.t<=0){testDrive.t=1e9;toast("TEST DRIVE OVER","Taking the car back to the dealer");endTestDrive()}}
-  updateStreak(dt);updateRadars();updatePassport();jobTick(dt);if(state!=="DRIVE")return;updateGPS(dt);updatePrompt();
+  updateStreak(dt);updateRadars(dt);updatePassport();jobTick(dt);if(state!=="DRIVE")return;updateGPS(dt);updatePrompt();
   placeCarMesh(dt);updateCam(dt);updateHUD(dt);drawMini();
   // every visit to the sea gets the same 0.6 s: the count starts again at the reset and whenever the car is out
   // of the water (it used to be left at -1 after a reset, so every later visit took 1.6 s). Nothing moves during
