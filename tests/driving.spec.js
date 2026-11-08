@@ -355,4 +355,43 @@ test.describe("driving", () => {
       expect(Math.abs(x.end), `${x.ms} ms press: metres from the divider at the end`).toBeLessThan(3);
     }
   });
+
+  test("speed radars: driving past one counts; being put down on its far side (reset, travel) doesn't", async ({ game }) => {
+    const r = await game.eval(() => {
+      const T = __T,
+        P = T.P,
+        R = T.RADARS[0],
+        put = (al, v) => {
+          P.x = R.x + R.dx * al;
+          P.z = R.z + R.dz * al;
+          P.h = Math.atan2(R.dx, R.dz);
+          P.vx = R.dx * v;
+          P.vz = R.dz * v;
+          P.r = P.steer = P.steerS = 0;
+        };
+      for (const t of T.TRAFFIC) {
+        t.e = null;
+        t.wx = t.wz = 1e6;
+      }
+      T.save.radar = {};
+      // a real drive past at about 90 km/h
+      put(-12, 25);
+      for (let i = 0; i < 60; i++) {
+        T.keys.w = true;
+        T.driveUpdate(1 / 60);
+      }
+      T.keys.w = false;
+      const driven = T.save.radar[R.id] || 0;
+      // standing 10 m before it, then put down 10 m past it at 108 km/h: no crossing happened
+      T.save.radar = {};
+      put(-10, 0);
+      T.driveUpdate(1 / 60);
+      put(10, 30);
+      T.driveUpdate(1 / 60);
+      return { driven, jumped: T.save.radar[R.id] || 0 };
+    });
+    expect(r.driven).toBeGreaterThan(60);
+    // it used to count as a pass at 108 km/h
+    expect(r.jumped).toBe(0);
+  });
 });

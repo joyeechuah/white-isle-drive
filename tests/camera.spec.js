@@ -130,4 +130,67 @@ test.describe("camera", () => {
     expect(r.uneven).toBeLessThan(0.3);
     expect(r.phone).toBeLessThan(0.3);
   });
+
+  test("through bends with uneven frames the car stays steady on screen, sideways and up and down, and the zoom doesn't twitch", async ({ game }) => {
+    await game.open();
+    await game.driveOut();
+    await game.park();
+    const r = await game.eval(() => {
+      const T = __T,
+        P = T.P;
+      for (const t of T.TRAFFIC) {
+        t.e = null;
+        t.c.G.visible = false;
+        t.wx = t.wz = 1e6;
+      }
+      T.attachCar("gtr");
+      T.save.assist = true;
+      const frames = [1 / 60, 1 / 60, 1 / 30, 1 / 40, 1 / 25],
+        out = [];
+      // gas held for 8 s from 90 km/h on three winding roads; the car's jerk on screen (px of a 1280 x 720 view) and the zoom's
+      for (const ei of [17, 15, 1]) {
+        const e = T.EDGES[ei],
+          q = T.edgePos(e, 30),
+          S = T.save.side === "R" ? 1 : -1,
+          lane = T.RT[e.type].lanes[0];
+        P.x = q.x - q.dz * lane * S;
+        P.z = q.z + q.dx * lane * S;
+        P.h = Math.atan2(q.dx, q.dz);
+        P.vx = q.dx * 25;
+        P.vz = q.dz * 25;
+        P.r = P.steer = P.steerS = 0;
+        P.laneT = null;
+        T.snapCam();
+        const xs = [],
+          ys = [],
+          fov = [];
+        for (let i = 0; i < 480; i++) {
+          T.keys.w = true;
+          T.driveUpdate(frames[i % frames.length]);
+          T.camera.updateMatrixWorld();
+          const v = T.pc.G.position.clone().project(T.camera);
+          if (i > 60) {
+            xs.push(v.x * 640);
+            ys.push(v.y * 360);
+            fov.push(T.camera.fov);
+          }
+        }
+        T.keys.w = false;
+        const j = (a) => {
+          let d = 0;
+          for (let i = 1; i < a.length - 1; i++) d += Math.abs(a[i + 1] - 2 * a[i] + a[i - 1]);
+          return d / (a.length - 2);
+        };
+        out.push({ ei, x: j(xs), y: j(ys), fov: j(fov) });
+      }
+      return out;
+    });
+    test.info().annotations.push({ type: "jerk in bends (px, degrees)", description: JSON.stringify(r) });
+    for (const x of r) {
+      // before this fix: 0.23 to 0.36 px sideways and 1.3 to 1.9 px up and down
+      expect(x.x, `road ${x.ei}: sideways`).toBeLessThan(0.15);
+      expect(x.y, `road ${x.ei}: up and down`).toBeLessThan(0.35);
+      expect(x.fov, `road ${x.ei}: zoom`).toBeLessThan(0.05);
+    }
+  });
 });

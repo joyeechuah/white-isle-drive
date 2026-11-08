@@ -3507,8 +3507,16 @@ function buildRadars(){
     RADARS.push({id:"r"+(i++),x:p.x,z:p.z,dx:p.dx,dz:p.dz,half:e.half+2,prev:null});
   }
 }
-function updateRadars(){
-  if(ev)return;
+// where the car was at the last radar check: a jump since then (resetting to the road, map travel, the garage, the end
+// of an event) isn't a drive past a radar, so every radar forgets which side the car was on. A radar used to count a
+// "crossing" when the car was put down on its other side
+let radLast=null;
+function updateRadars(dt){
+  if(ev){radLast=null;return}
+  // a jump: further than the car could have driven since the last check (twice its speed over the frame, plus a metre)
+  const v=Math.hypot(P.vx,P.vz),far=Math.max(v,radLast?radLast.v:0)*(dt||.05)*2+1;
+  if(!radLast||Math.hypot(P.x-radLast.x,P.z-radLast.z)>far){for(const r of RADARS)r.prev=null;radLast={x:P.x,z:P.z,v}}
+  radLast.x=P.x;radLast.z=P.z;radLast.v=v;
   for(const r of RADARS){
     const dx=P.x-r.x,dz=P.z-r.z,al=dx*r.dx+dz*r.dz,side=Math.abs(dx*-r.dz+dz*r.dx);
     if(r.prev!==null&&Math.sign(al)!==Math.sign(r.prev)&&side<r.half&&Math.abs(al)<15){
@@ -4947,7 +4955,7 @@ function driveUpdate(dt){
   if(ev)updateEvent(dt);
   if(state!=="DRIVE")return;
   if(testDrive){testDrive.t-=dt;if(testDrive.t<=0){testDrive.t=1e9;toast("TEST DRIVE OVER","Taking the car back to the dealer");endTestDrive()}}
-  updateStreak(dt);updateRadars();updatePassport();jobTick(dt);if(state!=="DRIVE")return;updateGPS(dt);updatePrompt();
+  updateStreak(dt);updateRadars(dt);updatePassport();jobTick(dt);if(state!=="DRIVE")return;updateGPS(dt);updatePrompt();
   placeCarMesh(dt);updateCam(dt);updateHUD(dt);drawMini();
   // every visit to the sea gets the same 0.6 s: the count starts again at the reset and whenever the car is out
   // of the water (it used to be left at -1 after a reset, so every later visit took 1.6 s). Nothing moves during
