@@ -2758,8 +2758,9 @@ function updateTraffic(dt){
   if(bubble){townN=0;const cf=new V3();camera.getWorldDirection(cf);
     for(const t of TRAFFIC){if(!nearTown(t))continue;
       const dx=t.wx-P.x,dz=t.wz-P.z,d=Math.hypot(dx,dz);
-      // one too many, and out of sight (behind you, or 80 m off): it reappears somewhere else
-      if(townN>=TOWN_CAP&&(d>80||(dx*cf.x+dz*cf.z)/Math.max(d,1)<-.2)&&d>25){t.e=null;t.c.G.visible=false;t.wx=t.wz=1e6;t.lost=!spawnTraffic(t,220,560,true);if(!nearTown(t))continue}
+      // one too many, and out of the camera's view (it never vanishes in front of you): it reappears somewhere else.
+      // One in view stays until it leaves the view, so the cap is a target rather than a hard limit
+      if(townN>=TOWN_CAP&&(dx*cf.x+dz*cf.z)/Math.max(d,1)<.2&&d>25){t.e=null;t.c.G.visible=false;t.wx=t.wz=1e6;t.lost=!spawnTraffic(t,220,560,true);if(!nearTown(t))continue}
       townN++}}
   const pf=fwdOf(P.h),kph=kphNow();
   for(const t of TRAFFIC){

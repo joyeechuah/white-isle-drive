@@ -77,6 +77,43 @@ test.describe("traffic", () => {
           for (const t of T.TRAFFIC) if (t.e && t.e.type === "town" && Math.hypot(t.wx - P.x, t.wz - P.z) < 150) cars++;
         }
       }
+      // town over its target: one car about 100 m straight ahead of the camera and seven behind. The ones behind may be
+      // moved elsewhere; the one in view stays (it used to be moved too, being more than 80 m off)
+      const cf = new THREE.Vector3();
+      T.camera.getWorldDirection(cf);
+      // a place in town with a town street about 100 m straight ahead and several behind
+      let front = null,
+        back = [];
+      for (const e0 of es) {
+        const q0 = T.edgePos(e0, e0.len / 2);
+        const spots = [];
+        for (const e of es) for (let s0 = 5; s0 < e.len - 5; s0 += 10) {
+          const q = T.edgePos(e, s0), dx = q.x - q0.x, dz = q.z - q0.z, d = Math.hypot(dx, dz);
+          if (d < 150 && d > 1) spots.push({ e, s: s0, d, dot: (dx * cf.x + dz * cf.z) / d });
+        }
+        front = spots.find((p) => p.d > 85 && p.d < 130 && p.dot > 0.85);
+        back = spots.filter((p) => p.d > 30 && p.dot < -0.3).filter((p, i) => i % 3 === 0).slice(0, 7);
+        if (front && back.length >= 5) {
+          P.x = q0.x;
+          P.z = q0.z;
+          break;
+        }
+      }
+      for (const t of T.TRAFFIC) {
+        t.e = null;
+        t.wx = t.wz = 1e6;
+      }
+      const place = (t, p) => {
+        t.e = p.e; t.s = p.s; t.dir = 1; t.lane = 0; t.off = t.offCur = 2.4; t.v = t.base = 0; t.stopT = 99;
+        const q = T.edgePos(p.e, p.s); t.wx = q.x; t.wz = q.z;
+      };
+      // the one in view comes last in the list, after the town's target is already reached
+      const A = T.TRAFFIC[back.length];
+      back.forEach((p, i) => place(T.TRAFFIC[i], p));
+      if (front) place(A, front);
+      const ax = A.wx, az = A.wz;
+      for (let i = 0; i < 45; i++) T.updateTraffic(1 / 30);
+      const inView = { found: !!front && back.length >= 5, stayed: !!A.e && Math.hypot(A.wx - ax, A.wz - az) < 20, behindLeft: back.length - T.TRAFFIC.slice(0, back.length).filter((t) => t.e && t.e.type === "town" && Math.hypot(t.wx - P.x, t.wz - P.z) < 200).length };
       // a traffic car 10 m short of a junction you're driving into at 40 km/h
       const jn = T.NODES.find((nd) => nd.adj.length > 2 && nd.adj.some((a) => a.e.type === "town" && a.e.len > 60)),
         a = jn.adj.find((a) => a.e.type === "town" && a.e.len > 60),
@@ -107,11 +144,14 @@ test.describe("traffic", () => {
         T.updateTraffic(1 / 30);
         if (t.e === a.e) minV = Math.min(minV, t.v);
       }
-      return { carsNear: +(cars / n).toFixed(1), waits: minV < 1, stillThere: t.e === a.e };
+      return { carsNear: +(cars / n).toFixed(1), waits: minV < 1, stillThere: t.e === a.e, inView };
     });
     test.info().annotations.push({ type: "town traffic", description: JSON.stringify(r) });
     // there used to be about 6.5 cars on the town streets within 150 m of you, against 3 to 5 on open roads
     expect(r.carsNear).toBeLessThan(4);
+    expect(r.inView.found, "a town spot ahead and some behind").toBe(true);
+    expect(r.inView.stayed, "the town car in front of the camera stays").toBe(true);
+    expect(r.inView.behindLeft, "spare town cars behind were moved elsewhere").toBeGreaterThan(0);
     expect(r.stillThere, "the car waits on its road instead of driving into the junction").toBe(true);
     expect(r.waits, "the car stops for you").toBe(true);
   });
