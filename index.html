@@ -5321,7 +5321,10 @@ tabHello();
    Firebase identifies the project with the values below. They are public by design (anyone loading the page sees
    them); what protects each save is firestore.rules, which lets a signed-in player read and write only their own.
    Left empty, the game has no cloud save and says so. */
-const FIREBASE_CONFIG={apiKey:"",authDomain:"",projectId:"",appId:""};
+const FIREBASE_CONFIG={apiKey:"AIzaSyDxfG9M7YERaVov7b0KxXQINaC0N2g-3EA",authDomain:"white-isle-drive-03.firebaseapp.com",projectId:"white-isle-drive-03",appId:"1:36439552767:web:4b9e29e223d9842be4d2ca"};
+// Google sign-in only accepts the sites listed in the project (Authentication, Authorized domains): elsewhere (a copy
+// of the page, a preview) the game says where cloud saves work instead of offering a sign-in that would fail
+const CLOUD_HOSTS=["joyeechuah.github.io"];
 const FB_VER="10.12.2",CLOUD_KEY="white-isle-drive-cloud";
 // what isn't progress: settings, the car picked, a note about a contract under way. They're backed up too, but don't
 // count as a difference worth asking about. Ghost laps stay on each device (they can pass Firestore's 1 MB limit)
@@ -5336,7 +5339,8 @@ function clFresh(sv){if(!sv)return true;const e=o=>!o||!Object.keys(o).length;
     (!sv.jobs||!Object.values(sv.jobs).some(v=>typeof v==="number"?v>0:!e(v)))}
 function clSummary(sv){const champ=sv.champ||{};return{cr:sv.cr||0,cars:(sv.owned||[]).length,lvl:lvlOf(sv.xp||0),found:Object.keys(sv.found||{}).length,
   cups:Object.values(champ).filter(c=>c&&c.won).length,mods:Object.keys(sv.mods||{}).length}}
-function clAdapter(){if(window.__cloudAdapter)return window.__cloudAdapter;if(!FIREBASE_CONFIG.apiKey||!FIREBASE_CONFIG.projectId)return null;return fbAdapter()}
+function clAdapter(){if(window.__cloudAdapter)return window.__cloudAdapter;
+  if(!FIREBASE_CONFIG.apiKey||!FIREBASE_CONFIG.projectId||!CLOUD_HOSTS.includes(location.hostname)||window.__cloudOff)return null;return fbAdapter()}
 // Firebase (Google sign-in and Firestore), loaded only when cloud save is used: guests never download it
 function fbAdapter(){
   let auth=null,db=null,ready=null;
@@ -5396,7 +5400,7 @@ function clStartScreen(go){const b=$("lcloud");show("lcloud",!!CL.ad&&!CL.meta.u
   if(CL.meta.uid)$("lstart").textContent="PLAY";clRender()}
 // connecting: loads the service and finds who is signed in on this device (Firebase remembers it)
 function clConnect(interactive){
-  if(!CL.ad){clSet("error","Cloud saves aren't set up on this copy of the game.");return Promise.resolve()}
+  if(!CL.ad){clSet("error");return Promise.resolve()}
   clSet("connecting");
   const who=interactive&&CL.ad.loaded?CL.ad.signIn():CL.ad.init().then(u=>u||(interactive?CL.ad.signIn():null));
   return who.then(u=>{
@@ -5469,7 +5473,7 @@ function clRender(){if(!CL)return;const on=!!CL.user,line=clLine(),bad=CL.st==="
   show("clIntro",!on);show("clWho",on);show("clIn",!on);show("clNow",on);show("clOut",on||CL.st==="signedout");
   $("clWho").innerHTML=on?"Signed in as <b>"+(CL.meta.name||"you").replace(/[<>&]/g,"")+"</b>"+(CL.meta.email?" ("+CL.meta.email.replace(/[<>&]/g,"")+")":"")+". Your progress backs up by itself, and a copy stays on this device for playing offline.":"";
   $("clIn").disabled=!CL.ad||CL.st==="connecting";$("clIn").textContent=CL.st==="connecting"?"CONNECTING…":"SIGN IN WITH GOOGLE";$("clNow").disabled=CL.busy;
-  const st=$("clStat"),txt=!CL.ad?"Cloud saves aren't set up on this copy of the game.":CL.msg||(on?"Last backed up: "+(CL.meta.at?new Date(CL.meta.at).toLocaleString()+" ("+clAgo(CL.meta.at)+")":"not yet"):"Playing as a guest. Progress is saved in this browser only.");
+  const st=$("clStat"),txt=!CL.ad?(FIREBASE_CONFIG.apiKey&&!CLOUD_HOSTS.includes(location.hostname)?"Cloud saves work on the game's own site, joyeechuah.github.io/white-isle-drive.":"Cloud saves aren't set up on this copy of the game."):CL.msg||(on?"Last backed up: "+(CL.meta.at?new Date(CL.meta.at).toLocaleString()+" ("+clAgo(CL.meta.at)+")":"not yet"):"Playing as a guest. Progress is saved in this browser only.");
   st.textContent=txt;st.classList.toggle("bad",bad||!CL.ad)}
 $("gCloud").onclick=$("pCloud").onclick=clOpen;$("clClose").onclick=()=>show("cloud",false);$("clIn").onclick=clSignIn;$("clOut").onclick=clSignOut;
 $("clNow").onclick=()=>{if(CL.user){CL.meta.full="";clSync()}};

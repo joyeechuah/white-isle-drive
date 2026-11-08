@@ -80,20 +80,20 @@ const progress = (game, cr) =>
   }, cr);
 
 test.describe("cloud save", () => {
-  test("guests play as before: no sign-in in the way, nothing downloaded, and the panel says when cloud saves aren't set up", async ({ game, page }) => {
+  test("guests play as before: no sign-in in the way, and nothing is downloaded until SAVE MY PROGRESS is opened", async ({ game, page }) => {
     await game.open();
     const r = await game.eval(() => ({
-      ad: !!__T.CL.ad,
-      pill: !document.getElementById("gCloud").classList.contains("hide"),
       fb: [...document.scripts].some((s) => /firebase/.test(s.src)),
       lcloud: !document.getElementById("lcloud").classList.contains("hide"),
       label: document.getElementById("lstart").textContent,
+      st: __T.CL.st,
     }));
-    // this copy has no Firebase project set (and no fake): no pill, no SAVE MY PROGRESS on the start screen
-    expect(r).toEqual({ ad: false, pill: false, fb: false, lcloud: false, label: "PLAY AS GUEST" });
+    expect(r).toEqual({ fb: false, lcloud: false, label: "PLAY AS GUEST", st: "guest" });
+    // the test server isn't the game's own site, where Google accepts sign-ins: the panel says where it works
     await game.eval(() => __T.clOpen());
-    await expect(page.locator("#clStat")).toHaveText(/aren't set up/);
+    await expect(page.locator("#clStat")).toHaveText(/joyeechuah\.github\.io\/white-isle-drive/);
     await expect(page.locator("#clIn")).toBeDisabled();
+    expect(await game.eval(() => [...document.scripts].some((s) => /firebase/.test(s.src)))).toBe(false);
     await game.key("Escape");
     await expect(page.locator("#cloud")).toBeHidden();
     expect(await game.eval(() => __T.state)).toBe("GARAGE");
