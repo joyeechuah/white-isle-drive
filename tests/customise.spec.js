@@ -151,4 +151,48 @@ test.describe("customise", () => {
     await page.locator("#dSell").click();
     expect(await game.eval(() => ({ owned: __T.save.owned.includes("mini"), mods: __T.save.mods.mini }))).toEqual({ owned: false, mods: undefined });
   });
+
+  test("colour and material options change the car in place; caches of race numbers and plates stay bounded; rebuilding many times leaves nothing behind", async ({ game, page }) => {
+    await game.eval(() => (__T.save.cr = 1e9));
+    await page.locator("#gCust").click();
+    const pick = (k, i) => page.locator(`#cuList .cus[data-k="${k}"] .cos > *`).nth(i).click();
+    const car = () => game.eval(() => (window.__car = window.__car || __T.carMeshes[__T.save.owned[__T.gSel]]) === __T.carMeshes[__T.save.owned[__T.gSel]]);
+    await game.eval(() => (window.__car = __T.carMeshes[__T.save.owned[__T.gSel]]));
+    // colours, finish, tint and plate: the same model, changed where it is (no rebuild, so no pause)
+    const t0 = Date.now();
+    for (const [k, i] of [["fin", 2], ["roof", 1], ["rimC", 4], ["cal", 3], ["exhC", 2], ["tint", 0], ["fin", 3], ["rimC", 6]]) await pick(k, i);
+    const inPlaceMs = (Date.now() - t0) / 8;
+    expect(await car(), "the car model was kept").toBe(true);
+    // a spoiler is new geometry: the model is built again
+    await pick("wing", 4);
+    expect(await car()).toBe(false);
+    // race numbers 1 to 30, plates of 20 different texts: the caches keep only a few, and free the rest
+    await pick("liv", 3);
+    const r = await game.eval(async () => {
+      const T = __T,
+        freed = { num: 0, plate: 0 };
+      const watch = () => {
+        for (const p of Object.values(T.SHAPE_CACHE)) for (const k in p.liv) if (k[0] === "n") for (const t of [p.liv[k].R, p.liv[k].L]) if (!t.__w) { t.__w = 1; t.addEventListener("dispose", () => freed.num++); }
+        for (const t of Object.values(T.PLATE_TEX)) if (!t.__w) { t.__w = 1; t.addEventListener("dispose", () => freed.plate++); }
+      };
+      const plus = document.querySelectorAll('#cuList .cus[data-k="num"] .co')[1];
+      for (let i = 0; i < 30; i++) { document.querySelectorAll('#cuList .cus[data-k="num"] .co')[1].click(); watch(); }
+      const box = () => document.getElementById("cuPlate");
+      for (let i = 0; i < 20; i++) { box().value = "TEST " + i; box().onchange(); watch(); }
+      let nums = 0;
+      for (const p of Object.values(T.SHAPE_CACHE)) for (const k in p.liv) if (k[0] === "n") nums++;
+      const env0 = T.CAR_ENV.mats.size;
+      // forty rebuilds of the same car: the reflection list and the scene don't grow
+      const kids0 = T.scene.children.length;
+      for (let i = 0; i < 40; i++) document.querySelectorAll('#cuList .cus[data-k="wing"] .co')[i % 2 ? 1 : 4].click();
+      return { nums, plates: Object.keys(T.PLATE_TEX).length, freed, envGrow: T.CAR_ENV.mats.size - env0, kidsGrow: T.scene.children.length - kids0, plus: !!plus };
+    });
+    test.info().annotations.push({ type: "customise", description: JSON.stringify({ inPlaceMs, ...r }) });
+    expect(r.nums).toBeLessThanOrEqual(5);
+    expect(r.freed.num).toBeGreaterThan(40);
+    expect(r.plates).toBeLessThanOrEqual(9);
+    expect(r.freed.plate).toBeGreaterThan(10);
+    expect(r.envGrow).toBeLessThanOrEqual(2);
+    expect(r.kidsGrow).toBe(0);
+  });
 });

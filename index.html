@@ -2446,16 +2446,21 @@ function loftGeo(za,zb,secFn,NS,NU0,ends){
 }
 // texture painter: runs a function over every texel of the surface (position, normal) and writes colour,
 // roughness/metalness and light glow
-function paintSurface(za,zb,secFn,TW,TH0,ends,fn,geo){
+// zr (optional): only the stretch of the car between these z values is painted (the rest stays empty), for small decals
+function paintSurface(za,zb,secFn,TW,TH0,ends,fn,geo,zr0){
   // rows line up with the loft's points: each stretch gets r rows per point
   const r=Math.max(1,Math.round(TH0/geo.userData.NU)),counts=geo.userData.counts.map(k=>k*r),TH=geo.userData.NU*r;
   const col=new Uint8ClampedArray(TW*TH*4),rm=new Uint8ClampedArray(TW*TH*4),lit=new Uint8ClampedArray(TW*TH*4);
   const rows=[0,1,2].map(()=>new Float32Array((TH+1)*2)),zr=[0,0,0];
   const rowAt=(i,buf)=>{const s=Math.min(1,Math.max(0,(i+.5)/TW)),f=ends?.5-.5*Math.cos(Math.PI*s):s,z=za+(zb-za)*f;segCurve(secFn(z),counts,buf);return z};
   // the texture maps u (0..1 along z, in loft parameter) to the station; the loft above uses the same mapping
-  zr[0]=rowAt(-1,rows[0]);zr[1]=rowAt(0,rows[1]);
+  const zOf=i=>{const s=Math.min(1,Math.max(0,(i+.5)/TW)),f=ends?.5-.5*Math.cos(Math.PI*s):s;return za+(zb-za)*f};
+  let fresh=true;
   const o={c:1,r:.3,m:.5,l:0,lr:0,lg:0,lb:0},px=(zb-za)/TW;
-  for(let i=0;i<TW;i++){zr[2]=rowAt(i+1,rows[2]);const A=rows[0],B=rows[1],C=rows[2];
+  for(let i=0;i<TW;i++){
+    if(zr0){const z=zOf(i);if(z<zr0[0]||z>zr0[1]){fresh=true;continue}}
+    if(fresh){zr[0]=rowAt(i-1,rows[0]);zr[1]=rowAt(i,rows[1]);fresh=false}
+    zr[2]=rowAt(i+1,rows[2]);const A=rows[0],B=rows[1],C=rows[2];
     for(let j=0;j<TH;j++){const x=B[j*2],y=B[j*2+1],z=zr[1];
       const jn=j+1,jp=Math.max(0,j-1);let tx=B[jn*2]-B[jp*2],ty=B[jn*2+1]-B[jp*2+1];const tl=Math.hypot(tx,ty)||1;tx/=tl;ty/=tl;
       // across: outward normal in the section plane is (ty,-tx) for a curve going up the right side
@@ -2622,11 +2627,15 @@ function paintMat(env,hi,color,maps){
 // plate: a small canvas
 const PLATE_TEX={};
 function plateMat(text){text=text||MOD_STOCK.plate;
-  if(!PLATE_TEX[text]){const c=document.createElement("canvas");c.width=256;c.height=56;const x=c.getContext("2d");
+  if(PLATE_TEX[text])PLATE_TEX[text].lastUse=performance.now();
+  else{const c=document.createElement("canvas");c.width=256;c.height=56;const x=c.getContext("2d");
     x.fillStyle="#f4f4f0";x.fillRect(0,0,256,56);x.fillStyle="#1d48b8";x.fillRect(0,0,28,56);x.fillStyle="#f2d23a";x.beginPath();x.arc(14,18,6,0,7);x.fill();
     x.fillStyle="#fff";x.font="700 15px Arial";x.textAlign="center";x.fillText("E",14,46);
     x.fillStyle="#141414";x.font="700 36px Arial";x.fillText(text,146,41,212);x.strokeStyle="#141414";x.lineWidth=2;x.strokeRect(1,1,254,54);
-    const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.anisotropy=4;PLATE_TEX[text]=t}
+    const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.anisotropy=4;t.lastUse=performance.now();PLATE_TEX[text]=t;
+    const used=new Set([text,MOD_STOCK.plate]);for(const c of builtCars())if(c.mods)used.add(c.mods.plate);
+    const byT={};for(const k in PLATE_TEX)byT[k]={t:PLATE_TEX[k].lastUse,x:PLATE_TEX[k]};
+    trimCache(byT,8,used,o=>o.x.dispose());for(const k in PLATE_TEX)if(!byT[k])delete PLATE_TEX[k]}
   return new THREE.MeshStandardMaterial({map:PLATE_TEX[text],roughness:.4,metalness:0})}
 // a wing: an aerofoil across the car, with end plates
 function aeroGeo(chord,thick,span){const s=new THREE.Shape();s.moveTo(0,0);s.quadraticCurveTo(chord*.25,thick*1.4,chord,thick*.2);s.lineTo(chord,0);s.quadraticCurveTo(chord*.3,-thick*.25,0,0);
@@ -2639,7 +2648,7 @@ function applyFinish(m,i){const f=FINISH[i]||FINISH[0];m.metalness=f.m;m.roughne
 // Each is a mask (white where the colour goes) drawn over the paint; masks for stripes are shared by every car of a
 // body type, a race number's are drawn per number (one for each side, so the digits read the right way on both)
 function liveryMasks(parts,type,num){
-  const K=parts.K,S=K.S,key=type===3?"n"+num:"t"+type;if(parts.liv[key])return parts.liv[key];
+  const K=parts.K,S=K.S,key=type===3?"n"+num:"t"+type;if(parts.liv[key]){if(type===3)parts.liv[key].t=performance.now();return parts.liv[key]}
   const base=bodyPaint(K),tw=parts.q>0?1024:512,th=parts.q>0?512:256,dA=S.doors[0];
   const paintAt=(x,y,z,nx,ny,nz)=>{const o={c:1,r:.36,m:.35,l:0,lr:1,lg:1,lb:1};base(x,y,z,nx,ny,nz,o,.004);return o.c>.99&&o.l===0};
   let glyph=null;
@@ -2654,12 +2663,50 @@ function liveryMasks(parts,type,num){
       const u=.5+(mirror?z-zc:zc-z)/(2*R*.82),v=.5-(y-yc)/(2*R*.82);let a=0;
       if(u>=0&&u<1&&v>=0&&v<1)a=glyph[(Math.floor(v*128)*128+Math.floor(u*128))*4+3]/255;
       o.l=a>.5?0:1}}};
-  const paint=mirror=>paintSurface(K.z0,K.z1,K.sec,tw,th,true,fn(mirror),parts.body).lit;
+  // a race number only covers the doors, so only that stretch is painted (the whole car took about 0.4 s a number)
+  const paint=mirror=>paintSurface(K.z0,K.z1,K.sec,tw,th,true,fn(mirror),parts.body,type===3?[zc-R-.03,zc+R+.03]:null).lit;
   let cab=null;
   if(type===1){const cp=cabinPaint(K);cab=paintSurface(K.cz0,K.cz1,K.csec,parts.q>0?512:256,parts.q>0?256:128,true,(x,y,z,nx,ny,nz,o)=>{
     const t={c:1,r:.36,m:.35,l:0,lr:1,lg:1,lb:1};cp(x,y,z,nx,ny,nz,t,.004);const ax=Math.abs(x);
     if(t.c>.99&&t.l===0&&ny>.3&&((ax>.05&&ax<.17)||(ax>.21&&ax<.33)))o.l=1},parts.cabin).lit}
-  return parts.liv[key]=type===3?{R:paint(false),L:paint(true),cab:null}:{R:paint(false),L:null,cab};
+  const made=parts.liv[key]=type===3?{R:paint(false),L:paint(true),cab:null,t:performance.now()}:{R:paint(false),L:null,cab,t:0};
+  if(type===3){const nums={},used=new Set([key]);for(const k in parts.liv)if(k[0]==="n")nums[k]=parts.liv[k];
+    for(const c of builtCars())if(c.mods&&c.mods.liv===3&&c.shape===K.shape&&c.q===parts.q)used.add("n"+c.mods.num);
+    trimCache(nums,4,used,m=>{m.R.dispose();m.L.dispose()});for(const k in parts.liv)if(k[0]==="n"&&!nums[k])delete parts.liv[k]}
+  return made;
+}
+// the window glass for a tint: one material per body type and tint, shared
+function glassTint(parts,t,env,hi){
+  if(!parts.glass[t]){const P=hi?THREE.MeshPhysicalMaterial:THREE.MeshStandardMaterial;
+    parts.glass[t]=envMat(new P(Object.assign({color:MOD_TINT[t],roughness:.03,metalness:0,envMap:env,envMapIntensity:1.3,alphaMap:parts.ct.lit,alphaTest:.5,
+      polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-4},hi?{clearcoat:1,clearcoatRoughness:0}:{})))}
+  return parts.glass[t];
+}
+const tipMat=(i,env,Mt)=>i?envMat(new THREE.MeshStandardMaterial({color:MOD_EXHC[i],roughness:i===1?.4:.15,metalness:1,envMap:env,envMapIntensity:1})):Mt.chrome;
+// every car model built now (yours, parked, the dealership's, rivals, the ghost): what a cache may not free
+function builtCars(){const l=[...Object.values(carMeshes),...Object.values(showMeshes),...AIC.values()];if(GH.m)l.push(GH.m);return l}
+// a cache of textures made for customisations (race numbers, plates) keeps at most n; past that, the ones longest unused
+// and on no built car are freed. Without a limit, stepping a race number through 1 to 99 kept 198 large textures
+function trimCache(map,n,inUse,free){
+  const keys=Object.keys(map);if(keys.length<=n)return;
+  keys.sort((a,b)=>map[a].t-map[b].t);
+  for(const k of keys){if(Object.keys(map).length<=n)break;if(inUse.has(k))continue;free(map[k]);delete map[k]}
+}
+// options that only change a colour, a material or a texture are changed on the car where it is; the others (a rim style,
+// spoiler, exhaust layout or livery) build the model again
+const MOD_REBUILD=["rim","wing","exh","liv"];
+function modsInPlace(c,to){
+  const M=c.mods,R=c.refs;if(!R)return false;
+  if(MOD_REBUILD.some(k=>M[k]!==to[k])||(to.liv===3&&M.num!==to.num))return false;
+  if(M.fin!==to.fin)[c.bodyM,c.glass.material,...R.livMats].forEach(m=>applyFinish(m,to.fin));
+  if(M.roof!==to.roof){const r=MOD_ROOF[to.roof];c.glass.material.color.copy(r===null?c.bodyM.color:new THREE.Color(r))}
+  if(M.rimC!==to.rimC)R.rimMeshes.forEach(m=>m.material=R.Mt.rims[to.rimC]||R.Mt.rim);
+  if(M.cal!==to.cal)R.calM.color.setHex(to.cal>0?MOD_CAL[to.cal]:R.S.cal);
+  if(M.exhC!==to.exhC){const old=R.tips[0]&&R.tips[0].material,m=tipMat(to.exhC,R.env,R.Mt);R.tips.forEach(t=>t.material=m);if(old&&old!==R.Mt.chrome){CAR_ENV.mats.delete(old);old.dispose()}}
+  if(M.livC!==to.livC)R.livMats.forEach(m=>m.color.setHex(MOD_LIVC[to.livC]));
+  if(M.tint!==to.tint)R.tintMesh.material=glassTint(R.parts,to.tint,R.env,R.hi);
+  if(M.plate!==to.plate){const m=plateMat(to.plate);R.plates.forEach(p=>{if(p.material!==m)p.material.dispose();p.material=m})}
+  Object.assign(M,to);return true;
 }
 function buildLook(cd,color,env,q,mods){
   const pr=PROF[cd.shape],hi=q>0,parts=carParts(pr,cd.shape,q),K=parts.K,S=K.S,Mt=lookMats(env,hi),M=Object.assign({},MOD_STOCK,mods||{});
@@ -2670,14 +2717,11 @@ function buildLook(cd,color,env,q,mods){
   const body=new THREE.Mesh(parts.body,bodyM);body.castShadow=true;shell.add(body);
   const glass=new THREE.Mesh(parts.cabin,cabM);glass.castShadow=true;G.add(glass);
   // window glass in the chosen tint, drawn over the glasshouse where its texture marks glass
-  if(!parts.glass[M.tint]){const P=hi?THREE.MeshPhysicalMaterial:THREE.MeshStandardMaterial;
-    parts.glass[M.tint]=envMat(new P(Object.assign({color:MOD_TINT[M.tint],roughness:.03,metalness:0,envMap:env,envMapIntensity:1.3,alphaMap:parts.ct.lit,alphaTest:.5,
-      polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-4},hi?{clearcoat:1,clearcoatRoughness:0}:{})))}
-  glass.add(new THREE.Mesh(parts.cabin,parts.glass[M.tint]));
+  const tintMesh=new THREE.Mesh(parts.cabin,glassTint(parts,M.tint,env,hi));glass.add(tintMesh);const livMats=[];
   // livery: in its own colour, with the paint's shine
   if(M.liv>0){const mk=liveryMasks(parts,M.liv,M.num),P=hi?THREE.MeshPhysicalMaterial:THREE.MeshStandardMaterial;
     const lm=(a,rm)=>{const m=envMat(new P(Object.assign({color:MOD_LIVC[M.livC],roughnessMap:rm,metalnessMap:rm,envMap:env,alphaMap:a,alphaTest:.5,
-      polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-4},hi?{clearcoatRoughness:.03}:{})));applyFinish(m,M.fin);return m};
+      polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-4},hi?{clearcoatRoughness:.03}:{})));applyFinish(m,M.fin);livMats.push(m);return m};
     const lb=lm(mk.R,parts.bt.rm);
     if(mk.L)shell.add(new THREE.Mesh(parts.bodyR,lb),new THREE.Mesh(parts.bodyL,lm(mk.L,parts.bt.rm)));else shell.add(new THREE.Mesh(parts.body,lb));
     if(mk.cab)glass.add(new THREE.Mesh(parts.cabin,lm(mk.cab,parts.ct.rm)))}
@@ -2710,8 +2754,8 @@ function buildLook(cd,color,env,q,mods){
   const hwE=Math.min(.62,K.halfW(ez+.02)-.32);
   const ex=M.exh===1?[-hwE,hwE]:M.exh===2?[-hwE,-hwE+.13,hwE-.13,hwE]:M.exh===3?[-.11,.11]:cd.shape==="super"?[-.18,.18]:cd.shape==="hatch"?[.55]:[-.62,-.5,.5,.62];
   const tr=M.exh===3?.065:M.exh?.055:.045,tip=new THREE.CylinderGeometry(tr,tr+.005,.12,18,1,true),tipIn=new THREE.CircleGeometry(tr-.006,14);
-  const tipM=M.exhC?envMat(new THREE.MeshStandardMaterial({color:MOD_EXHC[M.exhC],roughness:M.exhC===1?.4:.15,metalness:1,envMap:env,envMapIntensity:1})):Mt.chrome;
-  for(const x of ex){const t=add(tip,tipM,x,ey,ez+.03);t.rotation.x=Math.PI/2;const d=add(tipIn,Mt.black,x,ey,ez+.05);d.rotation.y=Math.PI}
+  const tipM=tipMat(M.exhC,env,Mt),tips=[];
+  for(const x of ex){const t=add(tip,tipM,x,ey,ez+.03);tips.push(t);t.rotation.x=Math.PI/2;const d=add(tipIn,Mt.black,x,ey,ez+.05);d.rotation.y=Math.PI}
   // wings
   const R=K.z0,rt=K.bp.top(R+.25);
   if(wing==="big"){const w=add(aeroGeo(.42,.06,pr.w-.02),Mt.carbon,0,rt+.42,R+.48);w.rotation.x=.12;
@@ -2725,18 +2769,19 @@ function buildLook(cd,color,env,q,mods){
   // contact shadow
   const sh=new THREE.Mesh(new THREE.PlaneGeometry(pr.w+.7,K.z1-K.z0+.8),shadowMat());sh.rotation.x=-Math.PI/2;sh.position.set(0,.02,(K.z0+K.z1)/2);sh.renderOrder=-1;G.add(sh);
   // wheels
-  const W=wheelParts(MOD_RIMS[M.rim]||S.rim),rimM=Mt.rims[M.rimC]||Mt.rim,calM=envMat(new THREE.MeshStandardMaterial({color:M.cal>0?MOD_CAL[M.cal]:S.cal,roughness:.35,metalness:.2,envMap:env,envMapIntensity:.8}));
+  const rimMeshes=[],W=wheelParts(MOD_RIMS[M.rim]||S.rim),rimM=Mt.rims[M.rimC]||Mt.rim,calM=envMat(new THREE.MeshStandardMaterial({color:M.cal>0?MOD_CAL[M.cal]:S.cal,roughness:.35,metalness:.2,envMap:env,envMapIntensity:.8}));
   const wheels=[],front=[],sc=pr.wr/.36;
   [[-pr.tr,pr.wb,1],[pr.tr,pr.wb,1],[-pr.tr,-pr.wb,0],[pr.tr,-pr.wb,0]].forEach(([x,z,f])=>{
     const st=new THREE.Group();st.position.set(x,pr.wr,z);if(x<0)st.scale.x=-1;
     const spin=new THREE.Group();spin.scale.setScalar(sc);
-    const ty=new THREE.Mesh(W.tire,Mt.tire);ty.castShadow=true;const fc=new THREE.Mesh(W.face,rimM),br=new THREE.Mesh(W.barrel,Mt.rimIn),lp=new THREE.Mesh(W.lip,rimM),cp=new THREE.Mesh(W.cap,Mt.black);
+    const ty=new THREE.Mesh(W.tire,Mt.tire);ty.castShadow=true;const fc=new THREE.Mesh(W.face,rimM),br=new THREE.Mesh(W.barrel,Mt.rimIn),lp=new THREE.Mesh(W.lip,rimM);rimMeshes.push(fc,lp);const cp=new THREE.Mesh(W.cap,Mt.black);
     spin.add(ty,fc,br,lp,cp);
     const bl=new THREE.Mesh(wheelGeo.blur,blurM);bl.rotation.z=Math.PI/2;bl.visible=false;spin.add(bl);spin.userData.spokes=[fc,cp];spin.userData.blur=bl;
     const fixed=new THREE.Group();fixed.scale.setScalar(sc);fixed.add(new THREE.Mesh(W.disc,Mt.disc),new THREE.Mesh(W.hub,Mt.rimIn));
     const cal=new THREE.Mesh(W.cal,calM);cal.position.x=.02;cal.rotation.x=z>0?0:Math.PI*.1;fixed.add(cal);
     st.add(fixed,spin);G.add(st);wheels.push(spin);if(f)front.push(st)});
-  return{G,shell,glass,body,bodyM,cabM,headM,tailM,wheels,front,K,mods:M,paint(c){bodyM.color.setHex(c);if(roof===null)cabM.color.setHex(c)}};
+  return{G,shell,glass,body,bodyM,cabM,headM,tailM,wheels,front,K,mods:M,refs:{parts,env,hi,Mt,S,tintMesh,livMats,tips,rimMeshes,calM,plates:[pf,pb]},
+    paint(c){bodyM.color.setHex(c);if(MOD_ROOF[M.roof]===null)cabM.color.setHex(c)}};
 }
 let shadowM=null;
 function shadowMat(){if(shadowM)return shadowM;const c=document.createElement("canvas");c.width=c.height=128;const x=c.getContext("2d");
@@ -2754,6 +2799,7 @@ const carQ=()=>isTouch||save.gfx===2?0:1;
 // is dropped, to be built afresh when next shown
 function rebuildCar(id,mods){
   const o=carMeshes[id];if(!o)return getCar(id);
+  if(o.q===carQ()&&modsInPlace(o,Object.assign({},MOD_STOCK,mods||modsOf(id)))){if(showMeshes[id]){disposeHeroCar(showMeshes[id]);delete showMeshes[id]}return o}
   const pos=o.G.position.clone(),rot=o.G.quaternion.clone(),vis=o.G.visible,par=o.G.parent;
   disposeHeroCar(o);const n=buildHeroCar(carById(id),paintOf(id),mods||modsOf(id));carMeshes[id]=n;(par||scene).add(n.G);
   n.G.position.copy(pos);n.G.quaternion.copy(rot);n.G.visible=vis;
@@ -2797,7 +2843,7 @@ function buildHeroCar(cd,color,mods){
   if(!pr.open){add(B(cw-.08,.04,1.5),headlinerM,0,pr.roof-.04,pr.roofF-.7,0,0,inside);add(B(.24,.07,.03),darkInM,0,pr.roof-.12,pr.roofF-.12,0,0,inside)}
   else add(B(cw-.2,.05,.05),darkInM,0,pr.roof-.02,pr.roofF+.05,0,0,inside);
   return{G,id:cd.id,wheels:w.wheels,front:w.front,tailM,headM,glass,shell,inside,steerWheel:sw,bodyM:body,wr:pr.wr,wb:pr.wb,tr:pr.tr,
-    eye:new V3(dx,Math.max(pr.eye+.03,wy+.24),ez),front_z:pr.front,shape:cd.shape,paint:L.paint,q,mods:L.mods};
+    eye:new V3(dx,Math.max(pr.eye+.03,wy+.24),ez),front_z:pr.front,shape:cd.shape,paint:L.paint,q,mods:L.mods,refs:L.refs};
 }
 
 const TPROF={
