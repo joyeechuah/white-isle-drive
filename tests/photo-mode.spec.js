@@ -57,7 +57,12 @@ test.describe("photo mode", () => {
     await game.key("v");
     await game.waitState("PHOTO");
     await page.locator("#phZoom").focus();
+    // its arrow keys move the slider, not the camera (they used to be taken for camera keys)
+    const z0 = +(await page.locator("#phZoom").inputValue());
     await page.keyboard.press("ArrowRight");
+    await game.frames(5);
+    expect(+(await page.locator("#phZoom").inputValue()), "ZOOM after ArrowRight").toBe(z0 + 1);
+    expect(await game.eval(() => __T.keys.arrowright || false)).toBe(false);
     await expect(page.locator("#phZoom")).toBeFocused();
     await game.key("Escape");
     await game.waitState("DRIVE");

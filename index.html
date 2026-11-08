@@ -5166,6 +5166,8 @@ addEventListener("keydown",e=>{
   // typing in a text field (the number plate) isn't driving or a shortcut; Enter or Escape leaves the field. Sliders (photo
   // mode's zoom and distance) keep the shortcuts: they used to swallow Escape, V, R and Enter while they had focus
   const tg=e.target;if(tg&&tg.tagName==="INPUT"&&tg.type!=="range"){if(k==="enter"||k==="escape")tg.blur();return}
+  // a focused slider keeps its own arrow, Home, End and Page keys (they moved the photo camera and the slider stood still)
+  if(tg&&tg.tagName==="INPUT"&&tg.type==="range"&&/^(arrow(up|down|left|right)|home|end|pageup|pagedown)$/.test(k))return;
   if(cuOpen()){if(k==="escape"&&!e.repeat)custClose(false);return}
   // Space is the handbrake while driving, focused button or not (a stray Tab mustn't turn it into a map or pause
   // key mid-race; Enter presses a Tab-focused button there). Anywhere else Space presses the focused button, as on
