@@ -4916,14 +4916,17 @@ function custRender(){
         b.onclick=()=>{d.num=(d.num-1+dv+99)%99+1;custChange()};return b};
       const v=document.createElement("span");v.className="num";v.textContent=d.num;row.append(mk("\u2212",-1),v,mk("+",1))}
     else if(k==="plate"){const i=document.createElement("input");i.id="cuPlate";i.maxLength=8;i.value=d.plate;i.setAttribute("aria-label","Number plate text");i.autocomplete="off";i.spellcheck=false;
-      i.onchange=()=>{if(cuPlateCommit())custChange()};row.appendChild(i)}
+      // committed without drawing the list again: the field loses focus because another option was clicked, and
+      // rebuilding the list then removed that button before its click arrived (the first click did nothing)
+      i.onchange=()=>{if(cuPlateCommit()){custFooter();rebuildCar(cuId,cuDraft)}};row.appendChild(i)}
     else O.o.forEach((name,i)=>{const b=document.createElement("button"),on=d[k]===i,sw=CU_SW[k];
       if(sw&&sw[i]!==null){b.className="swb"+(on?" on":"");b.style.background="#"+sw[i].toString(16).padStart(6,"0")}else{b.className="co"+(on?" on":"");b.textContent=name}
       b.setAttribute("aria-label",O.n.toLowerCase()+": "+name.toLowerCase());b.setAttribute("aria-pressed",on?"true":"false");
       b.onclick=()=>{d[k]=i;custChange()};row.appendChild(b)});
     L.appendChild(sec)}
-  L.scrollTop=top;
-  const cost=modCost(cuBase,d),short=cost>save.cr;
+  L.scrollTop=top;custFooter()}
+// the total, the message and APPLY, from the draft
+function custFooter(){const d=cuDraft,cost=modCost(cuBase,d),short=cost>save.cr;
   $("cuTotal").textContent=cost?fmtCr(cost)+" CR":"NO CHANGES";
   $("cuMsg").textContent=short?"Not enough credits: you have "+fmtCr(save.cr)+" CR":"";
   $("cuApply").disabled=short;$("cuApply").textContent=cost?"APPLY":"DONE";

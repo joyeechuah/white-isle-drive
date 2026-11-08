@@ -75,6 +75,20 @@ test.describe("customise", () => {
     expect(road.mods).toBe("JOYEE 1");
   });
 
+  test("after typing a plate, the first click on another option counts (the plate is kept too)", async ({ game, page }) => {
+    await page.locator("#gCust").click();
+    await page.locator("#cuPlate").fill("NEW 77");
+    // straight from the plate field to LIMO tint: one click (it used to take two)
+    await page.locator('#cuList .cus[data-k="tint"] .cos > *').nth(2).click();
+    const m = await game.eval(() => {
+      const c = __T.carMeshes[__T.save.owned[__T.gSel]];
+      return { tint: c.mods.tint, plate: c.mods.plate };
+    });
+    expect(m).toEqual({ tint: 2, plate: "NEW 77" });
+    await expect(page.locator('#cuList .cus[data-k="tint"] .cos > *').nth(2)).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#cuTotal")).toHaveText(/2,000 CR/);
+  });
+
   test("CANCEL puts the car back and charges nothing; Escape cancels too; options you can't afford can't be applied", async ({ game, page }) => {
     const before = await game.eval(model);
     await page.locator("#gCust").click();
