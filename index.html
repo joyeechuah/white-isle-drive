@@ -2900,7 +2900,8 @@ function parkAll(except){
 }
 /* ================================================================ INPUT */
 const keys={},pad={};
-function clearInput(){for(const k in keys)keys[k]=false;for(const k in pad)pad[k]=false;document.querySelectorAll(".pb.on").forEach(e=>e.classList.remove("on"))}
+const PAD_OWN=[];   // touch pointers held on each group of on-screen pads (set up with the pads)
+function clearInput(){for(const k in keys)keys[k]=false;for(const k in pad)pad[k]=false;PAD_OWN.forEach(m=>m.clear());document.querySelectorAll(".pb.on").forEach(e=>e.classList.remove("on"))}
 let locked=false,autoHold=false;
 // a game controller (the first one connected, standard layout): left stick steers, right trigger is the gas, left
 // trigger the brake, A the handbrake; Start pauses, View/Back opens the map, Y changes camera, X is the prompt key
@@ -2994,7 +2995,7 @@ function kphNow(){return Math.abs(speedF())*3.6}
 // allows and the road wants more (satAt), the car lifts off and brakes gently (satLift) instead. Worst case 0.8 m
 const STEER_SENS=[.7,1,1.35];
 const HD={latBase:1.2,latGrip:.6,latLow:.25,rUp:6,rUpHi:2,rBack:10,rBackHi:7,rCounter:14,steerEase:25,expHi:1.6,steerV:39,
-  asK:2.6,asLim:.9,csGrip:.83,csBrake:7,thrUp:3.2,pBase:3.7,pAcc:9.2,offDrag:2.2,offDragV:.035,yawResp:10,rMin0:5,rMinV:.7,laneK:3,laneMax:.15,antT:.15,antMax:12,satAt:.97,satLift:2};
+  asK:2.6,asLim:.9,csGrip:.83,csBrake:5,csPlan:4,csBand:3,thrUp:3.2,pBase:3.7,pAcc:9.2,offDrag:2.2,offDragV:.035,yawResp:10,rMin0:5,rMinV:.7,laneK:3,laneMax:.15,antT:.15,antMax:12,satAt:.97,satLift:2,brk0:6,brk1:13,brkUp:1,revMax:8,thrUp0:9};
 // fastest speed for a bend of curvature k: limited by grip, and in tight
 // corners by the smallest circle the car turns at that speed
 const vCorner=(k,aC)=>Math.min(Math.sqrt(aC/k),Math.max(4,(.92/k-HD.rMin0)/HD.rMinV));
@@ -3002,7 +3003,7 @@ function limitFromAngles(ang,sp,aC){
   let lim=1e9;
   for(let i=1;i<ang.length-1;i++){
     const k=Math.abs(wrapA(ang[i+1]-ang[i-1]))/16+1e-4,vc=vCorner(k,aC),dd=i*8;
-    lim=Math.min(lim,Math.sqrt(vc*vc+2*HD.csBrake*Math.max(0,dd-sp*.35)));
+    lim=Math.min(lim,Math.sqrt(vc*vc+2*HD.csPlan*Math.max(0,dd-sp*.35)));
   }
   return lim;
 }
@@ -3075,15 +3076,22 @@ function stepPlayer(dt){
   // the assist is already turning the car as hard as the tyres allow and the road wants more: lift off rather than
   // accelerate wide (out of a hairpin the car used to power across the centre line)
   if(save.assist&&P.asSat&&!brake)over=Math.max(over,HD.satLift);
-  // throttle comes in over a fraction of a second instead of all at once
-  P.thr=clamp((P.thr||0)+((gas&&!brake&&over<=0)?HD.thrUp:-8)*dt,0,1);if(gas&&P.thr>gA)P.thr=Math.max(gA,P.thr-8*dt);
+  // throttle comes in over a fraction of a second instead of all at once (quicker pulling away, 0.1 s, than at speed).
+  // Near the speed the assist allows for the bend ahead it eases off gradually over the last csBand m/s instead of
+  // cutting out and coming back each step (Nov 2026: the car lost 50-70 km/h before bends with W held)
+  const thrCap=gas&&!brake&&over<=0?(over===0?1:Math.min(1,-over/HD.csBand)):0,thrUp=lerp(HD.thrUp0,HD.thrUp,clamp(vF/15,0,1));
+  const t0=P.thr||0;P.thr=t0<thrCap?Math.min(thrCap,t0+thrUp*dt):Math.max(thrCap,t0-8*dt);if(gas&&P.thr>gA)P.thr=Math.max(gA,P.thr-8*dt);
   if(!P.air){const sl=(surfH(P.x+fx*2,P.z+fz*2)-surfH(P.x-fx*2,P.z-fz*2))/4;vF-=9.81*sl*.75*dt}
-  // the brake builds up while it's held: gentle at first (9 m/s²), full (22 m/s²) after 0.7 s, so a quick press
-  // slows the car instead of stopping it dead (it used to be 26 m/s² at once). Past the finish line it's full at once
+  // the brake builds up while it's held: gentle at first (6 m/s²), full (13 m/s²) after a second, so a quick press
+  // slows the car instead of stopping it dead. Nov 2026: was 9 to 22 m/s² in 0.7 s, which threw away speed into bends.
+  // Past the finish line it's strong at once
   P.brkT=brake&&vF>.5?(P.brkT||0)+dt:0;
-  const bF=ev&&ev.phase==="finish"?24:lerp(9,22,smooth(0,.7,P.brkT));
+  const bF=ev&&ev.phase==="finish"?24:lerp(HD.brk0,HD.brk1,smooth(0,HD.brkUp,P.brkT));
+  // a brake held from moving stops the car and keeps it there; reversing takes a fresh press at a standstill
+  // (holding the brake to stop used to carry straight on into reverse, up to 40 km/h)
+  const bHeld=kB();if(!bHeld)P.brkHold=false;else if(vF>.5)P.brkHold=true;
   if(gas&&!brake&&vF<-.5)vF+=22*dt;
-  else if(brake){if(vF>.5)vF-=bF*bA*dt;else vF=Math.max(vF-5*bA*dt,-11)}
+  else if(brake){if(vF>.5)vF-=bF*bA*dt;else if(P.brkHold||!bHeld){const d=Math.max(bF,6)*dt;vF=Math.abs(vF)<=d?0:vF-Math.sign(vF)*d}else vF=Math.max(vF-5*bA*dt,-HD.revMax)}
   else if(P.thr>0&&!P.air)vF+=power*P.thr*Math.max(0,1-(vF/vMax)**2)*dt;
   if(!gas&&!brake||over>0){const dec=(.7+.00042*vF*vF)*dt;vF=Math.abs(vF)<=dec?0:vF-Math.sign(vF)*dec}
   if(over>.6){vF-=Math.min(HD.csBrake,(over-.6)*3)*dt;P.aBrk=true}
@@ -5200,13 +5208,22 @@ addEventListener("keydown",e=>{
   else if(state==="RESULT"){if(k==="enter"||k==="escape")$("rOk").onclick()}
 });
 addEventListener("keyup",e=>{keys[e.key.toLowerCase()]=false});
-[["bL","L"],["bR","R"],["bG","G"],["bB","B"],["bH","H"]].forEach(([id,k])=>{
-  const el=$(id);
-  el.addEventListener("pointerdown",e=>{e.preventDefault();try{el.setPointerCapture(e.pointerId)}catch(_){}pad[k]=true;el.classList.add("on")});
-  const off=()=>{pad[k]=false;el.classList.remove("on")};
-  ["pointerup","pointercancel","lostpointercapture"].forEach(ev=>el.addEventListener(ev,off));
-  el.addEventListener("contextmenu",e=>e.preventDefault());
-});
+// the pedals, and the two steering pads, each work as one strip: a thumb can roll from BRAKE onto GAS (or from left
+// to right) without lifting, and with two fingers down the one that landed or moved there last counts. Before, a
+// press stayed with the button it started on, and BRAKE held by one finger beat GAS pressed by another, so pulling
+// away after braking could do nothing, or reverse
+for(const grp of [[["bL","L"],["bR","R"]],[["bG","G"],["bB","B"]],[["bH","H"]]]){
+  const els=grp.map(([id,k])=>({el:$(id),k})),own=new Map();PAD_OWN.push(own);
+  const keyAt=(x,y)=>{let best=null,bd=1e9;for(const o of els){const r=o.el.getBoundingClientRect(),d=Math.hypot(Math.max(r.left-x,0,x-r.right),Math.max(r.top-y,0,y-r.bottom));if(d<bd){bd=d;best=o.k}}return best};
+  const sync=()=>{let top=null;for(const v of own.values())if(!top||v.t>top.t)top=v;for(const o of els){const on=!!top&&top.k===o.k;pad[o.k]=on;o.el.classList.toggle("on",on)}};
+  for(const o of els){
+    o.el.addEventListener("pointerdown",e=>{e.preventDefault();try{o.el.setPointerCapture(e.pointerId)}catch(_){}own.set(e.pointerId,{k:o.k,t:performance.now()});sync()});
+    o.el.addEventListener("pointermove",e=>{const v=own.get(e.pointerId);if(!v||els.length<2)return;const k=keyAt(e.clientX,e.clientY);if(k!==v.k){v.k=k;v.t=performance.now();sync()}});
+    const off=e=>{if(own.delete(e.pointerId))sync()};
+    ["pointerup","pointercancel","lostpointercapture"].forEach(ev=>o.el.addEventListener(ev,off));
+    o.el.addEventListener("contextmenu",e=>e.preventDefault());
+  }
+}
 const ray=new THREE.Raycaster(),ndc=new THREE.Vector2();
 function hitSlot(cx,cy){ndc.x=cx/W*2-1;ndc.y=-(cy/H)*2+1;ray.setFromCamera(ndc,camera);const h=ray.intersectObjects(pickers,false).filter(x=>x.object.userData.slot<save.owned.length);return h.length?h[0].object.userData.slot:-1}
 // dragging the garage view (a short drag still counts as a tap on a car)
@@ -5229,13 +5246,13 @@ $("c").addEventListener("pointermove",e=>{if(state!=="GARAGE"||e.pointerType!=="
 
 /* ================================================================ HUD + MAIN LOOP */
 let hudT=0,waterT=0;
-// the on-screen brake also reverses once the car has stopped, so its label says which it will do; the first time
+// the on-screen brake also reverses when pressed again once the car has stopped, so its label says which it will do; the first time
 // it reverses in a session, a message says so
 let padRevShown=false;
 function updateHUD(dt){
   const cd=curCar(),vF=speedF(),kph=Math.abs(vF)*3.6,gi=gearInfo(kph,cd.top,vF<-.5);
-  const bB=$("bB"),rev=vF<.5,lbl=rev?"REVERSE":"BRAKE";if(bB.textContent!==lbl){bB.textContent=lbl;bB.classList.toggle("rev",rev)}
-  if(rev&&pad.B&&vF<-.5&&!padRevShown&&!ev){padRevShown=true;toast("REVERSING","Hold REVERSE to back up. While you're moving forward the same button brakes")}
+  const bB=$("bB"),rev=vF<.5&&!(P.brkHold&&kB()),lbl=rev?"REVERSE":"BRAKE";if(bB.textContent!==lbl){bB.textContent=lbl;bB.classList.toggle("rev",rev)}
+  if(rev&&pad.B&&vF<-.5&&!padRevShown&&!ev){padRevShown=true;toast("REVERSING","Stopped, press REVERSE again to back up. While you're moving forward the same button brakes")}
   drawSpeedo(kph,gi.rpm*8,gi.g);
   if(camMode===3)drawGauges(kph,gi.rpm*8,gi.g);
   const fr=$("streak");fr.classList.toggle("off",!(FR.pts>0&&!ev));

@@ -13,43 +13,171 @@ test.describe("driving", () => {
     });
   });
 
-  test("accelerating, braking to a stop and reversing", async ({ game }) => {
+  test("accelerating, braking to a stop; the brake held keeps it stopped, a fresh press reverses", async ({ game }) => {
     const go = await game.steps(240, { w: true });
     expect(go.fwd, "km/h forward after 4 s on the throttle").toBeGreaterThan(50);
-    let s = go;
-    for (let i = 0; i < 20 && s.fwd > 0.5; i++) s = await game.steps(30, { s: true });
-    expect(s.fwd, "km/h after braking").toBeLessThan(0.5);
-    const back = await game.steps(150, { s: true });
-    expect(back.fwd, "km/h after holding the brake at a standstill").toBeLessThan(-3);
+    // one unbroken hold (the page's own frames between calls would count as letting go): it stops in about 2 s
+    // and then stays where it stopped (it used to carry on into reverse, up to 40 km/h)
+    const held = await game.steps(360, { s: true });
+    expect(Math.abs(held.fwd), "km/h after holding the brake for 6 s").toBeLessThan(0.5);
+    // let go and press again: now it backs up, no faster than 29 km/h
+    await game.steps(10, {});
+    const back = await game.steps(240, { s: true });
+    expect(back.fwd, "km/h after a fresh press at a standstill").toBeLessThan(-15);
+    expect(back.fwd).toBeGreaterThan(-29.5);
+    // and the throttle takes it straight back forwards
+    const fwd = await game.steps(90, { w: true });
+    expect(fwd.fwd, "km/h 1.5 s after pressing W while reversing").toBeGreaterThan(10);
   });
 
-  test("the brake builds up: a quick press slows the car a little, holding it stops it", async ({ game }) => {
-    const run = (n) =>
-      game.eval((n) => {
-        const T = __T,
-          P = T.P;
-        T.resetToRoad(false);
-        const f = { x: Math.sin(P.h), z: Math.cos(P.h) };
-        P.vx = f.x * 27.8;
-        P.vz = f.z * 27.8;
-        T.keys.s = true;
-        let i = 0;
-        for (; i < n && P.vx * f.x + P.vz * f.z > 0.5; i++) T.driveUpdate(1 / 60);
-        T.keys.s = false;
-        return { kph: (P.vx * f.x + P.vz * f.z) * 3.6, s: i / 60 };
-      }, n);
+  test("the brake builds up: a quick press slows the car a little, holding it stops it; the same at any frame rate", async ({ game }) => {
+    const run = (n, fr) =>
+      game.eval(
+        ([n, fr]) => {
+          const T = __T,
+            P = T.P;
+          T.resetToRoad(false);
+          const f = { x: Math.sin(P.h), z: Math.cos(P.h) };
+          P.vx = f.x * 27.8;
+          P.vz = f.z * 27.8;
+          P.brkT = 0;
+          P.brkHold = false;
+          T.keys.s = true;
+          let t = 0,
+            i = 0;
+          for (; t < n && P.vx * f.x + P.vz * f.z > 0.5; i++) {
+            const dt = fr[i % fr.length];
+            T.driveUpdate(dt);
+            t += dt;
+          }
+          T.keys.s = false;
+          return { kph: (P.vx * f.x + P.vz * f.z) * 3.6, s: +t.toFixed(3) };
+        },
+        [n, fr],
+      );
     await game.park();
-    const tap = await run(12);
-    await game.park();
-    const hold = await run(600);
-    test.info().annotations.push({ type: "braking from 100 km/h", description: JSON.stringify({ tap, hold }) });
-    // a 0.2 s press: about 6 km/h off (it took 19 km/h off when the brake bit fully at once)
-    expect(100 - tap.kph, "km/h lost to a 0.2 s press").toBeLessThan(9);
+    const tap = await run(0.2, [1 / 60]);
+    const holds = [];
+    for (const fr of [[1 / 60], [1 / 30], [1 / 60, 1 / 25, 1 / 40]]) {
+      await game.park();
+      holds.push(await run(10, fr));
+    }
+    test.info().annotations.push({ type: "braking from 100 km/h", description: JSON.stringify({ tap, holds }) });
+    // a 0.2 s press: about 4 km/h off (it took 19 km/h off when the brake bit fully at once)
+    expect(100 - tap.kph, "km/h lost to a 0.2 s press").toBeLessThan(8);
     expect(100 - tap.kph).toBeGreaterThan(3);
-    // held: stopped in under 2 s, but not in a second as before
-    expect(hold.kph, "km/h left (stopped is under 2)").toBeLessThan(2);
-    expect(hold.s).toBeLessThan(2);
-    expect(hold.s).toBeGreaterThan(1.3);
+    // held: stopped in about 2.4 s (Nov 2026: was 1.5 s, which threw speed away into bends), at 60, 30 or uneven fps
+    for (const h of holds) {
+      expect(h.kph, "km/h left (stopped is under 2)").toBeLessThan(2);
+      expect(h.s).toBeGreaterThan(2);
+      expect(h.s).toBeLessThan(2.8);
+      expect(Math.abs(h.s - holds[0].s)).toBeLessThan(0.12);
+    }
+  });
+
+  test("pulling away: from braking down to 5 km/h, W reaches 40 km/h promptly in every class", async ({ game }) => {
+    const r = await game.eval(() => {
+      const T = __T,
+        P = T.P,
+        out = {};
+      for (const id of ["golf", "mustang", "gtr"]) {
+        T.attachCar(id);
+        T.resetToRoad(false);
+        const f = { x: Math.sin(P.h), z: Math.cos(P.h) },
+          fwd = () => P.vx * f.x + P.vz * f.z;
+        P.vx = f.x * 20;
+        P.vz = f.z * 20;
+        P.thr = P.brkT = 0;
+        P.brkHold = false;
+        while (fwd() > 1.4) {
+          T.keys.s = true;
+          T.driveUpdate(1 / 60);
+        }
+        T.keys.s = false;
+        let t = 0,
+          first = null;
+        while (fwd() * 3.6 < 40 && t < 5) {
+          T.keys.w = true;
+          T.driveUpdate(1 / 60);
+          t += 1 / 60;
+          if (first === null && fwd() > 1.6) first = t;
+        }
+        T.keys.w = false;
+        out[id] = { to40: +t.toFixed(2), moving: first };
+      }
+      return out;
+    });
+    test.info().annotations.push({ type: "5 to 40 km/h after braking (s)", description: JSON.stringify(r) });
+    for (const id in r) {
+      // the throttle bites within a tenth of a second at a crawl, and nothing has to undo a reverse first
+      expect(r[id].moving, id + ": s until it picks up").toBeLessThan(0.15);
+      expect(r[id].to40, id + ": s to 40 km/h").toBeLessThan(1.6);
+    }
+    // each car keeps its own pace
+    expect(r.gtr.to40).toBeLessThan(r.golf.to40);
+  });
+
+  test("holding only W, the corner assist slows for bends gently: never more than 8 m/s² over a second", async ({ game }) => {
+    test.setTimeout(300_000);
+    const r = await game.eval(() => {
+      const T = __T,
+        P = T.P,
+        out = {};
+      for (const t of T.TRAFFIC) {
+        t.e = null;
+        t.c.G.visible = false;
+        t.wx = t.wz = 1e6;
+      }
+      T.save.assist = true;
+      T.save.auto = false;
+      const S = T.save.side === "R" ? 1 : -1;
+      for (const id of ["golf", "gtr"]) {
+        T.attachCar(id);
+        let peak = 0,
+          drops = 0,
+          runs = 0;
+        for (const e of T.EDGES.filter((e) => e.type !== "drive" && e.len > 500))
+          for (const dirS of [1, -1]) {
+            const lane = T.RT[e.type].lanes[0],
+              q = T.edgePos(e, dirS > 0 ? 35 : e.len - 35),
+              ux = q.dx * dirS,
+              uz = q.dz * dirS;
+            P.x = q.x - uz * lane * S;
+            P.z = q.z + ux * lane * S;
+            P.h = Math.atan2(ux, uz);
+            P.vx = P.vz = P.vy = 0;
+            P.r = P.steer = P.steerS = P.thr = P.brkT = P.holdT = P.holdDir = 0;
+            P.laneT = null;
+            P.air = false;
+            for (const k in T.keys) T.keys[k] = false;
+            const sp = [];
+            for (let i = 0; i < 1200; i++) {
+              T.keys.w = true;
+              T.driveUpdate(1 / 60);
+              const nr = T.nearestRoad(P.x, P.z, 20);
+              if (!nr || nr.e !== e) break;
+              sp.push(Math.hypot(P.vx, P.vz));
+            }
+            runs++;
+            for (let i = 60; i < sp.length; i++) peak = Math.max(peak, sp[i - 60] - sp[i]);
+            // 50 km/h or more gone within 4 s
+            for (let i = 0; i + 240 < sp.length; i += 30)
+              if (sp[i] - Math.min(...sp.slice(i, i + 240)) > 50 / 3.6) {
+                drops++;
+                i += 210;
+              }
+          }
+        out[id] = { peak: +peak.toFixed(2), drops, runs };
+      }
+      T.keys.w = false;
+      return out;
+    });
+    test.info().annotations.push({ type: "speed shed for bends with W held", description: JSON.stringify(r) });
+    // before (Nov 2026 video): it eased off late and braked at up to 9 m/s²; over these roads it dropped 50 km/h in
+    // under 4 s 20 times in the GT-R and 11 in the Golf (now 12 and 5)
+    for (const id in r) expect(r[id].peak, id + ": most speed lost in a second, m/s").toBeLessThan(8);
+    expect(r.gtr.drops).toBeLessThan(16);
+    expect(r.golf.drops).toBeLessThan(9);
   });
 
   test("holding only W through bends at speed, the assist keeps the GT-R in its lane, on either side of the road", async ({
