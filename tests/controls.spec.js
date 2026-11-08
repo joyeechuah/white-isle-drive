@@ -241,4 +241,60 @@ test.describe("controller in menus", () => {
     await tap(1);
     await game.waitState("DRIVE");
   });
+
+  test("controller in the garage: the right stick turns the view and stops SPIN; while customising the D-pad doesn't switch cars, B cancels", async ({ game, page }) => {
+    await page.addInitScript(FAKE_PAD);
+    await game.open();
+    await game.waitState("GARAGE");
+    const tap = async (i) => {
+      await game.eval((i) => __press(i, 1), i);
+      await game.frames(3);
+      await game.eval((i) => __press(i, 0), i);
+      await game.frames(3);
+    };
+    await page.locator("#gCust").click();
+    await page.locator("#cuSpin").click();
+    const y0 = await game.eval(() => __T.GO.yaw);
+    await game.eval(() => (__pad.axes[2] = 0.8));
+    await game.frames(20);
+    await game.eval(() => (__pad.axes[2] = 0));
+    const r = await game.eval(() => ({ yaw: __T.GO.yaw, spin: __T.GO.spin, aria: document.getElementById("cuSpin").getAttribute("aria-pressed") }));
+    expect(Math.abs(r.yaw - y0), "radians turned by the stick").toBeGreaterThan(0.3);
+    expect(r).toMatchObject({ spin: false, aria: "false" });
+    const sel = await game.eval(() => __T.gSel);
+    await tap(15);
+    expect(await game.eval(() => __T.gSel), "D-pad right while customising").toBe(sel);
+    await expect(page.locator("#cust")).toBeVisible();
+    await tap(1);
+    await expect(page.locator("#cust")).toBeHidden();
+    expect(await game.eval(() => __T.state)).toBe("GARAGE");
+    // the stick turns the view by time, not by frame: one second at 30 fps and at 120 fps turns it the same
+    // (it used to turn four times as far at 120)
+    const turn = await game.eval(() => {
+      const T = __T,
+        out = [];
+      for (const fps of [30, 120]) {
+        T.GO.yaw = T.GO.yawS = 0;
+        T.GO.pitch = 0;
+        __pad.axes[2] = 1;
+        for (let i = 0; i < fps; i++) {
+          T.pollPad();
+          T.garageCam(1 / fps);
+        }
+        __pad.axes[2] = 0;
+        T.pollPad();
+        out.push(-T.GO.yaw);
+      }
+      return out;
+    });
+    expect(turn[0], "radians in 1 s at 30 fps").toBeGreaterThan(2);
+    expect(Math.abs(turn[1] - turn[0]), "difference between 30 and 120 fps").toBeLessThan(0.01);
+    // A applies with the plate field still being typed in: the typed plate is what's saved (it used to be lost)
+    await page.locator("#gCust").click();
+    await page.locator("#cuPlate").fill("PAD 77");
+    await expect(page.locator("#cuPlate")).toBeFocused();
+    await tap(0);
+    await expect(page.locator("#cust")).toBeHidden();
+    expect(await game.eval(() => __T.save.mods[__T.save.owned[__T.gSel]].plate)).toBe("PAD 77");
+  });
 });

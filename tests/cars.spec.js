@@ -51,6 +51,37 @@ test.describe("car models", () => {
     expect(r.afterFree).toBe(true);
   });
 
+  test("every body type has a see-through windscreen and rear window, and a painted roof (raked screens used to be painted as roof)", async ({ game }) => {
+    await game.open();
+    const r = await game.eval(() => {
+      const T = __T,
+        out = {};
+      for (const shape in T.PROF) {
+        const pr = T.PROF[shape];
+        if (pr.open) continue;
+        const K = T.carShape(pr, shape),
+          paint = T.cabinPaint(K),
+          c = pr.cabin,
+          at = (z, nzSign, a, b) => {
+            // a point on the centre line of the glasshouse, its normal from the profile between points a and b
+            const dz = b[0] - a[0],
+              dy = b[1] - a[1],
+              L = Math.hypot(dz, dy),
+              o = {};
+            paint(0, K.cp.top(z) - 0.002, z, 0, Math.abs(dz) / L, (nzSign * Math.abs(dy)) / L, o);
+            return o;
+          },
+          ws = at(c[0][0] + (c[1][0] - c[0][0]) * 0.5, 1, c[0], c[1]),
+          roof = at((c[1][0] + c[2][0]) / 2, 0, c[1], c[2]),
+          bk = at(c[2][0] + (c[3][0] - c[2][0]) * 0.6, -1, c[2], c[3]);
+        out[shape] = { ws: ws.l === 1, bk: bk.l === 1, roof: roof.l !== 1 && roof.c === 1 };
+      }
+      return out;
+    });
+    expect(Object.keys(r).length).toBeGreaterThanOrEqual(5);
+    for (const shape in r) expect(r[shape], shape).toEqual({ ws: true, bk: true, roof: true });
+  });
+
   test("traffic wheels face outwards on both sides (the mirrored pair used to be inside out)", async ({ game }) => {
     await game.open();
     const r = await game.eval(() => {
