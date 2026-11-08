@@ -242,7 +242,11 @@ body.touch #keys,body.touch #prompt kbd,body.touch #mapClose kbd{display:none}
 #cust{position:fixed;right:16px;top:64px;bottom:16px;width:min(380px,calc(100% - 32px));z-index:40;background:var(--panel2);border:1px solid var(--line);border-radius:10px;
   display:flex;flex-direction:column;padding:16px 18px;backdrop-filter:blur(10px)}
 #cust h3{margin:0 0 2px;font-size:10px;letter-spacing:.5em;color:var(--mute)}#cust h2{margin:0;font-family:var(--f-num);font-size:24px;font-weight:800}
-#cuCar{font-size:11px;letter-spacing:.16em;color:var(--mute);margin-top:2px}
+#cuCar{font-size:11px;letter-spacing:.16em;color:var(--mute);margin-top:2px}#cuHint{font-size:11px;color:var(--mute);margin-top:4px}
+#cuViews{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}#cuViews .co{background:transparent;border:1px solid var(--line);padding:6px 8px;font-size:9px;letter-spacing:.14em;border-radius:3px;cursor:pointer;font-weight:700;color:inherit}
+#cuViews .co.on{background:#fff;color:#0b0c0e;border-color:#fff}
+#cuMin{position:absolute;right:12px;top:10px;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:transparent;color:inherit;font-size:14px;cursor:pointer;display:none}
+#cust.mini #cuList,#cust.mini #cuHint{display:none}#cust.mini{height:auto}
 #cuList{overflow:auto;flex:1;min-height:80px;margin-top:10px;touch-action:pan-y}
 .cus{padding:10px 0;border-top:1px solid var(--line)}
 .cus .cl{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.2em;color:var(--mute);margin-bottom:8px;font-weight:700}.cus .cl b{color:var(--acc);letter-spacing:.06em}
@@ -253,7 +257,7 @@ body.touch #keys,body.touch #prompt kbd,body.touch #mapClose kbd{display:none}
 .cuf{border-top:1px solid var(--line);padding-top:10px}.cut{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;letter-spacing:.2em;color:var(--mute)}
 .cut b{font-size:20px;color:#fff;letter-spacing:.02em}#cuMsg{font-size:12px;color:var(--acc);margin-top:4px}#cuMsg:empty{display:none}
 .cub{display:flex;gap:8px}.cub .mbtn{flex:1}.cub .mbtn:disabled{opacity:.4;cursor:default}
-@media (max-width:640px){#cust{left:8px;right:8px;width:auto;top:auto;bottom:8px;height:56%;padding:12px 14px}#cust h2{font-size:20px}}
+@media (max-width:640px){#cust{left:8px;right:8px;width:auto;top:auto;bottom:8px;height:48%;padding:12px 14px}#cust h2{font-size:20px}#cuMin{display:block}#cust.mini{height:auto}}
 @media (max-height:520px) and (min-width:641px){#cust{top:8px;bottom:8px;width:min(340px,48%)}}
 .swb{width:19px;height:19px;border-radius:50%;border:2px solid rgba(255,255,255,.28);cursor:pointer;padding:0;flex:none}
 .swb:hover{border-color:rgba(255,255,255,.7)}
@@ -392,7 +396,8 @@ body.touch #phExit kbd{display:none}
 </div>
 
 <div id="cust" class="hide" role="dialog" aria-labelledby="cuTitle">
-  <h3>GARAGE</h3><h2 id="cuTitle">Customise</h2><div id="cuCar"></div>
+  <h3>GARAGE</h3><h2 id="cuTitle">Customise</h2><button id="cuMin" aria-label="Make the panel smaller" aria-pressed="false">&#9662;</button><div id="cuCar"></div><div id="cuHint">Drag the car to look all round it · pinch or scroll to zoom</div>
+  <div id="cuViews"><button class="co" data-v="front">FRONT</button><button class="co" data-v="side">SIDE</button><button class="co" data-v="rear">REAR</button><button class="co" data-v="reset">RESET</button><button class="co" id="cuSpin" aria-pressed="false">SPIN</button></div>
   <div id="cuList"></div>
   <div class="cuf"><div class="cut"><span>Total</span><b class="num" id="cuTotal"></b></div><div id="cuMsg" role="status"></div>
     <div class="cub"><button class="mbtn" id="cuCancel">CANCEL</button><button class="mbtn pri" id="cuApply">APPLY</button></div></div>
@@ -574,7 +579,7 @@ const smooth=(e0,e1,x)=>{const t=clamp((x-e0)/(e1-e0),0,1);return t*t*(3-2*t)};
 const wrapA=a=>a-TAU*Math.round(a/TAU);
 const rnd=(i,k)=>{const x=Math.sin(i*12.9898+k*78.233)*43758.5453;return x-Math.floor(x)};
 const isTouch=matchMedia("(pointer:coarse)").matches;
-if(isTouch){document.body.classList.add("touch");document.getElementById("ghint").textContent="Tap a car to select it, tap it again to drive"}
+if(isTouch){document.body.classList.add("touch");document.getElementById("ghint").textContent="Tap a car to select it, tap it again to drive · drag to look around"}
 if(typeof THREE==="undefined"){$("lmsg").textContent="The 3D engine didn't load. Check your connection and reload the page.";return}
 {let gl=null;try{const t=document.createElement("canvas");gl=t.getContext("webgl2")||t.getContext("webgl");const lc=gl&&gl.getExtension("WEBGL_lose_context");if(lc)lc.loseContext()}catch(e){}
  if(!gl){$("lmsg").textContent="This browser or device can't show 3D graphics (WebGL is off or not supported). Try an up-to-date Chrome, Edge, Firefox or Safari, or turn on hardware acceleration.";return}}
@@ -1683,6 +1688,7 @@ function buildLampPools(){
 const gOut=new V3(1,0,0),gDir=new V3(0,0,1),gYaw=Math.PI/2;
 let gY=0;
 const gW=(x,z,y=0)=>new V3(HOUSE.x-gDir.x*x+gOut.x*z,gY+y,HOUSE.z-gDir.z*x+gOut.z*z);
+const HOUSE_MESHES=[];
 const SPOTS=[[-16,12.5,.55],[-10,10,.42],[-3.6,8.6,.18],[3.6,8.6,-.18],[10,10,-.42],[16,12.5,-.55],[-17,21.5,.35],[-10.5,22,.2],[-4.8,22,.05],[4.8,22,-.05],[10.8,22,-.2],[17,21.5,-.35]];
 let doorMesh,aquaLight,selRing,selSpot;const fishes=[],pickers=[];
 function buildHouse(){
@@ -1691,7 +1697,7 @@ function buildHouse(){
   const darkM=new THREE.MeshPhongMaterial({color:0x22282f,shininess:20});
   const floorM=new THREE.MeshPhongMaterial({color:0x557d93,shininess:90,specular:0x33454f});
   const shellM=new THREE.MeshLambertMaterial({color:0xf4f2ec});
-  const put=(g,m,x,y,z,cast,yaw)=>{const q=new THREE.Mesh(g,m);q.position.copy(gW(x,z,y));q.rotation.y=yaw===undefined?gYaw:yaw;q.castShadow=!!cast;q.receiveShadow=true;scene.add(q);return q};
+  const put=(g,m,x,y,z,cast,yaw)=>{const q=new THREE.Mesh(g,m);q.position.copy(gW(x,z,y));q.rotation.y=yaw===undefined?gYaw:yaw;q.castShadow=!!cast;q.receiveShadow=true;scene.add(q);HOUSE_MESHES.push(q);return q};
   const B=(w,h,d)=>new THREE.BoxGeometry(w,h,d);
   put(B(46,.4,30),floorM,0,-.2,15);
   put(B(46,.5,30),darkM,0,10.25,15,true);
@@ -2539,21 +2545,21 @@ function cabinPaint(K){
   return(x,y,z,nx,ny,nz,o)=>{
     const T=K.cp.top(z),Bo=K.cp.bot(z);
     const glass=()=>{o.c=.0;o.r=.03;o.m=0;o.l=1};
-    if(y<Bo+.012){o.c=.012;o.r=.4;o.m=0;return}            // rubber along the belt line
+    if(y<Bo+.012){o.c=.012;o.r=.65;o.m=0;return}           // rubber along the belt line
     if(open){if(y>T-.03){o.c=.015;o.r=.4;o.m=0}else glass();return}
     const ws=nz>.42&&Math.abs(nx)<.55,bk=nz<-.42&&Math.abs(nx)<.55,sd=Math.abs(nx)>.5&&Math.abs(nz)<.5,rf=ny>.82;
     if(rf){o.c=1;o.r=.36;o.m=.35;return}
     if(sd){if(Math.abs(z-zB)<.045){o.c=.015;o.r=.15;o.m=0;return}
       if(y>T-.035||z<K.cz0+.25){o.c=1;o.r=.36;o.m=.35;return}glass();return}
     if(ws||bk){glass();return}
-    o.c=.012;o.r=.2;o.m=0;                                    // pillars and frames, gloss black
+    o.c=.012;o.r=.6;o.m=0;                                    // pillars and frames, satin black (gloss caught the sky as white lines)
   };
 }
 const SHAPE_CACHE={};
 function carParts(pr,shape,q){
   const key=shape+":"+q;if(SHAPE_CACHE[key])return SHAPE_CACHE[key];
   const K=carShape(pr,shape),hi=q>0;
-  const NS=hi?130:80,NU=hi?30:20,TW=hi?1024:512,TH=hi?512:256;
+  const NS=hi?130:80,NU=hi?30:20,TW=hi?1024:768,TH=hi?512:384;
   const body=loftGeo(K.z0,K.z1,K.sec,NS,NU,true),cabin=loftGeo(K.cz0,K.cz1,K.csec,hi?60:36,hi?18:12,true);
   const bt=paintSurface(K.z0,K.z1,K.sec,TW,TH,true,bodyPaint(K),body),ct=paintSurface(K.cz0,K.cz1,K.csec,hi?512:256,hi?256:128,true,cabinPaint(K),cabin);
   // the stations holding the lights: rear quarter and front quarter of the body, drawn again with light
@@ -2642,7 +2648,8 @@ function aeroGeo(chord,thick,span){const s=new THREE.Shape();s.moveTo(0,0);s.qua
   const g=new THREE.ExtrudeGeometry(s,{depth:span,bevelEnabled:false,curveSegments:10});g.rotateY(Math.PI/2);g.translate(-span/2,0,0);g.rotateY(Math.PI);return g}
 // paint finishes: METALLIC (stock), GLOSS, MATTE, PEARL. The paint texture holds the stock values; these scale them
 const FINISH=[{m:1,r:1,cc:1,e:.75},{m:.3,r:.85,cc:1,e:.75},{m:.4,r:2,cc:0,e:.45},{m:1.6,r:.8,cc:1,e:.85,sh:0xc4d2ff}];
-function applyFinish(m,i){const f=FINISH[i]||FINISH[0];m.metalness=f.m;m.roughness=f.r;m.envMapIntensity=f.e;
+// the simpler material (phones, SMOOTH) has no clear coat to carry the shine, so its paint reflects less, or it looks washed out
+function applyFinish(m,i){const f=FINISH[i]||FINISH[0],pl=m.isMeshPhysicalMaterial;m.metalness=f.m*(pl?1:.55);m.roughness=f.r*(pl?1:1.15);m.envMapIntensity=f.e*(pl?1:.6);
   if(m.isMeshPhysicalMaterial){m.clearcoat=f.cc;m.sheen=f.sh?new THREE.Color(f.sh):null}m.needsUpdate=true}
 // decals painted from the shape itself: stripes over the top, a stripe along the side, a race number on the doors.
 // Each is a mask (white where the colour goes) drawn over the paint; masks for stripes are shared by every car of a
@@ -2708,6 +2715,8 @@ function modsInPlace(c,to){
   if(M.plate!==to.plate){const m=plateMat(to.plate);R.plates.forEach(p=>{if(p.material!==m)p.material.dispose();p.material=m})}
   Object.assign(M,to);return true;
 }
+// how far out the wheels sit: the track, but never so far that the tyre stands outside the body's side over it
+const wheelTrack=(pr,K)=>Math.min(pr.tr,Math.min(K.halfW(pr.wb),K.halfW(-pr.wb))-.15*pr.wr/.36+.01);
 function buildLook(cd,color,env,q,mods){
   const pr=PROF[cd.shape],hi=q>0,parts=carParts(pr,cd.shape,q),K=parts.K,S=K.S,Mt=lookMats(env,hi),M=Object.assign({},MOD_STOCK,mods||{});
   const roof=MOD_ROOF[M.roof],wing=M.wing?MOD_WING[M.wing]:cd.wing;
@@ -2771,7 +2780,8 @@ function buildLook(cd,color,env,q,mods){
   // wheels
   const rimMeshes=[],W=wheelParts(MOD_RIMS[M.rim]||S.rim),rimM=Mt.rims[M.rimC]||Mt.rim,calM=envMat(new THREE.MeshStandardMaterial({color:M.cal>0?MOD_CAL[M.cal]:S.cal,roughness:.35,metalness:.2,envMap:env,envMapIntensity:.8}));
   const wheels=[],front=[],sc=pr.wr/.36;
-  [[-pr.tr,pr.wb,1],[pr.tr,pr.wb,1],[-pr.tr,-pr.wb,0],[pr.tr,-pr.wb,0]].forEach(([x,z,f])=>{
+  const tw=wheelTrack(pr,K);
+  [[-tw,pr.wb,1],[tw,pr.wb,1],[-tw,-pr.wb,0],[tw,-pr.wb,0]].forEach(([x,z,f])=>{
     const st=new THREE.Group();st.position.set(x,pr.wr,z);if(x<0)st.scale.x=-1;
     const spin=new THREE.Group();spin.scale.setScalar(sc);
     const ty=new THREE.Mesh(W.tire,Mt.tire);ty.castShadow=true;const fc=new THREE.Mesh(W.face,rimM),br=new THREE.Mesh(W.barrel,Mt.rimIn),lp=new THREE.Mesh(W.lip,rimM);rimMeshes.push(fc,lp);const cp=new THREE.Mesh(W.cap,Mt.black);
@@ -2789,9 +2799,9 @@ function shadowMat(){if(shadowM)return shadowM;const c=document.createElement("c
   x.fillStyle=g;x.fillRect(0,0,128,128);const t=new THREE.CanvasTexture(c);
   return shadowM=new THREE.MeshBasicMaterial({map:t,transparent:true,depthWrite:false,color:0xffffff,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-8})}
 
-// how detailed car models are: phones and tablets, and SMOOTH graphics, get the simpler paint (no clear coat) and less
-// detailed shapes
-const carQ=()=>isTouch||save.gfx===2?0:1;
+// how detailed car models are: SMOOTH graphics, and AUTO on phones and tablets, get the simpler paint (no clear coat) and
+// less detailed shapes; SHARP always gets the detailed ones
+const carQ=()=>save.gfx===1?1:save.gfx===2||isTouch?0:1;
 // after a graphics change: every car model already built at the other level is built again (keeping where it is, its
 // paint and whether it shows), so SMOOTH lightens the cars on the road and in the garage at once. Rivals in a race and
 // the ghost follow at their next use
@@ -2854,7 +2864,8 @@ const tGeoCache={},TRAFFIC_MATS=new Set();
 function buildTrafficCar(color,shape){
   const pr=PROF[shape==="hatch"?"hatch":"sedan"],key=shape==="hatch"?"hatch":"sedan",parts=carParts(pr,key,0),env=carEnvTex();
   if(!tGeoCache[key]){const W=wheelParts(LOOK[key].rim),items=[],sc=pr.wr/.36;
-    for(const [x,z] of [[-pr.tr,pr.wb],[pr.tr,pr.wb],[-pr.tr,-pr.wb],[pr.tr,-pr.wb]]){
+    const tw=wheelTrack(pr,parts.K);
+    for(const [x,z] of [[-tw,pr.wb],[tw,pr.wb],[-tw,-pr.wb],[tw,-pr.wb]]){
       const m=new THREE.Matrix4().makeTranslation(x,pr.wr,z).multiply(new THREE.Matrix4().makeScale(x<0?-sc:sc,sc,sc));
       items.push({g:W.tire,m,c:0x101112},{g:trafficDisc,m,c:0x7d8288},{g:W.cap,m,c:0x2a2c2f})}
     tGeoCache[key]=merge(items)}
@@ -2906,7 +2917,8 @@ function pollPad(){
   else if(state==="LOAD"){if(hit(0)&&!$("lstart").classList.contains("hide"))$("lstart").click()}
   else if(state==="MAP"){if(hit(8)||hit(1)){if(!$("passport").classList.contains("hide"))passportClose();else closeMap()}}
   else if(state==="PHOTO"){if(hit(1))photoExit()}
-  else if(state==="GARAGE"&&cuOpen()){if(hit(1))custClose(false);else if(hit(0))custClose(true)}
+  if(state==="GARAGE"&&(Math.abs(g.axes[2]||0)>.2||Math.abs(g.axes[3]||0)>.2)){GO.yaw-=(g.axes[2]||0)*.05;GO.pitch=clamp(GO.pitch+(g.axes[3]||0)*.05,GO_P[0],GO_P[1]);GO.user=true}
+  if(state==="GARAGE"&&cuOpen()){if(hit(1))custClose(false);else if(hit(0))custClose(true)}
   else if(state==="GARAGE"){if(hit(0))goDrive();else if(hit(14))$("gprev").onclick();else if(hit(15))$("gnext").onclick()}
   // in the dealership A buys the car shown (or drives it, if it's yours), X takes it for a test drive
   else if(state==="DEALER"){const on=id=>{const b=$(id);return !b.classList.contains("hide")&&!b.disabled};
@@ -4804,6 +4816,17 @@ function swatches(box,current,onPick){
 
 /* ================================================================ GARAGE */
 let gSel=0,gT=0,exitT=0,exitCurve=null,exitLen=1,exitDoorU=1;
+// the garage view turns all the way round the picked car (drag, or a controller's right stick) and moves in and out
+// (mouse wheel or pinch); picking another car starts from the usual view again. While you've turned it, the view
+// stops its slow sway
+const GO={yaw:0,yawS:0,pitch:0,zoom:1,user:false,spin:false,ptr:new Map(),last:null,pinch:null,moved:0};
+const GO_P=[-1.9,3.2],GO_Z=[.55,1.6];
+function goReset(){GO.yaw=GO.yawS=0;GO.pitch=0;GO.zoom=1;GO.user=false;GO.spin=false}
+// the usual view looks at the car's front three-quarter; these turn the view to look straight at a side of it
+const GO_VIEWS={front:.16,side:Math.PI/2+.16,rear:Math.PI+.16};
+function goView(v){GO.spin=false;if(v==="reset"){const y=GO.yawS;goReset();GO.yawS=y;GO.yaw=Math.round((y-0)/(Math.PI*2))*Math.PI*2;GO.user=true;return}
+  const t=GO_VIEWS[v],k=Math.round((GO.yawS-t)/(Math.PI*2));GO.yaw=t+k*Math.PI*2;GO.pitch=v==="side"?-.4:0;GO.user=true}
+const goRay=new THREE.Raycaster();
 const dots=$("gdots");
 function buildGarageUI(){
   dots.innerHTML="";
@@ -4819,6 +4842,7 @@ function carText(c,p){
   $(p+"mk").textContent=c.mk;$(p+"md").textContent=c.md;$(p+"yr").innerHTML=`<span class="cls">${c.cls}</span>${c.yr} · ${({super:"Supercar",gt:"Coupé",hatch:"Hatchback",muscle:"Muscle car",roadster:"Roadster",suv:"SUV"})[c.shape]}`;
 }
 function gPick(i){
+  goReset();
   gSel=clamp(i,0,save.owned.length-1);const id=save.owned[gSel],c=carById(id);
   carText(c,"g");
   $("v1").textContent=c.top+" km/h";$("v2").textContent=Math.round(c.acc*10)+" / 10";$("v3").textContent=Math.round(c.grip*10)+" / 10";
@@ -4830,14 +4854,20 @@ function gPick(i){
 }
 function garageWant(){
   const car=getCar(save.owned[gSel]).G,h=car.rotation.y,fw=new V3(Math.sin(h),0,Math.cos(h)),sd=new V3(-fw.z,0,fw.x),big=getCar(save.owned[gSel]).shape==="suv"?1.15:1;
-  const w={pos:car.position.clone().addScaledVector(fw,7.4*big).addScaledVector(sd,1.2+Math.sin(gT*.35)*1.3).setY(gY+3.1*big),look:car.position.clone().setY(gY+.9*big)};
+  const o=fw.clone().multiplyScalar(7.4).addScaledVector(sd,1.2+(GO.user?0:Math.sin(gT*.35)*1.3)).applyAxisAngle(new V3(0,1,0),GO.yawS).multiplyScalar(big*GO.zoom);
+  const look=car.position.clone().setY(gY+.9*big),w={pos:car.position.clone().add(o).setY(gY+Math.max(.35,(3.1+GO.pitch)*big*GO.zoom)),look};
+  // turned towards a wall or the stairs, the camera comes in so it stays inside the room
+  if(GO.user&&HOUSE_MESHES.length){const d=new V3().subVectors(w.pos,look),L=d.length();goRay.set(look,d.normalize());goRay.far=L;
+    const h=goRay.intersectObjects(HOUSE_MESHES,false)[0];if(h)w.pos.copy(look).addScaledVector(d,Math.max(1.6,h.distance-.4))}
   // while customising, the view moves so the car sits clear of the panel: left of it on a wide screen, above it on a narrow one
   if(cuOpen()){const r=new V3().subVectors(w.look,w.pos).normalize(),right=new V3(-r.z,0,r.x).normalize();
     if(W>640)w.look.addScaledVector(right,1.9*big);else{w.look.y-=1.6*big;w.pos.addScaledVector(r,-1.5)}}
   return w;
 }
 function garageCam(dt){
-  gT+=dt;const g=garageWant();
+  gT+=dt;
+  // the view goes round the car along a circle (a straight line from front to back would pass through it)
+  if(GO.spin)GO.yaw+=dt*.4;GO.yawS+=(GO.yaw-GO.yawS)*(1-Math.exp(-dt*6));const g=garageWant();
   camP.lerp(g.pos,1-Math.exp(-dt*4));camL.lerp(g.look,1-Math.exp(-dt*6));
   camera.position.copy(camP);camera.lookAt(camL);camera.fov+=(50-camera.fov)*.06;camera.updateProjectionMatrix();
   selRing.material.opacity=.6+Math.sin(gT*3)*.25;
@@ -4851,6 +4881,8 @@ function custOpen(){
   cuId=save.owned[gSel];cuBase=modsOf(cuId);cuDraft=Object.assign({},cuBase);
   const c=carById(cuId);$("cuCar").textContent=(c.mk+" "+c.md).toUpperCase();
   $("gui").classList.add("cust-on");show("cust",true);custRender();
+  // the other parked cars step out of the picture while you look round this one
+  for(const o of save.owned)if(o!==cuId&&carMeshes[o])carMeshes[o].G.visible=false;
 }
 function custRender(){
   const L=$("cuList"),d=cuDraft,top=L.scrollTop;L.innerHTML="";
@@ -4885,8 +4917,12 @@ function custClose(apply){
     const m=modsCompact(cuDraft);if(Object.keys(m).length)save.mods[id]=m;else delete save.mods[id];
     if(cost>0){earn(-cost);toast("CUSTOMISED","Paid "+fmtCr(cost)+" CR")}else persist()}
   cuId=null;show("cust",false);$("gui").classList.remove("cust-on");rebuildCar(id);
+  save.owned.forEach((o,i)=>{if(carMeshes[o]&&i<SPOTS.length)carMeshes[o].G.visible=true});GO.spin=false;$("cuSpin").classList.remove("on");
 }
-$("gCust").onclick=custOpen;$("cuApply").onclick=()=>custClose(true);$("cuCancel").onclick=()=>custClose(false);
+$("gCust").onclick=custOpen;
+document.querySelectorAll("#cuViews [data-v]").forEach(b=>b.onclick=()=>{goView(b.dataset.v);$("cuSpin").classList.remove("on");$("cuSpin").setAttribute("aria-pressed","false")});
+$("cuSpin").onclick=()=>{GO.spin=!GO.spin;GO.user=true;$("cuSpin").classList.toggle("on",GO.spin);$("cuSpin").setAttribute("aria-pressed",String(GO.spin))};
+$("cuMin").onclick=()=>{const m=$("cust").classList.toggle("mini");$("cuMin").innerHTML=m?"&#9652;":"&#9662;";$("cuMin").setAttribute("aria-pressed",String(m));$("cuMin").setAttribute("aria-label",m?"Make the panel bigger":"Make the panel smaller")};$("cuApply").onclick=()=>custClose(true);$("cuCancel").onclick=()=>custClose(false);
 function goGarage(fromFade){
   const doIt=()=>{
     endEvent();if(testDrive)finishTestDrive(false);
@@ -5139,7 +5175,18 @@ addEventListener("keyup",e=>{keys[e.key.toLowerCase()]=false});
 });
 const ray=new THREE.Raycaster(),ndc=new THREE.Vector2();
 function hitSlot(cx,cy){ndc.x=cx/W*2-1;ndc.y=-(cy/H)*2+1;ray.setFromCamera(ndc,camera);const h=ray.intersectObjects(pickers,false).filter(x=>x.object.userData.slot<save.owned.length);return h.length?h[0].object.userData.slot:-1}
-$("c").addEventListener("click",e=>{if(state!=="GARAGE"||cuOpen())return;const i=hitSlot(e.clientX,e.clientY);if(i<0)return;if(i===gSel)goDrive();else gPick(i)});
+// dragging the garage view (a short drag still counts as a tap on a car)
+const cv=$("c");
+cv.addEventListener("pointerdown",e=>{if(state!=="GARAGE")return;GO.ptr.set(e.pointerId,{x:e.clientX,y:e.clientY});GO.moved=0;
+  if(GO.ptr.size===1)GO.last={id:e.pointerId,x:e.clientX,y:e.clientY};else{const[a,b]=[...GO.ptr.values()];GO.pinch={d:Math.max(8,Math.hypot(a.x-b.x,a.y-b.y)),z:GO.zoom}}});
+cv.addEventListener("pointermove",e=>{if(state!=="GARAGE"||!GO.ptr.has(e.pointerId))return;const p=GO.ptr.get(e.pointerId);GO.moved+=Math.abs(e.clientX-p.x)+Math.abs(e.clientY-p.y);p.x=e.clientX;p.y=e.clientY;
+  if(GO.pinch&&GO.ptr.size>1){const[a,b]=[...GO.ptr.values()];GO.zoom=clamp(GO.pinch.z*GO.pinch.d/Math.max(8,Math.hypot(a.x-b.x,a.y-b.y)),GO_Z[0],GO_Z[1]);GO.user=true;return}
+  if(GO.last&&GO.last.id===e.pointerId){const dx=e.clientX-GO.last.x,dy=e.clientY-GO.last.y;GO.last.x=e.clientX;GO.last.y=e.clientY;
+    if(GO.moved>6){GO.yaw-=dx*.009;GO.yawS-=dx*.009;GO.pitch=clamp(GO.pitch+dy*.012,GO_P[0],GO_P[1]);GO.user=true;GO.spin=false}}});
+const goUp=e=>{GO.ptr.delete(e.pointerId);if(GO.ptr.size<2)GO.pinch=null;if(!GO.ptr.size)GO.last=null};
+cv.addEventListener("pointerup",goUp);cv.addEventListener("pointercancel",goUp);
+cv.addEventListener("wheel",e=>{if(state!=="GARAGE")return;e.preventDefault();GO.zoom=clamp(GO.zoom*Math.exp(e.deltaY*.0012),GO_Z[0],GO_Z[1]);GO.user=true},{passive:false});
+$("c").addEventListener("click",e=>{if(state!=="GARAGE"||cuOpen()||GO.moved>6)return;const i=hitSlot(e.clientX,e.clientY);if(i<0)return;if(i===gSel)goDrive();else gPick(i)});
 $("c").addEventListener("pointermove",e=>{if(state!=="GARAGE"||e.pointerType!=="mouse"||cuOpen())return;$("c").style.cursor=hitSlot(e.clientX,e.clientY)>=0?"pointer":"default"});
 
 /* ================================================================ HUD + MAIN LOOP */

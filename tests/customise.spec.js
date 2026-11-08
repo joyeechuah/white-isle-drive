@@ -195,4 +195,71 @@ test.describe("customise", () => {
     expect(r.envGrow).toBeLessThanOrEqual(2);
     expect(r.kidsGrow).toBe(0);
   });
+
+  test("the garage view turns all the way round the car by dragging, zooms with the wheel, and stays inside the room", async ({ game, page }) => {
+    await page.locator("#gCust").click();
+    await game.frames(30);
+    const where = () =>
+      game.eval(() => {
+        const T = __T,
+          c = T.carMeshes[T.save.owned[T.gSel]].G.position,
+          cam = T.camera.position;
+        return { a: Math.atan2(cam.x - c.x, cam.z - c.z), d: Math.hypot(cam.x - c.x, cam.z - c.z), y: cam.y - c.y };
+      });
+    const a0 = await where();
+    // drag across the view: half a turn and more
+    const box = await page.locator("#c").boundingBox();
+    const y = box.y + box.height * 0.45,
+      x0 = box.x + box.width * 0.15;
+    await page.mouse.move(x0, y);
+    await page.mouse.down();
+    for (let i = 1; i <= 20; i++) await page.mouse.move(x0 + i * 20, y);
+    await page.mouse.up();
+    await game.frames(90);
+    const a1 = await where();
+    const turned = Math.abs(((a1.a - a0.a + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+    expect(turned, "radians the view went round the car").toBeGreaterThan(1.5);
+    // the drag didn't count as a tap on a car (the panel is still open on the same car)
+    await expect(page.locator("#cust")).toBeVisible();
+    // the wheel zooms in
+    await page.mouse.move(box.x + box.width * 0.3, y);
+    for (let i = 0; i < 6; i++) await page.mouse.wheel(0, -200);
+    await game.frames(90);
+    const a2 = await where();
+    expect(a2.d).toBeLessThan(a1.d * 0.85);
+    // FRONT, SIDE and REAR turn the view to look straight at them; RESET goes back; SPIN turns it by itself
+    const ang = async () => {
+      await game.frames(120);
+      return game.eval(() => {
+        const T = __T,
+          G = T.carMeshes[T.save.owned[T.gSel]].G,
+          cam = T.camera.position,
+          f = { x: Math.sin(G.rotation.y), z: Math.cos(G.rotation.y) },
+          dx = cam.x - G.position.x,
+          dz = cam.z - G.position.z;
+        // angle of the camera round the car, 0 = straight in front
+        return Math.atan2(dx * f.z - dz * f.x, dx * f.x + dz * f.z);
+      });
+    };
+    await page.locator('#cuViews [data-v="front"]').click();
+    expect(Math.abs(await ang())).toBeLessThan(0.25);
+    await page.locator('#cuViews [data-v="rear"]').click();
+    expect(Math.abs(Math.abs(await ang()) - Math.PI)).toBeLessThan(0.25);
+    await page.locator('#cuViews [data-v="side"]').click();
+    expect(Math.abs(Math.abs(await ang()) - Math.PI / 2)).toBeLessThan(0.3);
+    // a change of option keeps the view where it is
+    const before = await ang();
+    await page.locator('#cuList .cus[data-k="rimC"] .cos > *').nth(3).click();
+    expect(Math.abs((await ang()) - before)).toBeLessThan(0.05);
+    await page.locator("#cuSpin").click();
+    const s0 = await ang(),
+      s1 = await ang();
+    expect(Math.abs(s1 - s0)).toBeGreaterThan(0.3);
+    // the other parked cars are out of the picture while customising, and back after
+    const hidden = await game.eval(() => __T.save.owned.filter((o, i) => o !== __T.save.owned[__T.gSel] && __T.carMeshes[o] && __T.carMeshes[o].G.visible).length);
+    expect(hidden).toBe(0);
+    await page.locator("#cuCancel").click();
+    const shown = await game.eval(() => __T.save.owned.filter((o) => __T.carMeshes[o] && __T.carMeshes[o].G.visible).length);
+    expect(shown).toBeGreaterThan(1);
+  });
 });
