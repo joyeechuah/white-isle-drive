@@ -138,7 +138,7 @@ test.describe("no zooming on phones and tablets", () => {
 test.describe("brake and reverse button", () => {
   test.use({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
 
-  test("says REVERSE when stopped or backing up and BRAKE while moving forward; the first reverse explains it", async ({ game, page }) => {
+  test("says REVERSE when stopped or backing up and BRAKE while moving forward; held from moving it stops and stays; a fresh press reverses, and the first reverse explains it", async ({ game, page }) => {
     await game.open();
     await game.driveOut();
     await game.park();
@@ -151,27 +151,91 @@ test.describe("brake and reverse button", () => {
     await game.steps(120, { w: true });
     await game.steps(1, {});
     await expect(page.locator("#bB")).toHaveText("BRAKE");
-    // hold the button: it brakes to a stop, then reverses
     const cdp = await page.context().newCDPSession(page);
     const c = await game.eval(() => {
       const r = document.getElementById("bB").getBoundingClientRect();
       return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
     });
+    // hold the button: it brakes to a stop and keeps the car there (it used to reverse away at up to 40 km/h)
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ id: 1, x: c.x, y: c.y }] });
-    const back = await game.steps(300, {});
+    const stop = await game.steps(300, {});
+    await game.steps(1, {});
+    expect(Math.abs(stop.fwd), "km/h after holding it from moving").toBeLessThan(0.5);
+    await expect(page.locator("#bB")).toHaveText("BRAKE");
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await game.steps(2, {});
+    await expect(page.locator("#bB")).toHaveText("REVERSE");
+    // press again at a standstill: now it backs up
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ id: 2, x: c.x, y: c.y }] });
+    const back = await game.steps(180, {});
     await game.steps(1, {});
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-    expect(back.fwd, "km/h after holding it").toBeLessThan(-3);
+    expect(back.fwd, "km/h after a fresh press").toBeLessThan(-3);
     await expect(page.locator("#bB")).toHaveText("REVERSE");
     await game.frames(2);
     expect((await game.toastLog()).filter((t) => t.startsWith("REVERSING"))).toHaveLength(1);
     // only the first time
     await game.steps(120, { w: true });
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ id: 2, x: c.x, y: c.y }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ id: 3, x: c.x, y: c.y }] });
     await game.steps(300, {});
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ id: 4, x: c.x, y: c.y }] });
+    await game.steps(120, {});
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     await game.frames(2);
     expect((await game.toastLog()).filter((t) => t.startsWith("REVERSING"))).toHaveLength(1);
+  });
+
+  test("a thumb rolled from BRAKE onto GAS without lifting switches to the throttle; with two fingers down the last one counts", async ({ game, page }) => {
+    await game.open();
+    await game.driveOut();
+    await game.park();
+    await game.eval(() => {
+      __T.save.auto = false;
+    });
+    const cdp = await page.context().newCDPSession(page);
+    const at = (id) =>
+      game.eval((id) => {
+        const r = document.getElementById(id).getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      }, id);
+    const g = await at("bG"),
+      b = await at("bB"),
+      L = await at("bL"),
+      R = await at("bR");
+    const pads = () => game.eval(() => ({ G: !!__T.pad.G, B: !!__T.pad.B, L: !!__T.pad.L, R: !!__T.pad.R }));
+    const touch = (type, pts) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: pts });
+    // brake, then roll onto gas: the car pulls away (before, the press stayed a brake and it reversed)
+    await touch("touchStart", [{ id: 1, ...b }]);
+    await game.steps(30, {});
+    expect(await pads()).toMatchObject({ G: false, B: true });
+    await touch("touchMove", [{ id: 1, x: (b.x + g.x) / 2, y: g.y + (b.y - g.y) * 0.3 }]);
+    await touch("touchMove", [{ id: 1, ...g }]);
+    expect(await pads()).toMatchObject({ G: true, B: false });
+    const go = await game.steps(90, {});
+    expect(go.fwd, "km/h 1.5 s after rolling onto GAS").toBeGreaterThan(20);
+    await expect(page.locator("#bG")).toHaveClass(/\bon\b/);
+    await expect(page.locator("#bB")).not.toHaveClass(/\bon\b/);
+    // a second finger on BRAKE takes over; lifting it hands back to the first finger, still on GAS
+    // (the device protocol can't lift one of two fingers, so the second finger's events are sent to the button directly)
+    const finger2 = (type) =>
+      game.eval(
+        ([type, p]) => document.getElementById("bB").dispatchEvent(new PointerEvent(type, { pointerId: 77, pointerType: "touch", bubbles: true, cancelable: true, clientX: p.x, clientY: p.y })),
+        [type, b],
+      );
+    await finger2("pointerdown");
+    expect(await pads()).toMatchObject({ G: false, B: true });
+    await finger2("pointerup");
+    expect(await pads()).toMatchObject({ G: true, B: false });
+    await touch("touchEnd", []);
+    expect(await pads()).toMatchObject({ G: false, B: false });
+    // the steering pads slide the same way, left to right
+    await touch("touchStart", [{ id: 3, ...L }]);
+    expect(await pads()).toMatchObject({ L: true, R: false });
+    await touch("touchMove", [{ id: 3, ...R }]);
+    expect(await pads()).toMatchObject({ L: false, R: true });
+    await touch("touchEnd", []);
+    expect(await pads()).toMatchObject({ L: false, R: false });
   });
 });
 

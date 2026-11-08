@@ -16,7 +16,7 @@ A free-roam driving game set on a Mediterranean island modelled loosely on Ibiza
 
 | Action | Keyboard | Touch |
 | --- | --- | --- |
-| Accelerate / brake and reverse | `W` / `S` or `↑` / `↓` | GAS / BRAKE pads (BRAKE reads REVERSE when you're stopped) |
+| Accelerate / brake and reverse | `W` / `S` or `↑` / `↓` (holding brake stops the car; press it again to reverse) | GAS / BRAKE pads (slide your thumb between them; BRAKE reads REVERSE once a fresh press will back up) |
 | Steer | `A` / `D` or `←` / `→` | ◀ / ▶ pads |
 | Handbrake | `Space` | HAND BRAKE pad |
 | Interact (dealer, events, house) | `E` or `Enter` | Tap the prompt |
@@ -77,14 +77,14 @@ npm run lint                            # static checks (ESLint) on the game's s
 The tests run against the real `index.html`, read fresh on every run. For tests that need to look inside the game, `tests/support/instrument.js` adds read-only hooks to an in-memory copy; the file on disk is never changed. three.js is served from the npm package (the page's integrity hash is still checked) and web fonts are stubbed, so runs don't depend on outside sites. They cover:
 
 - **Smoke**: the untouched page loads, START, the garage, driving, pause and home; site files and the 404 page.
-- **Driving**: throttle, brakes, reverse, steering, handbrake, the sea reset, R to reset, map travel, keys held while menus are open.
+- **Driving**: throttle, brakes (same at any frame rate), the brake holding the car after a stop and a fresh press reversing, pulling away after braking, gentle corner-assist slowing, steering, handbrake, the sea reset, R to reset, map travel, keys held while menus are open.
 - **Garage and dealership**: buying (charged once), not enough credits, the 12-car limit, selling, test drives, paint.
 - **Races and time trials**: rewards paid once, checkpoints in order, the finish line, quitting and restarting, no oncoming traffic on any event route, rivals never driving through each other or through traffic, difficulty (pace, rewards, remembered), and the car braking to a stop past the line before the result.
 - **Map and GPS**: waypoints and routes, mouse and touch zoom and pan, turning a phone, travelling from a marker.
 - **Photo Mode**: where it opens, the world standing still, camera and looks, a real PNG capture, everything restored.
 - **Island Passport** and **Contracts**: every landmark and all 9 contracts, each paid once, failures and cancellations.
 - **Saves**: reloads, a save from the first release, corrupt and malformed saves, storage being refused.
-- **Phones**: touch controls, and layouts at six screen sizes (including 360 px tall phones held sideways), and turning the device, the race panel kept clear of the car and the road, the BRAKE / REVERSE label, and no zooming from a double tap or a pinch.
+- **Phones**: touch controls, and layouts at six screen sizes (including 360 px tall phones held sideways), and turning the device, the race panel kept clear of the car and the road, the BRAKE / REVERSE label, rolling a thumb from BRAKE onto GAS, and no zooming from a double tap or a pinch.
 - **Traffic**: cars keep their distance at junctions, in queues and where they appear, and none waits for good, even behind a parked car.
 - **Ghost**: a record run is saved and a slower one isn't, the replay follows the recorded path, is see-through, shows the gap and can't be hit, the switch, and damaged ghosts in a save.
 - **Championships**: which cups are open in which car, points, NEXT ROUND, the prize paid once, 22 points to win, quitting a round, class medal times (with the autopilot getting a medal in an A1 and an A7 car), the garage's cups won, and damaged saves.

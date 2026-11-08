@@ -132,8 +132,8 @@ test.describe("controls", () => {
       __press(6, 0);
       return Math.hypot(P.vx, P.vz) * 3.6;
     });
-    // (the brake builds up over 0.7 s, so half a second takes off about 22 km/h)
-    expect(braked, "km/h after 0.5 s of full brake from 72").toBeLessThan(55);
+    // (the brake builds up from 6 to 13 m/s² over a second, so half a second takes off about 13 km/h)
+    expect(braked, "km/h after 0.5 s of full brake from 72").toBeLessThan(63);
     // Start pauses and resumes; View opens and closes the map; Y changes camera (real frames read the pad)
     const tap = async (i) => {
       await game.eval((i) => __press(i, 1), i);
@@ -172,6 +172,51 @@ test.describe("controls", () => {
     const cam0 = await game.eval(() => __T.camMode);
     await tap(3);
     expect(await game.eval(() => __T.camMode)).toBe((cam0 + 1) % 4);
+  });
+});
+
+test.describe("controller throttle", () => {
+  test("a light trigger never gives more throttle than it asks for, from a standstill or easing off", async ({ game, page }) => {
+    await page.addInitScript(FAKE_PAD);
+    await game.open();
+    await game.driveOut();
+    await game.park();
+    const r = await game.eval(() => {
+      const T = __T,
+        P = T.P,
+        out = {};
+      T.save.assist = false;
+      T.save.auto = false;
+      for (const v of [0.2, 0.5]) {
+        T.resetToRoad(false);
+        P.vx = P.vz = 0;
+        P.thr = 0;
+        __press(7, v);
+        let most = 0;
+        for (let i = 0; i < 120; i++) {
+          T.pollPad();
+          T.driveUpdate(1 / 60);
+          most = Math.max(most, P.thr);
+        }
+        out[v] = +most.toFixed(4);
+      }
+      // easing off while moving: down to the new amount, not below or above it
+      __press(7, 0.3);
+      for (let i = 0; i < 60; i++) {
+        T.pollPad();
+        T.driveUpdate(1 / 60);
+      }
+      out.eased = +P.thr.toFixed(4);
+      __press(7, 0);
+      T.pollPad();
+      return out;
+    });
+    test.info().annotations.push({ type: "most throttle for a light trigger", description: JSON.stringify(r) });
+    // it used to build to 87% for a 20% trigger in a second at a crawl
+    expect(r[0.2]).toBeLessThanOrEqual(0.2);
+    expect(r[0.2]).toBeGreaterThan(0.19);
+    expect(r[0.5]).toBeLessThanOrEqual(0.5);
+    expect(r.eased).toBeCloseTo(0.3, 3);
   });
 });
 

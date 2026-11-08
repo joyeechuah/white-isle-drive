@@ -17,7 +17,8 @@ const SAVE_KEY = "white-isle-drive-v1";
 
 // a careful autopilot along the GPS route to the current contract objective, or (stopWhen "gps") to the GPS target,
 // carrying on to within 6 m of it after the GPS says it has arrived (28 m out). Free-ride streaks are kept at zero,
-// so they can't add credits to a check. Stepped inside one evaluate, so real frames can't interfere.
+// so they can't add credits to a check. Stepped inside one evaluate, so real frames can't interfere. When stuck it
+// backs up, letting go of the brake for a step first (a brake held from moving only holds the car still)
 const ROUTE_BOT = ([n, stopWhen]) => {const T=__T,P=T.P;let i=0;const w=a=>a-Math.PI*2*Math.round(a/(Math.PI*2));
   const B=window.__bot||(window.__bot={stuck:0,rev:0}),goal=stopWhen==="gps"&&T.gps.t?{x:T.gps.t.x,z:T.gps.t.z}:null;
   for(;i<n&&(goal||T.job);i++){
@@ -25,7 +26,7 @@ const ROUTE_BOT = ([n, stopWhen]) => {const T=__T,P=T.P;let i=0;const w=a=>a-Mat
     if(R&&R.pts.length>1&&dt>14){let bi=0,bd=1e18;for(let k=0;k<Math.min(R.pts.length,150);k++){const p=R.pts[k],d=(p.x-P.x)**2+(p.z-P.z)**2;if(d<bd){bd=d;bi=k}}
       const look=Math.min(R.len,R.cum[bi]+8+sp*.5);let lo=0,hi=R.cum.length-1;while(hi-lo>1){const m=(lo+hi)>>1;if(R.cum[m]<=look)lo=m;else hi=m}tx=R.pts[hi].x;tz=R.pts[hi].z}
     const err=w(Math.atan2(tx-P.x,tz-P.z)-P.h);
-    if(B.rev>0){B.rev--;T.keys.w=false;T.keys.s=true;T.keys.a=err<0;T.keys.d=err>0;T.driveUpdate(1/60);continue}
+    if(B.rev>0){B.rev--;T.keys.w=false;T.keys.s=B.rev<69;T.keys.a=err<0;T.keys.d=err>0;T.driveUpdate(1/60);continue}
     const want=Math.min(27.5,Math.sqrt(Math.max(0,2*3.5*(dt-9)))+3);
     T.keys.a=err>.03;T.keys.d=err<-.03;T.keys.w=sp<want-.5;T.keys.s=sp>want+1.5;
     B.stuck=T.keys.w&&sp<.7?B.stuck+1:0;if(B.stuck>90){B.stuck=0;B.rev=70}
