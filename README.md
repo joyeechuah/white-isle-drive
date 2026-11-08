@@ -4,7 +4,7 @@ A free-roam driving game set on a Mediterranean island modelled loosely on Ibiza
 
 ### [▶ Play now](https://joyeechuah.github.io/white-isle-drive/)
 
-![A white hatchback driving along the coastal highway at sunset, with the credits, minimap and speedometer on screen](docs/screenshot.jpg)
+![A red hatchback driving along the coastal highway in the late-afternoon sun, with the sea and a rocky islet on the left, and the credits, minimap and speedometer on screen](docs/screenshot.jpg)
 
 ## Play
 
