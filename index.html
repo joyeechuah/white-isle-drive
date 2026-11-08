@@ -2435,7 +2435,9 @@ function carShape(pr,shape){
   const cz0=cp.z0,cz1=cp.z1,cw=pr.cw/2;
   // the glasshouse starts just inside the body's shoulder and leans in towards the roof
   const csec=z=>{const T=cp.top(z),Bo=cp.bot(z),H=Math.max(0,T-Bo),f=Math.min(1,H/.12);
-    const w=Math.max(cw,halfW(z)-S.tuck*1.5-.02),wt=w-Math.min(.3,H*.55)*f;
+    // but never wider than the body's shoulder under it: towards the tail (and nose) the body narrows, and a glasshouse
+    // kept at its full width overhung the sides like a wide black hat on the Golf and the Range Rover
+    const hw=halfW(z),w=Math.min(Math.max(cw,hw-S.tuck*1.5-.02),hw-S.tuck*1.7*Math.min(1,hw/.45)-.015),wt=w-Math.min(.3,H*.55)*f;
     return[w+.01,Bo-.03, w-(w-wt)*.25,Bo+H*.4, wt+.06*f,T-.04*f, wt-.04*f,T, wt*.4,T+.02*f, 0,T+.024*f]};
   const hy=Math.max(.56,pr.ws[1]-.34);
   return{S,bp,cp,z0,z1,cz0,cz1,sec,csec,arch,halfW,Ra,hy,pr,shape};
