@@ -877,8 +877,10 @@ function merge(items){
     for(let i=0;i<n.length;i++)N.push(n[i]);
     if(uv)for(let i=0;i<cnt*2;i++)U.push(uv.array[i]);else for(let i=0;i<cnt*2;i++)U.push(0);
     col.setHex(it.c);for(let i=0;i<cnt;i++)C.push(col.r,col.g,col.b);
-    if(g.index){const a=g.index.array;for(let i=0;i<a.length;i++)I.push(a[i]+off)}
-    else for(let i=0;i<cnt;i++)I.push(i+off);
+    // a mirrored part (negative scale) would turn its faces inside out: reverse each triangle's corners
+    const flip=it.m.determinant()<0;
+    if(g.index){const a=g.index.array;for(let i=0;i<a.length;i+=3)flip?I.push(a[i]+off,a[i+2]+off,a[i+1]+off):I.push(a[i]+off,a[i+1]+off,a[i+2]+off)}
+    else for(let i=0;i<cnt;i+=3)flip?I.push(i+off,i+2+off,i+1+off):I.push(i+off,i+1+off,i+2+off);
     off+=cnt;g.dispose();
   }
   const geo=new THREE.BufferGeometry();
@@ -2258,19 +2260,26 @@ const darkInM=new THREE.MeshPhongMaterial({color:0x2a2c30,shininess:30});
 const seatM=new THREE.MeshPhongMaterial({color:0x1c1d20,shininess:20});
 const headlinerM=new THREE.MeshLambertMaterial({color:0x2c2e31});
 // frees what a car model owns; the wheels, tyres and cockpit materials are shared by every car and stay
+// what every car shares and no car may free: wheel and body shapes, their textures, the common materials
+function carShared(){
+  const G=new Set(Object.values(wheelGeo)),M=new Set([tireM,rimM,spokeM,blurM,gaugeM,darkInM,seatM,headlinerM,shadowM,trafficWheelM]),T=new Set([gaugeTex,blurM.map,plateTex,shadowM&&shadowM.map]);
+  for(const k in SHAPE_CACHE){const p=SHAPE_CACHE[k];G.add(p.body);G.add(p.cabin);for(const t of [p.bt,p.ct])for(const x of Object.values(t))T.add(x)}
+  for(const k in WHEEL_CACHE)for(const g of Object.values(WHEEL_CACHE[k]))G.add(g);
+  for(const k in LOOKM)for(const m of Object.values(LOOKM[k]))M.add(m);
+  return{G,M,T};
+}
 function disposeHeroCar(c){
-  const keepG=new Set(Object.values(wheelGeo)),keepM=new Set([tireM,rimM,spokeM,blurM,gaugeM,darkInM,seatM,headlinerM,shadowM]),keepT=new Set([gaugeTex,blurM.map,plateTex]);
-  for(const k in SHAPE_CACHE){const p=SHAPE_CACHE[k];keepG.add(p.body);keepG.add(p.cabin);for(const t of [p.bt,p.ct])for(const x of Object.values(t))keepT.add(x)}
-  for(const k in WHEEL_CACHE)for(const g of Object.values(WHEEL_CACHE[k]))keepG.add(g);
-  for(const k in LOOKM)for(const m of Object.values(LOOKM[k]))keepM.add(m);
-  c.G.traverse(o=>{if(!o.isMesh)return;if(o.geometry&&!keepG.has(o.geometry))o.geometry.dispose();
-    (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{if(m&&!keepM.has(m)){for(const t of [m.map,m.roughnessMap,m.metalnessMap])if(t&&!keepT.has(t))t.dispose();CAR_ENV.mats.delete(m);m.dispose()}})});
+  const sh=carShared(),done=new Set();
+  c.G.traverse(o=>{if(!o.isMesh)return;if(o.geometry&&!sh.G.has(o.geometry)&&!done.has(o.geometry)){done.add(o.geometry);o.geometry.dispose()}
+    (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{if(!m||sh.M.has(m)||done.has(m))return;done.add(m);
+      for(const t of [m.map,m.roughnessMap,m.metalnessMap,m.emissiveMap])if(t&&!sh.T.has(t)&&!done.has(t)){done.add(t);t.dispose()}
+      CAR_ENV.mats.delete(m);m.dispose()})});
   if(c.G.parent)c.G.parent.remove(c.G);
 }
 
 /* ---------- what the cars reflect: the sky (the same shader as the real one, clouds and sun included) over the
    land, rendered into an environment map. It's redrawn when the sky changes enough to see ---------- */
-const CAR_ENV={tex:null,mats:new Set(),t:-1e9,key:null,pm:null,scene:null,ground:null};
+const CAR_ENV={tex:null,mats:new Set(),t:-1e9,key:null,pm:null,scene:null,ground:null,dirty:false};
 function carEnvScene(){
   const s=new THREE.Scene(),m=new THREE.Mesh(new THREE.SphereGeometry(90,32,16),sky.material);m.frustumCulled=false;s.add(m);
   const g=new THREE.Mesh(new THREE.CircleGeometry(85,32),new THREE.MeshBasicMaterial({color:0x55524c,fog:false}));g.rotation.x=-Math.PI/2;g.position.y=-3;s.add(g);
@@ -2279,7 +2288,7 @@ function carEnvTex(){if(!CAR_ENV.tex)updateCarEnv(true);return CAR_ENV.tex}
 function updateCarEnv(force){
   const k=[skyU.top.value,skyU.hor.value,skyU.sunCol.value].map(c=>c.r+c.g+c.b).concat([skyU.sunDir.value.x,skyU.sunDir.value.y]);
   const old=CAR_ENV.key,now=performance.now();
-  if(!force&&old&&(now-CAR_ENV.t<4000||k.every((v,i)=>Math.abs(v-old[i])<.06)))return;
+  if(!force&&old&&((now-CAR_ENV.t<4000&&!CAR_ENV.dirty)||k.every((v,i)=>Math.abs(v-old[i])<.06))){CAR_ENV.dirty=false;return}CAR_ENV.dirty=false;
   if(!CAR_ENV.pm){CAR_ENV.pm=new THREE.PMREMGenerator(renderer);CAR_ENV.scene=carEnvScene()}
   CAR_ENV.ground.material.color.copy(hemi.groundColor).lerp(scene.fog.color,.35).multiplyScalar(.55);
   const rt=CAR_ENV.pm.fromScene(CAR_ENV.scene,.02,.1,200),old2=CAR_ENV.rt;CAR_ENV.rt=rt;CAR_ENV.tex=rt.texture;
@@ -2623,8 +2632,8 @@ function shadowMat(){if(shadowM)return shadowM;const c=document.createElement("c
 
 function buildHeroCar(cd,color){
   const pr=PROF[cd.shape];
-  // phones and tablets: the simpler paint (no clear coat) and less detailed shapes
-  const L=buildLook(cd,color===undefined?cd.body:color,carEnvTex(),isTouch?0:1);
+  // phones and tablets, and SMOOTH graphics: the simpler paint (no clear coat) and less detailed shapes
+  const L=buildLook(cd,color===undefined?cd.body:color,carEnvTex(),isTouch||save.gfx===2?0:1);
   const G=L.G,body=L.bodyM,shell=L.shell,glass=L.glass,tailM=L.tailM,headM=L.headM;
   const add=(g,m,x,y,z,rx=0,ry=0,par)=>{const q=new THREE.Mesh(g,m);q.position.set(x,y,z);q.rotation.set(rx,ry,0);q.castShadow=true;(par||G).add(q);return q};
   const B=(w,h,d)=>new THREE.BoxGeometry(w,h,d);
@@ -2665,7 +2674,7 @@ function buildTrafficCar(color,shape){
   if(!tGeoCache[key]){const W=wheelParts(LOOK[key].rim),items=[],sc=pr.wr/.36;
     for(const [x,z] of [[-pr.tr,pr.wb],[pr.tr,pr.wb],[-pr.tr,-pr.wb],[pr.tr,-pr.wb]]){
       const m=new THREE.Matrix4().makeTranslation(x,pr.wr,z).multiply(new THREE.Matrix4().makeScale(x<0?-sc:sc,sc,sc));
-      items.push({g:W.tire,m,c:0x101112},{g:W.face,m,c:0x8e9399},{g:W.barrel,m,c:0x3c3f43})}
+      items.push({g:W.tire,m,c:0x101112},{g:trafficDisc,m,c:0x7d8288},{g:W.cap,m,c:0x2a2c2f})}
     tGeoCache[key]=merge(items)}
   const G=new THREE.Group();
   const bodyM=envMat(new THREE.MeshStandardMaterial({color,map:parts.bt.col,roughnessMap:parts.bt.rm,metalnessMap:parts.bt.rm,roughness:1,metalness:1,
@@ -2677,6 +2686,8 @@ function buildTrafficCar(color,shape){
   return{G,wheels:[],len:TPROF[shape].len};
 }
 const trafficWheelM=new THREE.MeshLambertMaterial({vertexColors:true});
+// traffic wheels don't turn, so they get a plain dished disc rather than spokes that would stand still at speed
+const trafficDisc=(()=>{const g=new THREE.CylinderGeometry(.238,.225,.04,28);g.rotateZ(Math.PI/2);g.translate(.1,0,0);return g})();
 
 /* ---------- hero car instances: one per car you drive or park, separate ones for the showroom ---------- */
 const carMeshes={},showMeshes={};
@@ -2711,7 +2722,7 @@ function pollPad(){
   // in the pause menu, B or Start closes a screen opened from it (passport, contracts) before the menu itself
   else if(state==="PAUSE"){if(hit(9)||hit(1)){const sub=PAUSE_SUBS.find(([id])=>!$(id).classList.contains("hide"));if(sub)sub[1]();else pauseOff()}}
   else if(state==="LOAD"){if(hit(0)&&!$("lstart").classList.contains("hide"))$("lstart").click()}
-  else if(state==="MAP"){if(hit(8)||hit(1))closeMap()}
+  else if(state==="MAP"){if(hit(8)||hit(1)){if(!$("passport").classList.contains("hide"))passportClose();else closeMap()}}
   else if(state==="PHOTO"){if(hit(1))photoExit()}
   else if(state==="GARAGE"){if(hit(0))goDrive();else if(hit(14))$("gprev").onclick();else if(hit(15))$("gnext").onclick()}
   // in the dealership A buys the car shown (or drives it, if it's yours), X takes it for a test drive
@@ -3174,8 +3185,14 @@ function ghostModel(id){
   if(GH.m)disposeHeroCar(GH.m);
   const m=buildHeroCar(carById(id));
   // its own see-through copy of every material (some are shared with the other cars), and no shadow
-  m.G.traverse(o=>{if(!o.isMesh)return;o.castShadow=false;o.material=(Array.isArray(o.material)?o.material:[o.material]).map(x=>{const c=x.clone();c.transparent=true;c.opacity=.36;c.depthWrite=false;return c});
+  // one clone per material (a material used by several parts gets one clone); clones that reflect the sky are kept
+  // up to date with it; the car's own originals are freed (the shared ones stay); no contact shadow
+  const sh=carShared(),own=new Map();
+  m.G.traverse(o=>{if(!o.isMesh)return;o.castShadow=false;if(o.material===shadowM){o.visible=false;return}
+    o.material=(Array.isArray(o.material)?o.material:[o.material]).map(x=>{if(!own.has(x)){const c=x.clone();c.transparent=true;c.opacity=.36;c.depthWrite=false;own.set(x,c)}return own.get(x)});
     if(o.material.length===1)o.material=o.material[0]});
+  for(const [x,c] of own){if(CAR_ENV.mats.has(x)){envMat(c);if(CAR_ENV.tex)c.envMap=CAR_ENV.tex}if(!sh.M.has(x)){CAR_ENV.mats.delete(x);x.dispose()}}
+  m.bodyM=own.get(m.bodyM)||m.bodyM;m.tailM=own.get(m.tailM)||m.tailM;
   if(m.inside)m.inside.visible=false;
   m.G.visible=false;scene.add(m.G);GH.m=m;GH.id=id;GH.o={};return m;
 }
@@ -3993,7 +4010,7 @@ const phTarget=()=>{const p=pc.G.position;return new V3(p.x,p.y+(pc.shape==="suv
 function phSync(){$("phZoom").value=String(Math.round(PH_F[1]-PH.fov));$("phDist").value=String(Math.round(PH.dist*10))}
 function phMsg(t,kind){const m=$("phMsg");m.textContent=t;m.className=kind||"";clearTimeout(phMsg.tm);phMsg.tm=setTimeout(()=>m.classList.add("hide"),3600)}
 function photoLookSet(i){
-  PH.look=clamp(i|0,0,PHOTO_LOOKS.length-1);photoLook=PH.on&&PH.look>0?PHOTO_LOOKS[PH.look]:null;
+  PH.look=clamp(i|0,0,PHOTO_LOOKS.length-1);photoLook=PH.on&&PH.look>0?PHOTO_LOOKS[PH.look]:null;CAR_ENV.dirty=true;
   [...$("phLooks").children].forEach((b,k)=>{b.classList.toggle("on",k===PH.look);b.setAttribute("aria-pressed",k===PH.look?"true":"false")});
   // lit at once, so a picture taken straight after choosing a look already has it
   if(PH.on){applyDayNight();updateLampLights();photoFrame(0)}
@@ -4017,6 +4034,7 @@ function photoEnter(){
   return true;
 }
 function photoExit(){
+  CAR_ENV.dirty=true;
   if(!PH.on)return;
   photoShotClose();PH.on=false;PH.ptr.clear();PH.pinch=null;photoLook=null;
   show("photo",false);
@@ -4771,7 +4789,7 @@ $("pRes").onclick=pauseOff;
 $("pMap").onclick=()=>{show("pause",false);setState("DRIVE");openMap()};
 $("pQuit").onclick=()=>{if(testDrive){endTestDrive();return}if(ev&&ev.fin){pauseOff();showResult();return}endEvent();pauseOff();toast("EVENT CANCELLED","Back to free ride")};
 $("pHome").onclick=()=>{show("pause",false);goGarage(false)};
-$("pTime").onclick=()=>{save.todMode=(save.todMode+1)%TODS.length;if(TODS[save.todMode][1]!==null)save.tod=TODS[save.todMode][1];syncPause();persist()};
+$("pTime").onclick=()=>{save.todMode=(save.todMode+1)%TODS.length;CAR_ENV.dirty=true;if(TODS[save.todMode][1]!==null)save.tod=TODS[save.todMode][1];syncPause();persist()};
 $("pAuto").onclick=()=>{save.auto=!save.auto;syncPause();persist()};
 const GFX=["AUTO","SHARP","SMOOTH"];
 function applyGfx(){gfxLimits();const p=clamp(save.gfx===0?Math.max(prNow,PR_MIN):PR_MAX,PR_MIN,PR_MAX);RES.bad=99;RES.wait=3;RES.t=0;

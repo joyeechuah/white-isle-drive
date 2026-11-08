@@ -50,4 +50,86 @@ test.describe("car models", () => {
     expect(r.shared).toBe(true);
     expect(r.afterFree).toBe(true);
   });
+
+  test("traffic wheels face outwards on both sides (the mirrored pair used to be inside out)", async ({ game }) => {
+    await game.open();
+    const r = await game.eval(() => {
+      const T = __T,
+        out = {};
+      for (const shape of ["hatch", "sedan"]) {
+        const c = T.buildTrafficCar(0xffffff, shape),
+          g = c.G.children[2].geometry,
+          p = g.attributes.position.array,
+          n = g.attributes.normal.array,
+          I = g.index.array,
+          cnt = { left: [0, 0], right: [0, 0] };
+        for (let i = 0; i < I.length; i += 3) {
+          const [a, b, d] = [I[i] * 3, I[i + 1] * 3, I[i + 2] * 3];
+          const ux = p[b] - p[a], uy = p[b + 1] - p[a + 1], uz = p[b + 2] - p[a + 2];
+          const vx = p[d] - p[a], vy = p[d + 1] - p[a + 1], vz = p[d + 2] - p[a + 2];
+          const fx = uy * vz - uz * vy, fy = uz * vx - ux * vz, fz = ux * vy - uy * vx;
+          if (Math.hypot(fx, fy, fz) < 1e-9) continue;
+          const dot = fx * (n[a] + n[b] + n[d]) + fy * (n[a + 1] + n[b + 1] + n[d + 1]) + fz * (n[a + 2] + n[b + 2] + n[d + 2]);
+          cnt[p[a] < 0 ? "left" : "right"][dot > 0 ? 0 : 1]++;
+        }
+        out[shape] = cnt;
+      }
+      return out;
+    });
+    for (const shape of ["hatch", "sedan"])
+      for (const side of ["left", "right"]) {
+        expect(r[shape][side][0], `${shape} ${side}: faces pointing out`).toBeGreaterThan(1000);
+        expect(r[shape][side][1], `${shape} ${side}: faces pointing in`).toBe(0);
+      }
+  });
+
+  test("ghost cars: changing model many times keeps the reflection list bounded, frees nothing shared, and the ghost reflects the current sky", async ({ game }) => {
+    await game.open();
+    const r = await game.eval(() => {
+      const T = __T,
+        sizes = [];
+      let sharedFreed = 0;
+      T.ghostModel("golf");
+      T.ghostModel("mx5");
+      // the shared textures: shapes' textures and the contact shadow's
+      const watch = [];
+      for (const k in T.SHAPE_CACHE) for (const t of [T.SHAPE_CACHE[k].bt, T.SHAPE_CACHE[k].ct]) watch.push(...Object.values(t));
+      T.buildHeroCar(T.CARS[0]).G.traverse((o) => o.isMesh && o.material.map && !o.material.roughnessMap && o.material.map.image && o.material.map.image.width === 128 && watch.push(o.material.map));
+      for (const t of watch) t.addEventListener("dispose", () => sharedFreed++);
+      for (let i = 0; i < 8; i++) {
+        T.ghostModel(i % 2 ? "mx5" : "golf");
+        sizes.push(T.CAR_ENV.mats.size);
+      }
+      T.updateCarEnv(true);
+      let reflects = 0, stale = 0;
+      T.GH.m.G.traverse((o) => {
+        if (!o.isMesh || !o.visible) return;
+        for (const m of [].concat(o.material)) if (m.envMap) m.envMap === T.CAR_ENV.tex ? reflects++ : stale++;
+      });
+      return { sizes, sharedFreed, reflects, stale };
+    });
+    // after the first change the list stays the same size (it used to grow by three materials every change)
+    expect(new Set(r.sizes.slice(2)).size, JSON.stringify(r.sizes)).toBe(1);
+    expect(r.sharedFreed).toBe(0);
+    expect(r.reflects).toBeGreaterThan(0);
+    expect(r.stale).toBe(0);
+  });
+
+  test("choosing a photo look or a time of day redraws the reflections at once", async ({ game }) => {
+    await game.open();
+    await game.driveOut();
+    await game.park();
+    const r = await game.eval(() => {
+      const T = __T;
+      T.updateCarEnv(true);
+      const t0 = T.CAR_ENV.t;
+      T.photoEnter();
+      T.photoLookSet(2);
+      T.applyDayNight();
+      const afterLook = T.CAR_ENV.t;
+      T.photoExit();
+      return { changed: afterLook > t0 };
+    });
+    expect(r.changed).toBe(true);
+  });
 });
