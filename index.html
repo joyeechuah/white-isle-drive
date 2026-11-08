@@ -5303,7 +5303,8 @@ $("c").addEventListener("pointermove",e=>{if(state!=="GARAGE"||e.pointerType!=="
 const TAB_ID=Math.random().toString(36).slice(2),TAB_KEY="white-isle-drive-tab";
 const tabCh=typeof BroadcastChannel==="function"?new BroadcastChannel("white-isle-drive-tabs"):null;
 function tabStop(){if(tabIdle)return;tabIdle=true;if(state==="DRIVE")pauseOn();clearInput();audioOn(false);show("tabIdle",true);try{$("tiHere").focus({preventScroll:true})}catch(e){}}
-function tabHello(){const m={t:"hello",id:TAB_ID};if(tabCh)tabCh.postMessage(m);try{localStorage.setItem(TAB_KEY,JSON.stringify(Object.assign({at:Date.now()},m)))}catch(e){}}
+// by BroadcastChannel; a browser without it gets a note in storage instead (the save stays the only key otherwise)
+function tabHello(){const m={t:"hello",id:TAB_ID};if(tabCh){tabCh.postMessage(m);return}try{localStorage.setItem(TAB_KEY,JSON.stringify(Object.assign({at:Date.now()},m)))}catch(e){}}
 if(tabCh)tabCh.onmessage=e=>{if(e.data&&e.data.t==="hello"&&e.data.id!==TAB_ID)tabStop()};
 addEventListener("storage",e=>{if(e.key===TAB_KEY&&e.newValue){try{if(JSON.parse(e.newValue).id!==TAB_ID)tabStop()}catch(x){}}
   // another tab wrote the save (one that missed the hello): this one stops rather than write over it
