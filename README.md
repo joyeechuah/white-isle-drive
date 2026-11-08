@@ -53,6 +53,7 @@ The pause menu opens photo mode, the Island Passport, the Contracts board and th
 - A three-track soundtrack: a Mediterranean lounge groove in the garage and dealership, Balearic house for free driving and a faster track for races, looping without a gap, quieter behind menus and softer after dark
 - Engine, tyre, surface and impact sound synthesised live with the Web Audio API
 - Responsive HUD for desktop and touch screens in landscape or portrait
+- Optional cloud save: play as a guest, or choose SAVE MY PROGRESS to sign in with Google and back up your credits, cars, customisations and achievements, then carry on from another device. A copy always stays in the browser for offline play, the game shows when it last backed up, and if this device and your account have different progress it asks which to keep (see [CLOUD_SETUP.md](CLOUD_SETUP.md))
 
 ## How it works
 
@@ -84,6 +85,7 @@ The tests run against the real `index.html`, read fresh on every run. For tests 
 - **Photo Mode**: where it opens, the world standing still, camera and looks, a real PNG capture, everything restored.
 - **Island Passport** and **Contracts**: every landmark and all 9 contracts, each paid once, failures and cancellations.
 - **Saves**: reloads, a save from the first release, corrupt and malformed saves, storage being refused.
+- **Cloud save** (with a stand-in for Google and Firestore): guests see nothing in the way and download nothing; the first sign-in backs up the guest's progress; another device gets it back; when both differ the player chooses, both ways, and credits are never added together; backups after changes, offline and catching up; another device's newer save isn't overwritten, and the choice waits for the pause menu; signing out; the start screen.
 - **Phones**: touch controls, and layouts at six screen sizes (including 360 px tall phones held sideways), and turning the device, the race panel kept clear of the car and the road, the BRAKE / REVERSE label, rolling a thumb from BRAKE onto GAS, and no zooming from a double tap or a pinch.
 - **Traffic**: cars keep their distance at junctions, in queues and where they appear, and none waits for good, even behind a parked car.
 - **Ghost**: a record run is saved and a slower one isn't, the replay follows the recorded path, is see-through, shows the gap and can't be hit, the switch, and damaged ghosts in a save.
@@ -104,7 +106,9 @@ Limits: on machines without a GPU, CI runners included, Chrome draws with its so
 
 ## Privacy
 
-The game has no accounts, analytics, ads, cookies or tracking, and sends no data anywhere. The feedback links only open Google Forms or GitHub in a new tab when you click them; the form collects no email addresses. Progress is saved only in your own browser's `localStorage` (key `white-isle-drive-v1`); clearing site data resets it.
+The game has no analytics, ads or tracking. Progress is saved in your own browser's `localStorage` (key `white-isle-drive-v1`); clearing site data resets it. As a guest, nothing is sent anywhere.
+
+Accounts are optional. If you choose SAVE MY PROGRESS and sign in with Google, the game stores your save, a short summary of it (credits, number of cars, level, landmarks, cups) and the time of each backup in a Firebase (Google) database under your Google user id. Only you can read or write it. Your name and email come from Google for showing who is signed in; they aren't stored in the save. SIGN OUT stops the backups; the copy in your browser stays. The feedback links only open Google Forms or GitHub in a new tab when you click them; the form collects no email addresses.
 
 The page makes two kinds of outside requests: three.js from cdnjs.cloudflare.com and the Barlow fonts from Google Fonts. As with any web font, Google receives the visitor's IP address when the fonts load. To avoid that, delete the three Google Fonts `<link>` lines at the top of `index.html`; the game then uses the system font.
 
