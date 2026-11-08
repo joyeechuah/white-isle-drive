@@ -217,3 +217,28 @@ test.describe("tilt steering", () => {
     expect((await game.readSave()).tilt).toBe(true);
   });
 });
+
+test.describe("controller in menus", () => {
+  test("controller B over the map: closes the Island Passport first, then the map", async ({ game, page }) => {
+    await page.addInitScript(FAKE_PAD);
+    await game.open();
+    await game.driveOut();
+    await game.park();
+    const tap = async (i) => {
+      await game.eval((i) => __press(i, 1), i);
+      await game.frames(3);
+      await game.eval((i) => __press(i, 0), i);
+      await game.frames(3);
+    };
+    await game.eval(() => __T.openMap());
+    await game.waitState("MAP");
+    await game.eval(() => __T.passportOpen());
+    await expect(page.locator("#passport")).toBeVisible();
+    await tap(1);
+    // it used to close the map and drive on behind the Passport
+    await expect(page.locator("#passport")).toBeHidden();
+    expect(await game.eval(() => __T.state)).toBe("MAP");
+    await tap(1);
+    await game.waitState("DRIVE");
+  });
+});

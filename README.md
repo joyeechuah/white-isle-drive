@@ -39,6 +39,7 @@ The pause menu opens photo mode, the Island Passport, the Contracts board and th
 - A compact island with the old town of Eivissa, Sant Antoni, hill villages, villas, a coastal highway, offshore islets and passing boats, all generated in code at load time
 - A day and night cycle in which the sky, clouds and sea change with the hour, and moonlit nights lit by street lamps and your headlights
 - 24 cars from hatchbacks to hypercars across classes A1 to A7, with paint colours, a 12-car garage and a dealership where you can buy, sell and take a 90-second test drive
+- Car models built in code from six body types (supercar, GT, hatchback, muscle car, roadster, SUV): smooth curved bodies with wheel arches, clear-coat paint that reflects the sky, panel lines, grilles and intakes, LED lights, multi-spoke rims with brake calipers. Traffic uses a hatchback and a saloon body
 - 6 events (time trials and races against AI drivers) with medals and personal bests; traffic on the route only drives your way, so you can overtake
 - Race difficulty (EASY, NORMAL or HARD) on the race screen: how fast the rivals drive, and rewards of ×0.75, ×1 or ×1.3. Rivals keep their distance, pass slower cars when the other lane is clear and hold back when it isn't
 - Class championships: seven cups, A1 to A7, of three events each, entered in a car of the cup's class. Rounds score 10, 6, 4 or 3 points; 22 of 30 wins the cup and a one-time prize from 25,000 CR (A1) to 180,000 CR (A7). Cup time trials have medal times for the class, and cup races put you against cars of the class
@@ -90,6 +91,7 @@ The tests run against the real `index.html`, read fresh on every run. For tests 
 - **Controls**: steering sensitivity, a simulated game controller (triggers part-way and fully, stick, buttons) and simulated tilt steering on a phone.
 - **Camera**: the chase camera keeps the road ahead in view for small, large and low cars; the chosen camera is remembered.
 - **Rendering**: real WebGL drawing by day and night and at each graphics setting.
+- **Car models**: every car builds a sound body and glasshouse, paint reaches both, cars of one body type share shapes and textures, and freeing a car keeps what the others share.
 - **Stability and performance**: no leftovers after many screen changes, long frame gaps, a hidden tab, memory over a long drive, and measurements of frame cost, GPU load, load time and memory.
 
 GitHub Actions (`.github/workflows/test.yml`) runs ESLint and then the suite on every push to `main` and every pull request. A failing test fails the run, and the HTML report, with screenshots and traces of any failure, is attached to it.
