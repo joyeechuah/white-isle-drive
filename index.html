@@ -2920,7 +2920,7 @@ function pollPad(){
   else if(state==="LOAD"){if(hit(0)&&!$("lstart").classList.contains("hide"))$("lstart").click()}
   else if(state==="MAP"){if(hit(8)||hit(1)){if(!$("passport").classList.contains("hide"))passportClose();else closeMap()}}
   else if(state==="PHOTO"){if(hit(1))photoExit()}
-  if(state==="GARAGE"&&(Math.abs(g.axes[2]||0)>.2||Math.abs(g.axes[3]||0)>.2)){GO.yaw-=(g.axes[2]||0)*.05;GO.pitch=clamp(GO.pitch+(g.axes[3]||0)*.05,GO_P[0],GO_P[1]);GO.user=true}
+  if(state==="GARAGE"&&(Math.abs(g.axes[2]||0)>.2||Math.abs(g.axes[3]||0)>.2)){GO.yaw-=(g.axes[2]||0)*.05;GO.pitch=clamp(GO.pitch+(g.axes[3]||0)*.05,GO_P[0],GO_P[1]);GO.user=true;if(GO.spin)goSpin(false)}
   if(state==="GARAGE"&&cuOpen()){if(hit(1))custClose(false);else if(hit(0))custClose(true)}
   else if(state==="GARAGE"){if(hit(0))goDrive();else if(hit(14))$("gprev").onclick();else if(hit(15))$("gnext").onclick()}
   // in the dealership A buys the car shown (or drives it, if it's yours), X takes it for a test drive

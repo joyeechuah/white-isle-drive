@@ -241,4 +241,32 @@ test.describe("controller in menus", () => {
     await tap(1);
     await game.waitState("DRIVE");
   });
+
+  test("controller in the garage: the right stick turns the view and stops SPIN; while customising the D-pad doesn't switch cars, B cancels", async ({ game, page }) => {
+    await page.addInitScript(FAKE_PAD);
+    await game.open();
+    await game.waitState("GARAGE");
+    const tap = async (i) => {
+      await game.eval((i) => __press(i, 1), i);
+      await game.frames(3);
+      await game.eval((i) => __press(i, 0), i);
+      await game.frames(3);
+    };
+    await page.locator("#gCust").click();
+    await page.locator("#cuSpin").click();
+    const y0 = await game.eval(() => __T.GO.yaw);
+    await game.eval(() => (__pad.axes[2] = 0.8));
+    await game.frames(20);
+    await game.eval(() => (__pad.axes[2] = 0));
+    const r = await game.eval(() => ({ yaw: __T.GO.yaw, spin: __T.GO.spin, aria: document.getElementById("cuSpin").getAttribute("aria-pressed") }));
+    expect(Math.abs(r.yaw - y0), "radians turned by the stick").toBeGreaterThan(0.3);
+    expect(r).toMatchObject({ spin: false, aria: "false" });
+    const sel = await game.eval(() => __T.gSel);
+    await tap(15);
+    expect(await game.eval(() => __T.gSel), "D-pad right while customising").toBe(sel);
+    await expect(page.locator("#cust")).toBeVisible();
+    await tap(1);
+    await expect(page.locator("#cust")).toBeHidden();
+    expect(await game.eval(() => __T.state)).toBe("GARAGE");
+  });
 });
