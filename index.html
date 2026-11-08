@@ -2630,10 +2630,25 @@ function shadowMat(){if(shadowM)return shadowM;const c=document.createElement("c
   x.fillStyle=g;x.fillRect(0,0,128,128);const t=new THREE.CanvasTexture(c);
   return shadowM=new THREE.MeshBasicMaterial({map:t,transparent:true,depthWrite:false,color:0xffffff,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-8})}
 
+// how detailed car models are: phones and tablets, and SMOOTH graphics, get the simpler paint (no clear coat) and less
+// detailed shapes
+const carQ=()=>isTouch||save.gfx===2?0:1;
+// after a graphics change: every car model already built at the other level is built again (keeping where it is, its
+// paint and whether it shows), so SMOOTH lightens the cars on the road and in the garage at once. Rivals in a race and
+// the ghost follow at their next use
+function rebuildCarModels(){
+  const q=carQ();
+  for(const id in carMeshes){const o=carMeshes[id];if(o.q===q)continue;
+    const pos=o.G.position.clone(),rot=o.G.quaternion.clone(),vis=o.G.visible,par=o.G.parent;
+    disposeHeroCar(o);delete carMeshes[id];const n=getCar(id);
+    n.G.position.copy(pos);n.G.quaternion.copy(rot);n.G.visible=vis;if(par&&par!==scene)par.add(n.G);
+    if(id===curId)attachCar(id,id!==save.cur)}
+  for(const id in showMeshes){const o=showMeshes[id];if(o.q===q)continue;disposeHeroCar(o);delete showMeshes[id]}
+  if(state==="DEALER")dPick(dSel);
+}
 function buildHeroCar(cd,color){
   const pr=PROF[cd.shape];
-  // phones and tablets, and SMOOTH graphics: the simpler paint (no clear coat) and less detailed shapes
-  const L=buildLook(cd,color===undefined?cd.body:color,carEnvTex(),isTouch||save.gfx===2?0:1);
+  const q=carQ(),L=buildLook(cd,color===undefined?cd.body:color,carEnvTex(),q);
   const G=L.G,body=L.bodyM,shell=L.shell,glass=L.glass,tailM=L.tailM,headM=L.headM;
   const add=(g,m,x,y,z,rx=0,ry=0,par)=>{const q=new THREE.Mesh(g,m);q.position.set(x,y,z);q.rotation.set(rx,ry,0);q.castShadow=true;(par||G).add(q);return q};
   const B=(w,h,d)=>new THREE.BoxGeometry(w,h,d);
@@ -2661,7 +2676,7 @@ function buildHeroCar(cd,color){
   if(!pr.open){add(B(cw-.08,.04,1.5),headlinerM,0,pr.roof-.04,pr.roofF-.7,0,0,inside);add(B(.24,.07,.03),darkInM,0,pr.roof-.12,pr.roofF-.12,0,0,inside)}
   else add(B(cw-.2,.05,.05),darkInM,0,pr.roof-.02,pr.roofF+.05,0,0,inside);
   return{G,id:cd.id,wheels:w.wheels,front:w.front,tailM,headM,glass,shell,inside,steerWheel:sw,bodyM:body,wr:pr.wr,wb:pr.wb,tr:pr.tr,
-    eye:new V3(dx,Math.max(pr.eye+.03,wy+.24),ez),front_z:pr.front,shape:cd.shape,paint:L.paint};
+    eye:new V3(dx,Math.max(pr.eye+.03,wy+.24),ez),front_z:pr.front,shape:cd.shape,paint:L.paint,q};
 }
 
 const TPROF={
@@ -3181,7 +3196,7 @@ const raceRewards=(E,d)=>E.rewards.map(r=>Math.round(r*DIFFS[d].pay/100)*100);
 // ---- time trial ghost: your record run replayed as a see-through car, with the live gap to it
 const GH={m:null,id:null,o:{}};
 function ghostModel(id){
-  if(GH.m&&GH.id===id)return GH.m;
+  if(GH.m&&GH.id===id&&GH.m.q===carQ())return GH.m;
   if(GH.m)disposeHeroCar(GH.m);
   const m=buildHeroCar(carById(id));
   // its own see-through copy of every material (some are shared with the other cars), and no shadow
@@ -3285,7 +3300,10 @@ function crossedGate(g,x0,z0,x1,z1){
 const AIC=new Map();   // rival car models (by car id, and which copy when two rivals drive the same car), most recently used last; at most 6 kept
 function rivalModel(cd,key){
   let m=AIC.get(key);
-  if(m)AIC.delete(key);else{m=buildHeroCar(cd);m.id=key;scene.add(m.G)}
+  if(m)AIC.delete(key);
+  // one built before a graphics change is built again at the new level
+  if(m&&m.q!==carQ()&&!AIM.includes(m)){disposeHeroCar(m);m=null}
+  if(!m){m=buildHeroCar(cd);m.id=key;scene.add(m.G)}
   AIC.set(key,m);
   while(AIC.size>6){const[id,old]=AIC.entries().next().value;if(AIM.includes(old))break;AIC.delete(id);disposeHeroCar(old)}
   return m;
@@ -4796,7 +4814,7 @@ $("pAuto").onclick=()=>{save.auto=!save.auto;syncPause();persist()};
 const GFX=["AUTO","SHARP","SMOOTH"];
 function applyGfx(){gfxLimits();const p=clamp(save.gfx===0?Math.max(prNow,PR_MIN):PR_MAX,PR_MIN,PR_MAX);RES.bad=99;RES.wait=3;RES.t=0;
   if(p!==prNow){prNow=p;renderer.setPixelRatio(p);renderer.setSize(W,H,false)}}
-$("pGfx").onclick=()=>{save.gfx=(save.gfx+1)%3;applyGfx();syncPause();persist();toast("GRAPHICS: "+GFX[save.gfx],["Sharp, eases off a little if frames slow down","Always full sharpness","Lighter on weak phones and battery"][save.gfx])};
+$("pGfx").onclick=()=>{save.gfx=(save.gfx+1)%3;applyGfx();rebuildCarModels();syncPause();persist();toast("GRAPHICS: "+GFX[save.gfx],["Sharp, eases off a little if frames slow down","Always full sharpness","Lighter on weak phones and battery"][save.gfx])};
 $("pAssist").onclick=()=>{save.assist=!save.assist;syncPause();persist()};
 // which side traffic keeps to; the cars on the road move over to it straight away
 $("pSide").onclick=()=>{save.side=save.side==="R"?"L":"R";for(const t of TRAFFIC)if(t.e){const ln=RT[t.e.type].lanes;t.off=ln[Math.min(t.lane,ln.length-1)]*SIDE();t.offCur=t.off;t.passT=0}

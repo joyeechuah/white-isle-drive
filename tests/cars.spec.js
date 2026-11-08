@@ -132,4 +132,30 @@ test.describe("car models", () => {
     });
     expect(r.changed).toBe(true);
   });
+
+  test("switching graphics to SMOOTH and back rebuilds the cars already built, in place", async ({ game, page }) => {
+    await game.open();
+    await game.driveOut();
+    await game.park();
+    const verts = () =>
+      game.eval(() => {
+        const T = __T,
+          c = T.carMeshes[T.curId];
+        return { v: c.shell.children[0].geometry.attributes.position.count, q: c.q, x: c.G.position.x, z: c.G.position.z, same: T.pc === c, all: Object.values(T.carMeshes).map((m) => m.q) };
+      });
+    await game.eval(() => (__T.save.gfx = 1));
+    const sharp = await verts();
+    await game.eval(() => __T.pauseOn());
+    // SHARP → SMOOTH, then on round to AUTO
+    await page.locator("#pGfx").click();
+    const smooth = await verts();
+    await page.locator("#pGfx").click();
+    const back = await verts();
+    expect(smooth.v, "vertices in SMOOTH against SHARP").toBeLessThan(sharp.v * 0.6);
+    expect(smooth.all.every((q) => q === 0)).toBe(true);
+    expect(smooth.same, "the car you drive is the rebuilt one").toBe(true);
+    expect(Math.hypot(smooth.x - sharp.x, smooth.z - sharp.z)).toBeLessThan(0.01);
+    expect(back.v).toBe(sharp.v);
+    expect(back.all.every((q) => q === 1)).toBe(true);
+  });
 });
