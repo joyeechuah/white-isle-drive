@@ -268,5 +268,12 @@ test.describe("controller in menus", () => {
     await tap(1);
     await expect(page.locator("#cust")).toBeHidden();
     expect(await game.eval(() => __T.state)).toBe("GARAGE");
+    // A applies with the plate field still being typed in: the typed plate is what's saved (it used to be lost)
+    await page.locator("#gCust").click();
+    await page.locator("#cuPlate").fill("PAD 77");
+    await expect(page.locator("#cuPlate")).toBeFocused();
+    await tap(0);
+    await expect(page.locator("#cust")).toBeHidden();
+    expect(await game.eval(() => __T.save.mods[__T.save.owned[__T.gSel]].plate)).toBe("PAD 77");
   });
 });

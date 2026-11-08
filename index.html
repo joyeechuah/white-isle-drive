@@ -4912,7 +4912,7 @@ function custRender(){
         b.onclick=()=>{d.num=(d.num-1+dv+99)%99+1;custChange()};return b};
       const v=document.createElement("span");v.className="num";v.textContent=d.num;row.append(mk("\u2212",-1),v,mk("+",1))}
     else if(k==="plate"){const i=document.createElement("input");i.id="cuPlate";i.maxLength=8;i.value=d.plate;i.setAttribute("aria-label","Number plate text");i.autocomplete="off";i.spellcheck=false;
-      i.onchange=()=>{const v=i.value.toUpperCase().replace(/[^A-Z0-9 ]/g,"").slice(0,8);d.plate=v.trim()?v:MOD_STOCK.plate;custChange()};row.appendChild(i)}
+      i.onchange=()=>{if(cuPlateCommit())custChange()};row.appendChild(i)}
     else O.o.forEach((name,i)=>{const b=document.createElement("button"),on=d[k]===i,sw=CU_SW[k];
       if(sw&&sw[i]!==null){b.className="swb"+(on?" on":"");b.style.background="#"+sw[i].toString(16).padStart(6,"0")}else{b.className="co"+(on?" on":"");b.textContent=name}
       b.setAttribute("aria-label",O.n.toLowerCase()+": "+name.toLowerCase());b.setAttribute("aria-pressed",on?"true":"false");
@@ -4925,11 +4925,16 @@ function custRender(){
   $("cuApply").disabled=short;$("cuApply").textContent=cost?"APPLY":"DONE";
 }
 function custChange(){custRender();rebuildCar(cuId,cuDraft)}
+// the plate field's text into the draft (uppercase letters, digits and spaces, up to 8; empty is the stock plate). Runs
+// when the field is committed, and before APPLY by any route: a controller's A applied while the field still had focus
+// and the typed text was lost. True if the draft changed
+function cuPlateCommit(){const i=$("cuPlate");if(!i||!cuDraft)return false;const v=i.value.toUpperCase().replace(/[^A-Z0-9 ]/g,"").slice(0,8),p=v.trim()?v:MOD_STOCK.plate;
+  if(p===cuDraft.plate)return false;cuDraft.plate=p;return true}
 // only what differs from stock is kept (a livery's colour and number only with the livery)
 function modsCompact(d){const o={};for(const k in MOD_STOCK)if(d[k]!==MOD_STOCK[k])o[k]=d[k];if(!(d.liv>0)){delete o.livC;delete o.num}else if(d.liv!==3)delete o.num;return o}
 function custClose(apply){
   if(!cuOpen())return;const id=cuId;
-  if(apply){const cost=modCost(cuBase,cuDraft);if(cost>save.cr)return;
+  if(apply){if(cuPlateCommit())custRender();const cost=modCost(cuBase,cuDraft);if(cost>save.cr)return;
     const m=modsCompact(cuDraft);if(Object.keys(m).length)save.mods[id]=m;else delete save.mods[id];
     if(cost>0){earn(-cost);toast("CUSTOMISED","Paid "+fmtCr(cost)+" CR")}else persist()}
   cuId=null;show("cust",false);$("gui").classList.remove("cust-on");rebuildCar(id);goStage(false);
@@ -5032,6 +5037,8 @@ $("dBuy").onclick=()=>{const c=CARS[dSel];if(save.cr<c.price||save.owned.include
 $("dDrive").onclick=()=>{const c=CARS[dSel];if(!save.owned.includes(c.id))return;
   attachCar(c.id);parkAll(c.id);persist();dPick(dSel);toast("CAR SWAPPED",c.mk+" "+c.md)};
 $("dSell").onclick=()=>{const c=CARS[dSel];if(!save.owned.includes(c.id)||c.id===curId||save.owned.length<2)return;delete save.mods[c.id];
+  // its models go too: kept, they still wore the old upgrades when you looked at it, test-drove it or bought it back
+  for(const M of [carMeshes,showMeshes])if(M[c.id]){disposeHeroCar(M[c.id]);delete M[c.id]}
   const v=Math.round(c.price*.6/100)*100;save.owned=save.owned.filter(id=>id!==c.id);earn(v);persist();parkAll(curId);
   toast("SOLD",c.mk+" "+c.md+" · +"+fmtCr(v)+" CR","gold");dPick(dSel)};
 $("dTest").onclick=()=>startTestDrive(CARS[dSel].id);

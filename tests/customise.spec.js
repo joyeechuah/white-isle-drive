@@ -148,8 +148,31 @@ test.describe("customise", () => {
       T.openDealer();
       T.dPick(T.CARS.findIndex((c) => c.id === "mini"));
     });
+    // the Mini's models were built with its quad exhaust (parked in the garage, and on the dealership's podium)
+    expect(await game.eval(() => [__T.carMeshes.mini && __T.carMeshes.mini.mods.exh, __T.showMeshes.mini && __T.showMeshes.mini.mods.exh])).toEqual([2, 2]);
     await page.locator("#dSell").click();
     expect(await game.eval(() => ({ owned: __T.save.owned.includes("mini"), mods: __T.save.mods.mini }))).toEqual({ owned: false, mods: undefined });
+    // the models go with the sale: looking at it, test-driving it or buying it back shows it stock (it used to keep the
+    // old upgrades until the game was reloaded)
+    const after = await game.eval(() => {
+      const T = __T,
+        tips = (c) => c.refs.tips.length,
+        stockTips = (() => {
+          const c = T.buildHeroCar(T.carById("mini"), 0xffffff, {});
+          const n = tips(c);
+          T.disposeHeroCar(c);
+          return n;
+        })(),
+        show = T.showMeshes.mini;
+      T.save.cr = 1e9;
+      document.getElementById("dBuy").onclick();
+      const owned = T.save.owned.includes("mini"),
+        car = T.getCar("mini");
+      return { show: show ? { exh: show.mods.exh, tips: tips(show) } : null, owned, car: { exh: car.mods.exh, tips: tips(car) }, stockTips };
+    });
+    expect(after.owned).toBe(true);
+    expect(after.car).toEqual({ exh: 0, tips: after.stockTips });
+    if (after.show) expect(after.show).toEqual({ exh: 0, tips: after.stockTips });
   });
 
   test("colour and material options change the car in place; caches of race numbers and plates stay bounded; rebuilding many times leaves nothing behind", async ({ game, page }) => {
