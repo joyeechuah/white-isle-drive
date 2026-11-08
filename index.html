@@ -3188,9 +3188,11 @@ function ghostModel(id){
   // one clone per material (a material used by several parts gets one clone); clones that reflect the sky are kept
   // up to date with it; the car's own originals are freed (the shared ones stay); no contact shadow
   const sh=carShared(),own=new Map();
-  m.G.traverse(o=>{if(!o.isMesh)return;o.castShadow=false;if(o.material===shadowM){o.visible=false;return}
+  const drop=[];
+  m.G.traverse(o=>{if(!o.isMesh)return;o.castShadow=false;if(o.material===shadowM){drop.push(o);return}
     o.material=(Array.isArray(o.material)?o.material:[o.material]).map(x=>{if(!own.has(x)){const c=x.clone();c.transparent=true;c.opacity=.36;c.depthWrite=false;own.set(x,c)}return own.get(x)});
     if(o.material.length===1)o.material=o.material[0]});
+  for(const o of drop)o.parent.remove(o);
   for(const [x,c] of own){if(CAR_ENV.mats.has(x)){envMat(c);if(CAR_ENV.tex)c.envMap=CAR_ENV.tex}if(!sh.M.has(x)){CAR_ENV.mats.delete(x);x.dispose()}}
   m.bodyM=own.get(m.bodyM)||m.bodyM;m.tailM=own.get(m.tailM)||m.tailM;
   if(m.inside)m.inside.visible=false;
