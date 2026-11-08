@@ -83,4 +83,51 @@ test.describe("camera", () => {
     expect(await game.eval(() => [__T.camMode, __T.save.cam])).toEqual([2, 2]);
     await expect(page.locator("#chCam")).toHaveText("CAM: BUMPER");
   });
+
+  test("the car doesn't shake on screen at speed when frames come unevenly (as on phones)", async ({ game }) => {
+    await game.open();
+    await game.driveOut();
+    await game.park();
+    const r = await game.eval(() => {
+      const T = __T,
+        P = T.P;
+      for (const t of T.TRAFFIC) {
+        t.e = null;
+        t.c.G.visible = false;
+        t.wx = t.wz = 1e6;
+      }
+      T.attachCar("gtr");
+      // 180 km/h on the longest highway, gas held; where the car is on screen each frame (in pixels of a 720 px tall view)
+      const run = (frames) => {
+        const e = T.EDGES.filter((e) => e.type === "highway").sort((a, b) => b.len - a.len)[0],
+          q = T.edgePos(e, 200);
+        P.x = q.x;
+        P.z = q.z;
+        P.h = Math.atan2(q.dx, q.dz);
+        P.vx = q.dx * 50;
+        P.vz = q.dz * 50;
+        P.r = P.steer = P.steerS = 0;
+        P.laneT = null;
+        T.snapCam();
+        const ys = [];
+        for (let i = 0; i < 240; i++) {
+          T.keys.w = true;
+          T.driveUpdate(frames[i % frames.length]);
+          T.camera.updateMatrixWorld();
+          if (i > 120) ys.push(T.pc.G.position.clone().project(T.camera).y * 360);
+        }
+        T.keys.w = false;
+        // frame-to-frame jerk: how far each frame's position is from halfway between its neighbours
+        let d = 0;
+        for (let i = 1; i < ys.length - 1; i++) d += Math.abs(ys[i + 1] - 2 * ys[i] + ys[i - 1]);
+        return d / (ys.length - 2);
+      };
+      return { even: run([1 / 45]), uneven: run([1 / 60, 1 / 30]), phone: run([1 / 60, 1 / 60, 1 / 30, 1 / 40, 1 / 25]) };
+    });
+    test.info().annotations.push({ type: "car jerk on screen (px per frame)", description: JSON.stringify(r) });
+    // it used to be about 1.2 to 1.4 px a frame with uneven frames (the camera's lag behind the car changed with each
+    // frame's length), against 0.25 with even ones
+    expect(r.uneven).toBeLessThan(0.3);
+    expect(r.phone).toBeLessThan(0.3);
+  });
 });
