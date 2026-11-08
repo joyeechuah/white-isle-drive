@@ -2541,17 +2541,20 @@ function bodyPaint(K){
   };
 }
 function cabinPaint(K){
-  const{pr}=K,open=!!pr.open,zB=(pr.ws[0]+pr.roofF)/2-.55;
+  const{pr}=K,open=!!pr.open,zB=(pr.ws[0]+pr.roofF)/2-.55,zRF=pr.roofF,zRR=pr.cabin[2][0];
   return(x,y,z,nx,ny,nz,o)=>{
     const T=K.cp.top(z),Bo=K.cp.bot(z);
     const glass=()=>{o.c=.0;o.r=.03;o.m=0;o.l=1};
     if(y<Bo+.012){o.c=.012;o.r=.65;o.m=0;return}           // rubber along the belt line
     if(open){if(y>T-.03){o.c=.015;o.r=.4;o.m=0}else glass();return}
-    const ws=nz>.42&&Math.abs(nx)<.55,bk=nz<-.42&&Math.abs(nx)<.55,sd=Math.abs(nx)>.5&&Math.abs(nz)<.5,rf=ny>.82;
-    if(rf){o.c=1;o.r=.36;o.m=.35;return}
+    // the windscreen and rear window are told from the roof by where they are along the car (ahead of the roof's front
+    // edge, behind its rear edge), not by how steep they are: the raked screens of the GT, muscle car and supercar
+    // face the sky as much as the roof does, and were painted body colour (no front or rear window from above)
+    const sd=Math.abs(nx)>.5&&Math.abs(nz)<.5,mid=Math.abs(nx)<.55;
     if(sd){if(Math.abs(z-zB)<.045){o.c=.015;o.r=.15;o.m=0;return}
       if(y>T-.035||z<K.cz0+.25){o.c=1;o.r=.36;o.m=.35;return}glass();return}
-    if(ws||bk){glass();return}
+    if(z<=zRF-.03&&z>=zRR+.03&&ny>.5){o.c=1;o.r=.36;o.m=.35;return}       // roof
+    if(mid&&(z>zRF+.03||z<zRR-.03)){glass();return}                       // windscreen, rear window
     o.c=.012;o.r=.6;o.m=0;                                    // pillars and frames, satin black (gloss caught the sky as white lines)
   };
 }
