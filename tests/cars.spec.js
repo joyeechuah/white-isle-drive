@@ -82,6 +82,18 @@ test.describe("car models", () => {
     for (const shape in r) expect(r[shape], shape).toEqual({ ws: true, bk: true, roof: true });
   });
 
+  test("the cars reflect the hour's sky from the moment the garage opens (they reflected the loading screen's grey sky for up to 4 s)", async ({ game }) => {
+    await game.open();
+    const r = await game.eval(() => {
+      const T = __T,
+        u = T.skyU,
+        k = [u.top.value, u.hor.value, u.sunCol.value].map((c) => c.r + c.g + c.b).concat([u.sunDir.value.x, u.sunDir.value.y]);
+      return { k, env: T.CAR_ENV.key, age: performance.now() - T.CAR_ENV.t };
+    });
+    const off = Math.max(...r.k.map((v, i) => Math.abs(v - r.env[i])));
+    expect(off, "largest difference between the sky and the sky the reflections were drawn from").toBeLessThan(0.06);
+  });
+
   test("traffic wheels face outwards on both sides (the mirrored pair used to be inside out)", async ({ game }) => {
     await game.open();
     const r = await game.eval(() => {
