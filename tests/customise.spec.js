@@ -262,4 +262,102 @@ test.describe("customise", () => {
     const shown = await game.eval(() => __T.save.owned.filter((o) => __T.carMeshes[o] && __T.carMeshes[o].G.visible).length);
     expect(shown).toBeGreaterThan(1);
   });
+  test("the car stands clear of the bays while customising; from every angle and zoom the view stays inside the room; it goes back to its bay after", async ({ game, page }) => {
+    const bay = await game.eval(() => {
+      const p = __T.carMeshes[__T.save.owned[__T.gSel]].G.position;
+      return { x: p.x, z: p.z };
+    });
+    await page.locator("#gCust").click();
+    await game.frames(5);
+    const r = await game.eval(() => {
+      const T = __T,
+        G = T.carMeshes[T.save.owned[T.gSel]].G,
+        st = T.gW(T.GO_STAGE[0], T.GO_STAGE[1]),
+        ray = new THREE.Raycaster(),
+        bad = [];
+      let n = 0,
+        nearest = 1e9;
+      for (let yaw = 0; yaw < Math.PI * 2; yaw += Math.PI / 8)
+        for (const zoom of [0.55, 1, 1.6])
+          for (const pitch of [-1.9, 0, 3.2]) {
+            Object.assign(T.GO, { yaw, yawS: yaw, zoom, pitch, user: true });
+            const w = T.garageWant(),
+              c = G.position.clone().setY(w.look.y > G.position.y ? G.position.y + 0.9 : w.look.y),
+              d = w.pos.clone().sub(G.position.clone().setY(T.gW(0, 0).y + 0.9)),
+              L = d.length();
+            ray.set(G.position.clone().setY(T.gW(0, 0).y + 0.9), d.normalize());
+            ray.far = L;
+            const h = ray.intersectObjects(T.HOUSE_MESHES, false)[0];
+            n++;
+            if (h) bad.push({ yaw: +yaw.toFixed(2), zoom, pitch, hit: +h.distance.toFixed(2), L: +L.toFixed(2) });
+            nearest = Math.min(nearest, L);
+            void c;
+          }
+      return { at: { x: G.position.x - st.x, z: G.position.z - st.z }, n, bad, nearest };
+    });
+    // staged on its own in the open part of the garage
+    expect(Math.hypot(r.at.x, r.at.z)).toBeLessThan(0.01);
+    // nothing of the house between the car and the camera, from 16 angles x 3 zooms x 3 heights
+    expect(r.n).toBe(144);
+    expect(r.bad).toEqual([]);
+    expect(r.nearest).toBeGreaterThan(2);
+    // the selection ring and light follow it
+    const ring = await game.eval(() => {
+      const G = __T.carMeshes[__T.save.owned[__T.gSel]].G.position,
+        R = __T.scene.children.find((o) => o.geometry && o.geometry.type === "RingGeometry");
+      return R ? Math.hypot(R.position.x - G.x, R.position.z - G.z) : -1;
+    });
+    expect(ring).toBeGreaterThanOrEqual(0);
+    expect(ring).toBeLessThan(0.01);
+    await page.locator("#cuCancel").click();
+    await game.frames(2);
+    const back = await game.eval(() => {
+      const p = __T.carMeshes[__T.save.owned[__T.gSel]].G.position;
+      return { x: p.x, z: p.z };
+    });
+    expect(Math.hypot(back.x - bay.x, back.z - bay.z)).toBeLessThan(0.01);
+  });
+
+  test("SPIN's button always shows whether it's turning; a drag keeps its finger off the canvas and lets go when cancelled", async ({ game, page }) => {
+    await page.locator("#gCust").click();
+    await game.frames(10);
+    const spin = () => game.eval(() => ({ on: __T.GO.spin, cls: document.getElementById("cuSpin").classList.contains("on"), aria: document.getElementById("cuSpin").getAttribute("aria-pressed") }));
+    await page.locator("#cuSpin").click();
+    expect(await spin()).toEqual({ on: true, cls: true, aria: "true" });
+    // a drag stops it, and the button says so (it used to stay lit)
+    const box = await page.locator("#c").boundingBox(),
+      y = box.y + box.height * 0.4,
+      x0 = box.x + box.width * 0.1;
+    await page.mouse.move(x0, y);
+    await page.mouse.down();
+    for (let i = 1; i <= 6; i++) await page.mouse.move(x0 + i * 15, y);
+    expect(await spin()).toEqual({ on: false, cls: false, aria: "false" });
+    // carry on dragging across the panel: the view keeps turning (the canvas holds on to the mouse)
+    const panel = await page.locator("#cust").boundingBox(),
+      yaw0 = await game.eval(() => __T.GO.yaw);
+    for (let i = 1; i <= 10; i++) await page.mouse.move(x0 + 90 + ((panel.x + panel.width / 2 - x0 - 90) * i) / 10, y);
+    const yaw1 = await game.eval(() => __T.GO.yaw);
+    expect(Math.abs(yaw1 - yaw0), "turn while the mouse is over the panel").toBeGreaterThan(1);
+    await page.mouse.up();
+    expect(await game.eval(() => __T.GO.ptr.size)).toBe(0);
+    // a view button and closing stop it too
+    await page.locator("#cuSpin").click();
+    await page.locator('#cuViews [data-v="rear"]').click();
+    expect(await spin()).toEqual({ on: false, cls: false, aria: "false" });
+    await page.locator("#cuSpin").click();
+    await page.locator("#cuCancel").click();
+    expect(await spin()).toEqual({ on: false, cls: false, aria: "false" });
+    // a press the browser cancels (a system gesture), or whose capture is lost, is forgotten
+    const left = await game.eval(() => {
+      const c = document.getElementById("c"),
+        ev = (t, id) => c.dispatchEvent(new PointerEvent(t, { pointerId: id, pointerType: "touch", clientX: 100, clientY: 100, bubbles: true }));
+      ev("pointerdown", 41);
+      ev("pointerdown", 42);
+      const two = __T.GO.ptr.size;
+      ev("pointercancel", 41);
+      ev("lostpointercapture", 42);
+      return { two, after: __T.GO.ptr.size, pinch: __T.GO.pinch, last: __T.GO.last };
+    });
+    expect(left).toEqual({ two: 2, after: 0, pinch: null, last: null });
+  });
 });
