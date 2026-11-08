@@ -89,6 +89,9 @@ test.describe("cloud save", () => {
       st: __T.CL.st,
     }));
     expect(r).toEqual({ fb: false, lcloud: false, label: "PLAY AS GUEST", st: "guest" });
+    // and no visit counter either: it only runs on the game's own site (this is the test server)
+    expect(game.external.filter((u) => /cloudflareinsights|firebase|gstatic/.test(u))).toEqual([]);
+    expect(await game.eval(() => [...document.scripts].some((s) => /cloudflareinsights/.test(s.src)))).toBe(false);
     // the test server isn't the game's own site, where Google accepts sign-ins: the panel says where it works
     await game.eval(() => __T.clOpen());
     await expect(page.locator("#clStat")).toHaveText(/joyeechuah\.github\.io\/white-isle-drive/);

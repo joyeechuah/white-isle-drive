@@ -106,7 +106,9 @@ Limits: on machines without a GPU, CI runners included, Chrome draws with its so
 
 ## Privacy
 
-The game has no analytics, ads or tracking. Progress is saved in your own browser's `localStorage` (key `white-isle-drive-v1`); clearing site data resets it. As a guest, nothing is sent anywhere.
+The game has no ads and no tracking of players. Progress is saved in your own browser's `localStorage` (key `white-isle-drive-v1`); clearing site data resets it; nothing about your progress is sent anywhere unless you sign in (below).
+
+Visits are counted with [Cloudflare Web Analytics](https://www.cloudflare.com/web-analytics/): page views, the country, the browser and device type, the page the visit came from, and how fast the page loaded. It uses no cookies or browser storage and doesn't identify anyone. It only runs on the game's own site, and not at all if your browser sends Global Privacy Control or Do Not Track.
 
 Accounts are optional. If you choose SAVE MY PROGRESS and sign in with Google, the game stores your save, a short summary of it (credits, number of cars, level, landmarks, cups) and the time of each backup in a Firebase (Google) database under your Google user id. Only you can read or write it. Your name and email come from Google for showing who is signed in; they aren't stored in the save. SIGN OUT stops the backups; the copy in your browser stays. The feedback links only open Google Forms or GitHub in a new tab when you click them; the form collects no email addresses.
 
