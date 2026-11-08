@@ -3080,7 +3080,9 @@ function stepPlayer(dt){
   // Near the speed the assist allows for the bend ahead it eases off gradually over the last csBand m/s instead of
   // cutting out and coming back each step (Nov 2026: the car lost 50-70 km/h before bends with W held)
   const thrCap=gas&&!brake&&over<=0?(over===0?1:Math.min(1,-over/HD.csBand)):0,thrUp=lerp(HD.thrUp0,HD.thrUp,clamp(vF/15,0,1));
-  const t0=P.thr||0;P.thr=t0<thrCap?Math.min(thrCap,t0+thrUp*dt):Math.max(thrCap,t0-8*dt);if(gas&&P.thr>gA)P.thr=Math.max(gA,P.thr-8*dt);
+  // it eases towards how far the pedal is pressed (a controller's trigger part-way), never past it: ramping towards full
+  // and pulling back afterwards let a light trigger build up to full throttle at a crawl, where the ramp is quickest
+  const tT=Math.min(thrCap,gA),t0=P.thr||0;P.thr=t0<tT?Math.min(tT,t0+thrUp*dt):Math.max(tT,t0-8*dt);
   if(!P.air){const sl=(surfH(P.x+fx*2,P.z+fz*2)-surfH(P.x-fx*2,P.z-fz*2))/4;vF-=9.81*sl*.75*dt}
   // the brake builds up while it's held: gentle at first (6 m/s²), full (13 m/s²) after a second, so a quick press
   // slows the car instead of stopping it dead. Nov 2026: was 9 to 22 m/s² in 0.7 s, which threw away speed into bends.

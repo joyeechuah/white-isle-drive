@@ -175,6 +175,51 @@ test.describe("controls", () => {
   });
 });
 
+test.describe("controller throttle", () => {
+  test("a light trigger never gives more throttle than it asks for, from a standstill or easing off", async ({ game, page }) => {
+    await page.addInitScript(FAKE_PAD);
+    await game.open();
+    await game.driveOut();
+    await game.park();
+    const r = await game.eval(() => {
+      const T = __T,
+        P = T.P,
+        out = {};
+      T.save.assist = false;
+      T.save.auto = false;
+      for (const v of [0.2, 0.5]) {
+        T.resetToRoad(false);
+        P.vx = P.vz = 0;
+        P.thr = 0;
+        __press(7, v);
+        let most = 0;
+        for (let i = 0; i < 120; i++) {
+          T.pollPad();
+          T.driveUpdate(1 / 60);
+          most = Math.max(most, P.thr);
+        }
+        out[v] = +most.toFixed(4);
+      }
+      // easing off while moving: down to the new amount, not below or above it
+      __press(7, 0.3);
+      for (let i = 0; i < 60; i++) {
+        T.pollPad();
+        T.driveUpdate(1 / 60);
+      }
+      out.eased = +P.thr.toFixed(4);
+      __press(7, 0);
+      T.pollPad();
+      return out;
+    });
+    test.info().annotations.push({ type: "most throttle for a light trigger", description: JSON.stringify(r) });
+    // it used to build to 87% for a 20% trigger in a second at a crawl
+    expect(r[0.2]).toBeLessThanOrEqual(0.2);
+    expect(r[0.2]).toBeGreaterThan(0.19);
+    expect(r[0.5]).toBeLessThanOrEqual(0.5);
+    expect(r.eased).toBeCloseTo(0.3, 3);
+  });
+});
+
 test.describe("tilt steering", () => {
   test.use({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
 
