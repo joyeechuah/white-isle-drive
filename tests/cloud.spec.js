@@ -476,6 +476,60 @@ test.describe("cloud save", () => {
     await expect(page.locator("#gCloud")).toHaveText("SAVE MY PROGRESS");
   });
 
+  test("a failed sign-out keeps the account connected and lets the player retry", async ({ game, page }) => {
+    await page.addInitScript(FAKE_CLOUD);
+    await game.open();
+    await signIn(page, game);
+    await expect.poll(() => status(game).then(s => s.st)).toBe("synced");
+    await game.eval(() => {
+      const ad = window.__cloudAdapter, signOut = ad.signOut;
+      ad.signOut = () => {
+        ad.signOut = signOut;
+        return Promise.reject(new Error("Storage unavailable"));
+      };
+    });
+    await page.locator("#clOut").click();
+    await expect(page.locator("#clStat")).toContainText("Couldn't sign out");
+    expect((await status(game)).uid).toBe("u1");
+    await page.locator("#clOut").click();
+    await expect.poll(() => status(game).then(s => s.uid)).toBe(null);
+  });
+
+  test("a backup finishing after sign-out leaves the signed-out state intact", async ({ game, page }) => {
+    await page.addInitScript(FAKE_CLOUD);
+    await game.open();
+    await signIn(page, game);
+    await expect.poll(() => status(game).then(s => s.st)).toBe("synced");
+    await game.eval(() => {
+      __T.earn(500);
+      const ad = window.__cloudAdapter, put = ad.put;
+      ad.put = (...args) => new Promise(resolve => { window.__finishBackup = () => resolve(put(...args)); });
+      window.__backup = __T.clSync();
+    });
+    await page.locator("#clOut").click();
+    await expect.poll(() => status(game).then(s => s.uid)).toBe(null);
+    const result = await game.eval(async () => {
+      window.__finishBackup();
+      await window.__backup;
+      return { state: __T.CL.st, revision: __T.CL.meta.rev, busy: __T.CL.busy, credits: __T.save.cr };
+    });
+    expect(result).toEqual({ state: "guest", revision: 0, busy: false, credits: 120500 });
+  });
+
+  test("reopening an unchanged cloud save keeps the actual backup time", async ({ game, page }) => {
+    await page.addInitScript(FAKE_CLOUD);
+    await game.open({ save: { v: 3, todMode: 2, tod: 13 } });
+    await signIn(page, game);
+    await expect.poll(() => status(game).then(s => s.st)).toBe("synced");
+    const count = (await cloud(game)).puts;
+    await setCloud(game, "s.docs.u1.at=Date.now()-7200000;");
+    const lastBackup = (await cloud(game)).docs.u1.at;
+    await game.reload();
+    await expect.poll(() => status(game).then(s => s.st)).toBe("synced");
+    expect((await cloud(game)).puts).toBe(count);
+    expect(await game.eval(() => __T.CL.meta.at)).toBe(lastBackup);
+  });
+
   test("the start screen: PLAY AS GUEST, or SAVE MY PROGRESS; once signed in it says PLAY and when it last backed up", async ({ game, page }) => {
     await page.addInitScript(FAKE_CLOUD);
     await game.open({ autostart: false });
