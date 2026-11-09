@@ -51,6 +51,34 @@ test.describe("photo mode", () => {
     await expect(page.locator("#pause")).toBeVisible();
   });
 
+  test("controller B closes the picture just taken first, as Escape does, then leaves Photo Mode", async ({ game, page }) => {
+    await page.addInitScript(() => {
+      const pad = { id: "Test pad", index: 0, connected: true, mapping: "standard", timestamp: 0, axes: [0, 0, 0, 0], buttons: [] };
+      for (let i = 0; i < 17; i++) pad.buttons.push({ pressed: false, touched: false, value: 0 });
+      window.__pad = pad;
+      Object.defineProperty(navigator, "getGamepads", { configurable: true, value: () => [pad, null, null, null] });
+    });
+    await driving(game);
+    await game.key("v");
+    await game.waitState("PHOTO");
+    // the preview of a picture just taken (as SNAP shows it)
+    await game.eval(() => {
+      __T.show("phShot", true);
+      document.getElementById("photo").classList.add("shot");
+    });
+    const pressB = async () => {
+      await game.eval(() => (__pad.buttons[1].pressed = true));
+      await game.frames(3);
+      await game.eval(() => (__pad.buttons[1].pressed = false));
+      await game.frames(3);
+    };
+    await pressB();
+    await expect(page.locator("#phShot")).toBeHidden();
+    expect(await game.eval(() => __T.state)).toBe("PHOTO");
+    await pressB();
+    await game.waitState("DRIVE");
+  });
+
   test("shortcuts still work with a slider focused; leaving to the pause menu keeps the rear lights' colour", async ({ game, page }) => {
     await driving(game);
     // after dragging ZOOM the slider has focus: Escape still leaves (it used to be swallowed, like V, R and Enter)

@@ -2974,7 +2974,8 @@ function pollPad(){
   else if(state==="PAUSE"){if(hit(9)||hit(1)){const sub=PAUSE_SUBS.find(([id])=>!$(id).classList.contains("hide"));if(sub)sub[1]();else pauseOff()}}
   else if(state==="LOAD"){if(hit(0)&&!$("lstart").classList.contains("hide"))$("lstart").click()}
   else if(state==="MAP"){if(hit(8)||hit(1)){if(!$("passport").classList.contains("hide"))passportClose();else closeMap()}}
-  else if(state==="PHOTO"){if(hit(1))photoExit()}
+  // B closes the picture just taken first, as Escape does; from Photo Mode itself it goes back
+  else if(state==="PHOTO"){if(hit(1)){if(!$("phShot").classList.contains("hide"))photoShotClose();else photoExit()}}
   // the right stick turns the garage view; it's read here and applied by time in garageCam (per frame, it turned four
   // times as fast at 120 fps as at 30)
   {const dz=a=>Math.abs(a)<.2?0:Math.sign(a)*(Math.abs(a)-.2)/.8;GO.stick[0]=state==="GARAGE"?dz(g.axes[2]||0):0;GO.stick[1]=state==="GARAGE"?dz(g.axes[3]||0):0}
@@ -3540,6 +3541,8 @@ function trackRouteFull(route,x,z,maxS){
 }
 // a checkpoint counts only when the car drives through its gate: forwards, between the posts
 function gateOf(R,s){const p=edgePos(R,s),nr=nearestRoad(p.x,p.z,20);return{x:p.x,z:p.z,dx:p.dx,dz:p.dz,hw:(nr?nr.e.half:6)+1.2}}
+// how far along the move from (x0,z0) to (x1,z1) the gate's line is crossed (0 to 1)
+function crossAt(g,x0,z0,x1,z1){const a0=(x0-g.x)*g.dx+(z0-g.z)*g.dz,a1=(x1-g.x)*g.dx+(z1-g.z)*g.dz;return a0===a1?1:clamp(a0/(a0-a1),0,1)}
 function crossedGate(g,x0,z0,x1,z1){
   const a0=(x0-g.x)*g.dx+(z0-g.z)*g.dz,a1=(x1-g.x)*g.dx+(z1-g.z)*g.dz;
   if(!(a0<0&&a1>=0))return false;
@@ -3628,7 +3631,9 @@ function updateEvent(dt){
         if(ag<(ahead.tc?22:10))vt=Math.min(vt,Math.max(0,ahead.v-(ag<6.5?1.5:0))+(ahead.tc?Math.max(0,ag-8)*.6:0))}
       a.v+=clamp(vt-a.v,-11*dt,a.acc*pace*Math.max(.15,1-(a.v/a.vmax)**2)*dt);
       // past the line a rival rolls on and slows gently, clearing the finish for the cars behind
-      if(!a.fin){a.s+=a.v*dt;if(a.s>=R.len)a.fin=ev.t}
+      // its finish time is when it reached the line within this frame (two cars over the line in the same frame are
+      // placed by who got there first, not both given the frame's end)
+      if(!a.fin){a.s+=a.v*dt;if(a.s>=R.len)a.fin=ev.t-(a.v>0?Math.min(dt,(a.s-R.len)/a.v):0)}
       else{a.v=Math.max(0,a.v-2.5*dt);a.s+=a.v*dt}
       // keep out of the player's way
       const ds=ev.s-a.s;
@@ -3661,7 +3666,8 @@ function updateEvent(dt){
   const cps=E.cps;
   if(ev.phase==="run"&&ev.cp<cps.length&&ev.px!==null&&crossedGate(ev.gate,ev.px,ev.pz,P.x,P.z)){
     ev.cp++;ev.missT=0;
-    if(ev.cp>=cps.length){finishEvent();return}
+    // your time is when you reached the line within this frame, as the rivals' are
+    if(ev.cp>=cps.length){finishEvent(ev.t-dt*(1-crossAt(ev.gate,ev.px,ev.pz,P.x,P.z)));return}
     ev.gate=gateOf(R,cps[ev.cp]);beep(700);
   }else if(ev.phase==="run"&&ev.cp<cps.length&&(ev.sNow>cps[ev.cp]+25||
       // the finish is the route's end, so progress can't run past it: there, being 25 m beyond the line counts
@@ -3692,8 +3698,8 @@ function updateEvent(dt){
   $("evTime").textContent=fmtT(Math.max(0,tt));
   $("evCp").textContent=ev.cp+"/"+cps.length;
 }
-function finishEvent(){
-  const E=ev.E,t=ev.t;let title,rew=0,rows=[],pos=0,medal=0;
+function finishEvent(tx){
+  const E=ev.E,t=tx!==undefined?tx:ev.t;let title,rew=0,rows=[],pos=0,medal=0;
   if(E.type==="race"){
     pos=1+ev.ai.filter(a=>a.fin&&a.fin<t).length;
     title=["1ST PLACE","2ND PLACE","3RD PLACE","4TH PLACE"][pos-1];rew=raceRewards(E,ev.diff)[pos-1]||0;

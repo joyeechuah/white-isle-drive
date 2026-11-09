@@ -239,6 +239,54 @@ test.describe("races and time trials", () => {
     expect(Math.hypot(after.x - p0[0], after.z - p0[1]), "metres moved in 2 s after OK").toBeLessThan(0.5);
   });
 
+  test("you and a rival over the line in the same frame: whoever reached it first in that frame places ahead", async ({ game }) => {
+    await ready(game);
+    const r = await game.eval(() => {
+      const T = __T,
+        P = T.P,
+        out = [];
+      const E = T.EVENTS.find((e) => e.type === "race");
+      // [where you are in the frame the line is crossed (m before it, at 30 m/s: 0.5 m a frame), where the rival is]
+      for (const [you, rival] of [
+        [0.45, 0.05], // the rival crosses early in the frame and you late: you're second
+        [0.05, 0.45], // the other way round: you're first
+      ]) {
+        T.startEvent(E);
+        const ev = T.ev,
+          R = ev.R,
+          cps = E.cps;
+        ev.phase = "run";
+        ev.t = 40;
+        ev.cp = cps.length - 1;
+        ev.gate = T.gateOf(R, cps[ev.cp]);
+        // the line is the route's end, so the point after it is worked out along the road's last heading
+        const a = T.edgePos(R, cps[ev.cp] - you);
+        ev.px = a.x;
+        ev.pz = a.z;
+        P.x = a.x + a.dx * 0.5;
+        P.z = a.z + a.dz * 0.5;
+        P.h = Math.atan2(a.dx, a.dz);
+        P.vx = a.dx * 30;
+        P.vz = a.dz * 30;
+        // one rival at the line, at the same speed; the other two far behind
+        ev.ai.forEach((ai, i) => {
+          ai.fin = 0;
+          ai.s = i ? 100 + i * 20 : R.len - rival;
+          ai.v = i ? 20 : 30;
+          ai.lat = ai.lane = ev.lanes[1];
+        });
+        T.updateEvent(1 / 60);
+        out.push({ pos: ev.fin && ev.fin.pos, phase: ev.phase });
+        T.endEvent();
+      }
+      return out;
+    });
+    expect(r).toEqual([
+      { pos: 2, phase: "finish" },
+      { pos: 1, phase: "finish" },
+    ]);
+  });
+
   test("pausing past the finish line offers the result instead of quitting the event", async ({ game, page }) => {
     await ready(game);
     await start(game, page, 2);
