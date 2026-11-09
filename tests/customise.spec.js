@@ -119,6 +119,37 @@ test.describe("customise", () => {
     expect(await game.eval(() => __T.save.cr)).toBe(credits - 500);
   });
 
+  test("the MX-5 has a recessed cockpit and low roll hoops at both graphics levels", async ({ game }) => {
+    const views = await game.eval(() => {
+      const T = __T;
+      return [1, 2].map(gfx => {
+        T.save.gfx = gfx;
+        const car = T.rebuildCar("mx5"), body = car.shell.children[0];
+        car.G.updateMatrixWorld(true);
+        const heightAt = (x, z) => {
+          const ray = new THREE.Raycaster(
+            car.G.localToWorld(new THREE.Vector3(x, 3, z)),
+            new THREE.Vector3(0, -1, 0)
+          );
+          const hit = ray.intersectObject(body)[0];
+          return car.G.worldToLocal(hit.point).y;
+        };
+        const hoops = car.shell.children.filter(mesh => mesh.geometry?.type === "TubeGeometry");
+        const highestHoop = Math.max(...hoops.map(mesh => {
+          mesh.geometry.computeBoundingBox();
+          return mesh.position.y + mesh.geometry.boundingBox.max.y;
+        }));
+        return { recess: heightAt(.73, -.5) - heightAt(0, -.5), rearDeck: heightAt(0, -1.5), hoops: hoops.length, highestHoop };
+      });
+    });
+    for (const view of views) {
+      expect(view.recess).toBeGreaterThan(.15);
+      expect(view.rearDeck).toBeGreaterThan(.9);
+      expect(view.hoops).toBe(2);
+      expect(view.highestHoop).toBeLessThan(1.23);
+    }
+  });
+
   test("CANCEL puts the car back and charges nothing; Escape cancels too; options you can't afford can't be applied", async ({ game, page }) => {
     const before = await game.eval(model);
     await page.locator("#gCust").click();
