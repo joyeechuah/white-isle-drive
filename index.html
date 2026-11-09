@@ -2847,17 +2847,22 @@ function buildLook(cd,color,env,q,mods){
   const pf=add(new THREE.PlaneGeometry(.46,.1),pm,0,pyF,K.z1);
   const pb=add(new THREE.PlaneGeometry(.46,.1),pm,0,pyR,K.z0);pb.rotation.y=Math.PI;
   // Check the actual bumper across the plate. A cross-section wide enough to hold the plate can sit behind the bumper.
-  const plateRay=new THREE.Raycaster();
-  for(const [p,dir] of [[pf,1],[pb,-1]]){
-    const end=p.position.z;let surface=null;
-    plateRay.ray.direction.set(0,0,-dir);
-    for(const x of [-.23,0,.23])for(const y of [-.05,0,.05]){
-      plateRay.ray.origin.set(x,p.position.y+y,end+dir);
-      const hit=plateRay.intersectObject(body)[0];
-      if(hit&&(surface===null||dir*hit.point.z>dir*surface))surface=hit.point.z;
+  // The 18 rays took about 9 ms a car (a race start builds three, the dealership one per car shown), so the answer
+  // is kept with the body's shape, which every car of that body and quality shares
+  let pz=PLATE_Z.get(parts.body);
+  if(!pz){pz=[];const plateRay=new THREE.Raycaster();
+    for(const [p,dir] of [[pf,1],[pb,-1]]){
+      const end=p.position.z;let surface=null;
+      plateRay.ray.direction.set(0,0,-dir);
+      for(const x of [-.23,0,.23])for(const y of [-.05,0,.05]){
+        plateRay.ray.origin.set(x,p.position.y+y,end+dir);
+        const hit=plateRay.intersectObject(body)[0];
+        if(hit&&(surface===null||dir*hit.point.z>dir*surface))surface=hit.point.z;
+      }
+      pz.push((surface??end)+dir*.012);
     }
-    p.position.z=(surface??end)+dir*.012;
-  }
+    PLATE_Z.set(parts.body,pz)}
+  pf.position.z=pz[0];pb.position.z=pz[1];
   // exhausts in the diffuser
   const ey=K.bp.bot(K.z0+.15)+.1,ez=(()=>{let z=K.z0;for(let i=0;i<40;i++){const zz=K.z0+i*.01;if(K.halfW(zz)>.6){z=zz;break}}return z})();
   // stock tips for the body type, or TWIN (one each side), QUAD (two each side), CENTRE (two in the middle, larger)
@@ -2936,6 +2941,7 @@ function rebuildCarModels(){
   for(const id in showMeshes){const o=showMeshes[id];if(o.q===q)continue;disposeHeroCar(o);delete showMeshes[id]}
   if(state==="DEALER")dPick(dSel);
 }
+const PLATE_Z=new WeakMap();   // where the plates sit, by body shape (see buildLook)
 function buildHeroCar(cd,color,mods){
   const pr=PROF[cd.shape];
   const q=carQ(),L=buildLook(cd,color===undefined?cd.body:color,carEnvTex(),q,mods);
