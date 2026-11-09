@@ -409,6 +409,29 @@ test.describe("cloud save", () => {
     });
   }
 
+  test("reconnecting after a failed account lookup still asks before sharing progress", async ({ game, page }) => {
+    await page.addInitScript(FAKE_CLOUD);
+    await game.open();
+    await progress(game, 345678);
+    await signIn(page, game);
+    await expect.poll(() => status(game).then((s) => s.st)).toBe("synced");
+    await page.locator("#clOut").click();
+    await expect.poll(() => status(game).then((s) => s.uid)).toBe(null);
+    await setCloud(game, 's.acct={uid:"u2",name:"Second player",email:""};');
+    await game.eval(() => {
+      const ad = window.__cloudAdapter, get = ad.get;
+      ad.get = (uid) => {
+        ad.get = get;
+        return Promise.reject(Object.assign(new Error("offline"), { code: "unavailable" }));
+      };
+    });
+    await page.locator("#clIn").click();
+    await expect.poll(() => status(game).then((s) => s.st)).toBe("offline");
+    await game.eval(() => window.dispatchEvent(new Event("online")));
+    await expect(page.locator("#cloudPick")).toBeVisible();
+    expect((await cloud(game)).docs.u2).toBeUndefined();
+  });
+
   test("a repaint is progress: signing in to an account with a save asks, instead of replacing it", async ({ game, page }) => {
     await page.addInitScript(FAKE_CLOUD);
     await game.open();
