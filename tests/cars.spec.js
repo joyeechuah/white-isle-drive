@@ -51,6 +51,45 @@ test.describe("car models", () => {
     expect(r.afterFree).toBe(true);
   });
 
+  test("a car's number plates are fitted to its bumpers once per body shape: building the car again casts no rays", async ({ game }) => {
+    await game.open();
+    const r = await game.eval(() => {
+      const T = __T,
+        proto = THREE.Raycaster.prototype,
+        cast = proto.intersectObject;
+      let rays = 0;
+      proto.intersectObject = function (...a) {
+        rays++;
+        return cast.apply(this, a);
+      };
+      const plates = (m) => {
+        const z = [];
+        m.G.traverse((o) => o.geometry && o.geometry.type === "PlaneGeometry" && o.geometry.parameters.width === 0.46 && z.push(+o.position.z.toFixed(4)));
+        return z.sort();
+      };
+      try {
+        const first = T.CARS.map((c) => {
+          const m = T.buildHeroCar(c),
+            z = plates(m);
+          T.disposeHeroCar(m);
+          return z;
+        });
+        const before = rays;
+        const again = T.CARS.map((c) => {
+          const m = T.buildHeroCar(c),
+            z = plates(m);
+          T.disposeHeroCar(m);
+          return z;
+        });
+        return { again: rays - before, same: JSON.stringify(first) === JSON.stringify(again), two: first.every((z) => z.length === 2) };
+      } finally {
+        proto.intersectObject = cast;
+      }
+    });
+    // each rebuild used to cast 18 rays (about 9 ms a car: race starts and the dealership build several)
+    expect(r).toEqual({ again: 0, same: true, two: true });
+  });
+
   test("every body type has a see-through windscreen and rear window, and a painted roof (raked screens used to be painted as roof)", async ({ game }) => {
     await game.open();
     const r = await game.eval(() => {
