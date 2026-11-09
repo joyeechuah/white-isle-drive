@@ -769,7 +769,7 @@ let W=innerWidth,H=innerHeight;
 // (multisampling is cheap on the tile-based GPUs in phones). adaptRes lowers this if frames run slow.
 // GRAPHICS setting: AUTO keeps it sharp and only eases off (never below 1.5) when frames get slow;
 // SHARP always renders at the screen's full sharpness; SMOOTH renders at 1 for weak phones and long battery
-const PR_DEV=Math.min(devicePixelRatio||1,2);let PR_MAX=PR_DEV,PR_MIN=PR_DEV;
+let PR_DEV=Math.min(devicePixelRatio||1,2),PR_MAX=PR_DEV,PR_MIN=PR_DEV;
 function gfxLimits(){const g=save.gfx;PR_MAX=g===2?Math.min(PR_DEV,1):PR_DEV;PR_MIN=g===0?Math.min(PR_DEV,1.5):PR_MAX}
 gfxLimits();
 let prNow=PR_MAX;
@@ -789,7 +789,14 @@ scene.fog=new THREE.Fog(0xcfe0ea,260,1700);
 const camera=new THREE.PerspectiveCamera(60,W/H,.25,4400);
 // fov is vertical, so a tall portrait screen would see only a narrow slice of the road; widen it there
 const fitZoom=()=>{camera.zoom=W<H?Math.sqrt(W/H):1};fitZoom();
-addEventListener("resize",()=>{W=innerWidth;H=innerHeight;renderer.setSize(W,H,false);camera.aspect=W/H;fitZoom();camera.updateProjectionMatrix();layoutHUD()});
+addEventListener("resize",()=>{
+  W=innerWidth;H=innerHeight;
+  // Browser zoom and moving the window between screens can change the pixel density during play.
+  const density=Math.min(devicePixelRatio||1,2);
+  if(density!==PR_DEV){const atMax=prNow===PR_MAX;PR_DEV=density;gfxLimits();
+    prNow=atMax?PR_MAX:clamp(prNow,PR_MIN,PR_MAX);renderer.setPixelRatio(prNow)}
+  renderer.setSize(W,H,false);camera.aspect=W/H;fitZoom();camera.updateProjectionMatrix();layoutHUD()
+});
 
 /* ================================================================ SKY + DAY/NIGHT */
 // tileable cloud noise (periodic value-noise fbm), linear data
@@ -2902,10 +2909,21 @@ const carQ=()=>save.gfx===1?1:save.gfx===2||isTouch?0:1;
 function rebuildCar(id,mods){
   const o=carMeshes[id];if(!o)return getCar(id);
   if(o.q===carQ()&&modsInPlace(o,Object.assign({},MOD_STOCK,mods||modsOf(id)))){if(showMeshes[id]){disposeHeroCar(showMeshes[id]);delete showMeshes[id]}return o}
-  const pos=o.G.position.clone(),rot=o.G.quaternion.clone(),vis=o.G.visible,par=o.G.parent;
-  disposeHeroCar(o);const n=buildHeroCar(carById(id),paintOf(id),mods||modsOf(id));carMeshes[id]=n;(par||scene).add(n.G);
-  n.G.position.copy(pos);n.G.quaternion.copy(rot);n.G.visible=vis;
+  const par=o.G.parent,paint=testDrive?.id===id?testDrive.paint:paintOf(id);
+  disposeHeroCar(o);const n=buildHeroCar(carById(id),paint,mods||modsOf(id));carMeshes[id]=n;(par||scene).add(n.G);
+  n.G.position.copy(o.G.position);n.G.quaternion.copy(o.G.quaternion);
+  // A graphics change can rebuild the car while paused, when the drive loop cannot restore its pose.
+  for(const part of ["inside","glass","shell"])n[part].visible=o[part].visible;
+  n.tailM.color.copy(o.tailM.color);n.steerWheel.rotation.z=o.steerWheel.rotation.z;n.blurOn=o.blurOn;
+  n.wheels.forEach((wheel,i)=>{
+    const old=o.wheels[i];
+    wheel.rotation.x=old.rotation.x;wheel.parent.position.y=old.parent.position.y;
+    wheel.userData.blur.visible=old.userData.blur.visible;
+    wheel.userData.spokes.forEach((spoke,j)=>spoke.visible=old.userData.spokes[j].visible);
+  });
+  n.front.forEach((mount,i)=>mount.rotation.y=o.front[i].rotation.y);
   if(id===curId)attachCar(id,id!==save.cur);
+  n.G.visible=o.G.visible;
   if(showMeshes[id]){disposeHeroCar(showMeshes[id]);delete showMeshes[id]}
   return n;
 }
@@ -4410,7 +4428,7 @@ function photoCapture(){
   return new Promise(res=>{
     const fail=err=>{PH.busy=false;phMsg("Couldn't save the photo: "+((err&&err.message)||err||"the browser blocked it"),"bad");res(false)};
     try{
-      applyDayNight();updateLampLights();photoFrame(0);renderer.render(scene,camera);
+      applyDayNight();updateLampLights();photoFrame(0);syncRenderView();renderer.render(scene,camera);
       const src=renderer.domElement,c=document.createElement("canvas");c.width=src.width;c.height=src.height;
       const x=c.getContext("2d");if(!x)throw new Error("no 2D canvas");x.drawImage(src,0,0);
       c.toBlob(b=>{if(!PH.on){PH.busy=false;res(false);return}if(!b){fail(new Error("the browser returned no image"));return}PH.busy=false;photoShotShow(b);res(true)},"image/png");
@@ -5171,7 +5189,7 @@ function closeDealer(){
 /* ---------- test drives: 90 s in any car from the dealership ---------- */
 function startTestDrive(id){
   if(save.owned.includes(id))return;
-  testDrive={id,prev:curId,t:90};
+  testDrive={id,prev:curId,t:90,paint:dPaint};
   if(pc)pc.G.visible=false;   // your own car waits at the dealer
   getCar(id).paint(dPaint);
   attachCar(id,true);
@@ -5623,6 +5641,12 @@ function adaptRes(dt){
   RES.t=0;RES.wait=.5;
   if(p!==prNow){prNow=p;renderer.setPixelRatio(p);renderer.setSize(W,H,false);RES.wait=3}
 }
+// An immediate Photo Mode capture needs the same sky and shadow placement as a frame from the main loop.
+function syncRenderView(){
+  sky.position.copy(camera.position);stars.position.copy(camera.position);
+  const f=state==="DEALER"?SHOW:pc&&state!=="GARAGE"&&state!=="LOAD"?pc.G.position:gW(0,12);
+  sun.position.copy(f).addScaledVector(MOON,220);sun.target.position.copy(f);sun.target.updateMatrixWorld();
+}
 function frame(ts){
   requestAnimationFrame(frame);pollPad();
   const raw=(ts-prevTs)/1000||.016,dt=Math.min(.05,raw);prevTs=ts;adaptRes(raw);
@@ -5643,9 +5667,7 @@ function frame(ts){
   else if(state==="DEALER")dealerCam(dt);
   else if(state==="MAP")drawMap();
   else if(state==="PHOTO")photoFrame(dt);
-  sky.position.copy(camera.position);stars.position.copy(camera.position);
-  const f=state==="DEALER"?SHOW:pc&&state!=="GARAGE"&&state!=="LOAD"?pc.G.position:gW(0,12);
-  sun.position.copy(f).addScaledVector(MOON,220);sun.target.position.copy(f);sun.target.updateMatrixWorld();
+  syncRenderView();
   if(state!=="MAP")renderer.render(scene,camera);
 }
 
