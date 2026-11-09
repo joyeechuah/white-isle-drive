@@ -51,9 +51,10 @@ kbd{font-family:var(--f-num);font-size:12px;border:1px solid rgba(255,255,255,.3
 #load .bar{width:200px;height:2px;background:var(--line);overflow:hidden;margin-top:12px}
 #load .fill{height:100%;width:0;background:var(--ink);transition:width .25s}
 #lmsg{font-size:12px;color:var(--mute);min-height:16px;text-align:center;max-width:300px}
-#lstart{margin-top:18px;min-width:180px}
+#lstart{margin-top:18px;width:280px}
 #lhint{font-size:11px;color:var(--mute);letter-spacing:.08em}
-#lcloud{min-width:180px;margin-top:2px}#lcl{font-size:11px;color:var(--mute);letter-spacing:.04em;text-align:center;max-width:320px}#lcl:empty{display:none}
+/* the two ways in, the same size and equally plain to see: playing as a guest (gold) or saving progress (white) */
+#lcloud{width:280px;margin-top:4px}#lcl{font-size:12px;color:var(--mute);letter-spacing:.04em;text-align:center;max-width:320px;line-height:1.5}#lcl:empty{display:none}
 body.touch #lhint{display:none}
 
 /* garage */
@@ -381,7 +382,7 @@ body.touch #phExit kbd{display:none}
   <div class="bar"><div class="fill" id="lf"></div></div>
   <div id="lmsg">Loading</div>
   <button id="lstart" class="btn gold hide">PLAY AS GUEST</button>
-  <button id="lcloud" class="btn ghost hide">SAVE MY PROGRESS</button>
+  <button id="lcloud" class="btn hide">SAVE MY PROGRESS</button>
   <div id="lcl"></div>
   <div id="lhint" class="hide">or press any key to play</div>
 </div>
@@ -5470,7 +5471,7 @@ function clLine(){const m=CL.meta;
 function clRender(){if(!CL)return;const on=!!CL.user,line=clLine(),bad=CL.st==="offline"||CL.st==="pending"||CL.st==="error"||CL.st==="signedout"||CL.st==="conflict";
   const g=$("gCloud");g.textContent=on||CL.meta.uid?(line||"SAVED").toUpperCase():"SAVE MY PROGRESS";g.classList.toggle("warn",bad&&!!CL.meta.uid);show("gCloud",!!CL.ad);
   $("pCloud").textContent=on?"CLOUD SAVE: "+(bad?"CHECK":"ON"):"SAVE MY PROGRESS";
-  $("lcl").textContent=CL.meta.uid?(CL.meta.name?"Signed in as "+CL.meta.name+" · ":"")+line:"";
+  $("lcl").textContent=CL.meta.uid?(CL.meta.name?"Signed in as "+CL.meta.name+" · ":"")+line:CL.ad?"Sign in with Google to back up your cars and credits and play on any device":"";
   show("clIntro",!on);show("clWho",on);show("clIn",!on);show("clNow",on);show("clOut",on||CL.st==="signedout");
   $("clWho").innerHTML=on?"Signed in as <b>"+(CL.meta.name||"you").replace(/[<>&]/g,"")+"</b>"+(CL.meta.email?" ("+CL.meta.email.replace(/[<>&]/g,"")+")":"")+". Your progress backs up by itself, and a copy stays on this device for playing offline.":"";
   $("clIn").disabled=!CL.ad||CL.st==="connecting";$("clIn").textContent=CL.st==="connecting"?"CONNECTING…":"SIGN IN WITH GOOGLE";$("clNow").disabled=CL.busy;

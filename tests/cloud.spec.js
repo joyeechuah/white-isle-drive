@@ -250,6 +250,16 @@ test.describe("cloud save", () => {
     await expect(page.locator("#lstart")).toBeVisible({ timeout: 240000 });
     await expect(page.locator("#lstart")).toHaveText("PLAY AS GUEST");
     await expect(page.locator("#lcloud")).toBeVisible();
+    // as plain to see as PLAY AS GUEST: the same size, a filled button (it was an outline), and a line saying what it's for
+    const look = await game.eval(() => {
+      const a = document.getElementById("lstart").getBoundingClientRect(),
+        b = document.getElementById("lcloud").getBoundingClientRect();
+      return { w: [Math.round(a.width), Math.round(b.width)], h: [Math.round(a.height), Math.round(b.height)], bg: getComputedStyle(document.getElementById("lcloud")).backgroundColor };
+    });
+    expect(look.w[1]).toBe(look.w[0]);
+    expect(look.h[1]).toBe(look.h[0]);
+    expect(look.bg).toBe("rgb(255, 255, 255)");
+    await expect(page.locator("#lcl")).toContainText("Sign in with Google");
     await page.locator("#lcloud").click();
     await game.waitState("GARAGE");
     await expect(page.locator("#cloud")).toBeVisible();
