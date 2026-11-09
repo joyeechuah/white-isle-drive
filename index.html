@@ -53,7 +53,7 @@ kbd{font-family:var(--f-num);font-size:12px;border:1px solid rgba(255,255,255,.3
 #lmsg{font-size:12px;color:var(--mute);min-height:16px;text-align:center;max-width:300px}
 #lstart{margin-top:18px;width:280px}
 #lhint{font-size:11px;color:var(--mute);letter-spacing:.08em}
-/* the two ways in, the same size and equally plain to see: playing as a guest (gold) or saving progress (white) */
+/* the two ways in, the same size and colour: playing as a guest, or saving progress */
 #lcloud{width:280px;margin-top:4px}#lcl{font-size:12px;color:var(--mute);letter-spacing:.04em;text-align:center;max-width:320px;line-height:1.5}#lcl:empty{display:none}
 body.touch #lhint{display:none}
 
@@ -382,7 +382,7 @@ body.touch #phExit kbd{display:none}
   <div class="bar"><div class="fill" id="lf"></div></div>
   <div id="lmsg">Loading</div>
   <button id="lstart" class="btn gold hide">PLAY AS GUEST</button>
-  <button id="lcloud" class="btn hide">SAVE MY PROGRESS</button>
+  <button id="lcloud" class="btn gold hide">SAVE MY PROGRESS</button>
   <div id="lcl"></div>
   <div id="lhint" class="hide">or press any key to play</div>
 </div>
