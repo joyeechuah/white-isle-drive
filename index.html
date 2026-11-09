@@ -2454,10 +2454,11 @@ function segCurve(c,counts,out){
 function segCounts(c,n){const m=c.length/2,L=[];let tot=0;for(let i=0;i<m-1;i++){const l=Math.hypot(c[i*2+2]-c[i*2],c[i*2+3]-c[i*2+1])+.02;L.push(l);tot+=l}
   const k=L.map(l=>Math.max(1,Math.round(n*l/tot)));return k}
 // the shape of one car: functions giving each cross-section, and where things are
-function carShape(pr,shape){
+function carShape(pr,shape,openCockpit){
   const S=LOOK[shape],bp=sampleProfile(pr.body),cp=sampleProfile(pr.cabin);
   const z0=bp.z0,z1=bp.z1,zc=(z0+z1)/2,hl=(z1-z0)/2,W=pr.w/2,Ra=pr.wr+.075;
   const arch=z=>{let y=-1;for(const zw of [pr.wb,-pr.wb]){const d=z-zw;if(Math.abs(d)<Ra)y=Math.max(y,pr.wr+Math.sqrt(Ra*Ra-d*d))}return y};
+  const cockpit=z=>openCockpit?smooth01(-1.4,-1.06,z)*(1-smooth01(.15,.45,z)):0;
   const halfW=z=>{const t=Math.min(1,Math.abs((z-zc)/hl));let w=W*Math.pow(Math.max(0,1-Math.pow(t,S.p)),1/S.p);
     // fenders swell a little over the wheels
     for(const zw of [pr.wb,-pr.wb]){const d=Math.abs(z-zw);w+=.03*(1-smooth01(Ra*.6,Ra+.35,d))*Math.min(1,w/.5)}return w};
@@ -2470,6 +2471,9 @@ function carShape(pr,shape){
     if(a>0)for(const i of [1,2,3]){const y=c[i*2+1];if(y<a){c[i*2+1]=a;if(i===1)c[2]=Math.min(c[2],pr.tr-.24)}}
     // up the side the points only ever climb (the lifted arch used to fold the side over itself)
     for(let i=2;i<=7;i++)c[i*2+1]=Math.max(c[i*2+1],c[i*2-1]+.012);
+    // The MX-5's door tops stay high while the centre drops into the open cockpit.
+    const recess=cockpit(z);
+    c[16]+=hw*.25*recess;c[17]-=.23*recess;c[19]-=.34*recess;
     return c};
   // the glasshouse
   const cz0=cp.z0,cz1=cp.z1,cw=pr.cw/2;
@@ -2480,7 +2484,7 @@ function carShape(pr,shape){
     const hw=halfW(z),w=Math.min(Math.max(cw,hw-S.tuck*1.5-.02),hw-S.tuck*1.7*Math.min(1,hw/.45)-.015),wt=w-Math.min(.3,H*.55)*f;
     return[w+.01,Bo-.03, w-(w-wt)*.25,Bo+H*.4, wt+.06*f,T-.04*f, wt-.04*f,T, wt*.4,T+.02*f, 0,T+.024*f]};
   const hy=Math.max(.56,pr.ws[1]-.34);
-  return{S,bp,cp,z0,z1,cz0,cz1,sec,csec,arch,halfW,Ra,hy,pr,shape};
+  return{S,bp,cp,z0,z1,cz0,cz1,sec,csec,arch,halfW,cockpit,Ra,hy,pr,shape};
 }
 // a lofted surface: stations along z (dense at the ends), each a closed ring made of the right half and its mirror
 function loftGeo(za,zb,secFn,NS,NU0,ends){
@@ -2540,6 +2544,7 @@ function bodyPaint(K){
     let dark=0,glossDark=0;
     // underneath and inside the wheel arches
     if(ny<-.3){o.c=.015;o.r=.85;o.m=0;return}
+    if(K.cockpit(z)>.12&&ax<hw*.78&&y<T-.075&&y>T-.42){o.c=.045;o.r=.82;o.m=0;return}
     const a=arch(z);if(a>0&&y<a+.012&&ax<hw-.02){o.c=.015;o.r=.85;o.m=0;return}
     // sills between the wheels
     if(S.sill&&side&&y<Bo+.085&&z<pr.wb-K.Ra+.02&&z>-pr.wb+K.Ra-.02)glossDark=1;
@@ -2608,9 +2613,9 @@ function cabinPaint(K){
   };
 }
 const SHAPE_CACHE={};
-function carParts(pr,shape,q){
-  const key=shape+":"+q;if(SHAPE_CACHE[key])return SHAPE_CACHE[key];
-  const K=carShape(pr,shape),hi=q>0;
+function carParts(pr,shape,q,openCockpit){
+  const key=shape+":"+q+(openCockpit?":open":"");if(SHAPE_CACHE[key])return SHAPE_CACHE[key];
+  const K=carShape(pr,shape,openCockpit),hi=q>0;
   const NS=hi?130:80,NU=hi?30:20,TW=hi?1024:768,TH=hi?512:384;
   const body=loftGeo(K.z0,K.z1,K.sec,NS,NU,true),cabin=loftGeo(K.cz0,K.cz1,K.csec,hi?60:36,hi?18:12,true);
   const bt=paintSurface(K.z0,K.z1,K.sec,TW,TH,true,bodyPaint(K),body),ct=paintSurface(K.cz0,K.cz1,K.csec,hi?512:256,hi?256:128,true,cabinPaint(K),cabin);
@@ -2769,8 +2774,32 @@ function modsInPlace(c,to){
 }
 // how far out the wheels sit: the track, but never so far that the tyre stands outside the body's side over it
 const wheelTrack=(pr,K)=>Math.min(pr.tr,Math.min(K.halfW(pr.wb),K.halfW(-pr.wb))-.15*pr.wr/.36+.01);
+function addMx5Cockpit(add){
+  const shape=new THREE.Shape();
+  shape.moveTo(-.16,0);shape.quadraticCurveTo(-.225,0,-.215,.08);
+  shape.quadraticCurveTo(-.19,.18,-.21,.29);shape.quadraticCurveTo(-.22,.36,-.135,.39);
+  shape.lineTo(-.12,.46);shape.quadraticCurveTo(-.12,.52,-.065,.52);
+  shape.lineTo(.065,.52);shape.quadraticCurveTo(.12,.52,.12,.46);
+  shape.lineTo(.135,.39);shape.quadraticCurveTo(.22,.36,.21,.29);
+  shape.quadraticCurveTo(.19,.18,.215,.08);shape.quadraticCurveTo(.225,0,.16,0);shape.closePath();
+  const back=new THREE.ExtrudeGeometry(shape,{depth:.09,bevelSize:.025,bevelThickness:.025,bevelSegments:2,curveSegments:5});
+  const cushion=new THREE.SphereGeometry(1,16,10);
+  const hoopPath=new THREE.CatmullRomCurve3([
+    new V3(-.16,0,0),new V3(-.15,.15,0),new V3(-.09,.23,0),new V3(.09,.23,0),new V3(.15,.15,0),new V3(.16,0,0)
+  ]);
+  const hoop=new THREE.TubeGeometry(hoopPath,20,.035,8,false);
+  for(const side of [-1,1]){
+    const x=side*.36;
+    add(cushion,seatM,x,.70,-.53).scale.set(.23,.075,.26);
+    add(back,seatM,x,.70,-.73).rotation.x=-.22;
+    add(hoop,darkInM,x,.94,-1.27);
+  }
+  // The low trim panel anchors both hoops and keeps the centre wind deflector below the headrests.
+  add(new THREE.BoxGeometry(1.16,.08,.16),seatM,0,.94,-1.27);
+  add(new THREE.BoxGeometry(.31,.12,.025),darkInM,0,1.02,-1.26);
+}
 function buildLook(cd,color,env,q,mods){
-  const pr=PROF[cd.shape],hi=q>0,parts=carParts(pr,cd.shape,q),K=parts.K,S=K.S,Mt=lookMats(env,hi),M=Object.assign({},MOD_STOCK,mods||{});
+  const mx5=cd.id==="mx5",pr=PROF[cd.shape],hi=q>0,parts=carParts(pr,cd.shape,q,mx5),K=parts.K,S=K.S,Mt=lookMats(env,hi),M=Object.assign({},MOD_STOCK,mods||{});
   const roof=MOD_ROOF[M.roof],wing=M.wing?MOD_WING[M.wing]:cd.wing;
   const G=new THREE.Group(),shell=new THREE.Group();G.add(shell);
   const bodyM=paintMat(env,hi,color,parts.bt),cabM=paintMat(env,hi,roof===null?color:roof,parts.ct);cabM.roughnessMap=parts.ct.rm;
@@ -2824,7 +2853,8 @@ function buildLook(cd,color,env,q,mods){
   else if(wing==="mid"){add(aeroGeo(.3,.045,pr.w-.24),Mt.carbon,0,rt+.2,R+.36).rotation.x=.08;for(const s of [-1,1])add(new THREE.BoxGeometry(.03,.2,.08),Mt.carbon,s*.5,rt+.09,R+.28)}
   else if(wing==="lip"){const w=add(aeroGeo(.18,.03,pr.w*.82),bodyM,0,rt+.0,R+.2);w.rotation.x=-.12}
   // open-top cars: seats and roll hoops
-  if(pr.open){const seatM=Mt.black;for(const s of [-1,1]){const st=add(new THREE.BoxGeometry(.48,.6,.14),seatM,s*.38,pr.ws[1]+.16,-.85);st.rotation.x=-.15;
+  if(mx5)addMx5Cockpit(add);
+  else if(pr.open){const seatM=Mt.black;for(const s of [-1,1]){const st=add(new THREE.BoxGeometry(.48,.6,.14),seatM,s*.38,pr.ws[1]+.16,-.85);st.rotation.x=-.15;
       add(new THREE.BoxGeometry(.24,.2,.12),seatM,s*.38,pr.ws[1]+.56,-.93);add(new THREE.TorusGeometry(.17,.025,8,16,Math.PI),Mt.chrome,s*.38,pr.ws[1]+.36,-1.15)}
     add(new THREE.BoxGeometry(pr.cw-.1,.04,1.2),seatM,0,pr.ws[1]-.08,-.6)}
   // contact shadow
