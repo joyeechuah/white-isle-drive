@@ -2805,11 +2805,20 @@ function buildLook(cd,color,env,q,mods){
   // number plates
   const pyF=K.bp.bot(K.z1-.1)+.13,pyR=K.bp.bot(K.z0+.1)+.2;
   const pm=plateMat(M.plate);
-  const pf=add(new THREE.PlaneGeometry(.46,.1),pm,0,pyF,K.z1+.0);pf.position.z=K.z1-.02+.0;
-  const pb=add(new THREE.PlaneGeometry(.46,.1),pm,0,pyR,K.z0+.02);pb.rotation.y=Math.PI;
-  // place each plate on the surface: push it out until it clears
-  for(const [p,dir] of [[pf,1],[pb,-1]]){const y=p.position.y;let z=dir>0?K.z1:K.z0;
-    for(let i=0;i<60;i++){const zz=z-dir*i*.01;if(K.halfW(zz)>.3&&K.bp.bot(zz)<y-.06&&K.bp.top(zz)>y+.06){z=zz;break}}p.position.z=z+dir*.012}
+  const pf=add(new THREE.PlaneGeometry(.46,.1),pm,0,pyF,K.z1);
+  const pb=add(new THREE.PlaneGeometry(.46,.1),pm,0,pyR,K.z0);pb.rotation.y=Math.PI;
+  // Check the actual bumper across the plate. A cross-section wide enough to hold the plate can sit behind the bumper.
+  const plateRay=new THREE.Raycaster();
+  for(const [p,dir] of [[pf,1],[pb,-1]]){
+    const end=p.position.z;let surface=null;
+    plateRay.ray.direction.set(0,0,-dir);
+    for(const x of [-.23,0,.23])for(const y of [-.05,0,.05]){
+      plateRay.ray.origin.set(x,p.position.y+y,end+dir);
+      const hit=plateRay.intersectObject(body)[0];
+      if(hit&&(surface===null||dir*hit.point.z>dir*surface))surface=hit.point.z;
+    }
+    p.position.z=(surface??end)+dir*.012;
+  }
   // exhausts in the diffuser
   const ey=K.bp.bot(K.z0+.15)+.1,ez=(()=>{let z=K.z0;for(let i=0;i<40;i++){const zz=K.z0+i*.01;if(K.halfW(zz)>.6){z=zz;break}}return z})();
   // stock tips for the body type, or TWIN (one each side), QUAD (two each side), CENTRE (two in the middle, larger)
@@ -5417,6 +5426,8 @@ function clBoot(){
 function clStartScreen(go){const b=$("lcloud");show("lcloud",!!CL.ad&&!CL.meta.uid);b.onclick=go;
   if(CL.meta.uid)$("lstart").textContent="PLAY";clRender()}
 // connecting: loads the service and finds who is signed in on this device (Firebase remembers it)
+const clAccountError=e=>clSet(clOff(e)?"offline":"error",clErr(e));
+const clReadAccount=()=>CL.ad.get(CL.user.uid).then(clReconcile);
 function clConnect(interactive){
   if(!CL.ad){clSet("error");return Promise.resolve()}
   clSet("connecting");
@@ -5426,7 +5437,7 @@ function clConnect(interactive){
     CL.user=u;CL.other=!!(CL.meta.owner&&CL.meta.owner!==u.uid);
     if(CL.meta.uid&&CL.meta.uid!==u.uid||CL.other){CL.meta.rev=0;CL.meta.prog="";CL.meta.full=""}
     CL.meta.uid=u.uid;CL.meta.name=u.name;CL.meta.email=u.email;clSaveMeta();
-    return CL.ad.get(u.uid).then(clReconcile)}).catch(e=>{clSet(clOff(e)?"offline":"error",clErr(e))})}
+    return clReadAccount()}).catch(clAccountError)}
 function clReconcile(doc){
   let cloud=null;try{cloud=doc&&typeof doc.save==="string"?JSON.parse(doc.save):null}catch(e){cloud=null}
   if(!cloud){
@@ -5458,7 +5469,9 @@ function clUpload(rev,onlyIfChanged){if(CL.applying)return Promise.resolve();
     CL.meta.rev=r.rev;CL.meta.prog=prog;CL.meta.full=full;CL.meta.at=Date.now();clOwn();clSaveMeta();clSet("synced");
     if(clHash(clCanon(clPayload(save)))!==full)clChanged()}).catch(e=>{CL.busy=false;clSet(clOff(e)?"offline":"pending",clErr(e))})}
 // a backup after the progress changed (a few seconds after, on leaving the page, when back online, and BACK UP NOW)
-function clSync(){clearTimeout(CL.timer);CL.timer=0;if(!CL.user||CL.busy||CL.applying||tabIdle||CL.st==="conflict")return Promise.resolve();
+function clSync(){clearTimeout(CL.timer);CL.timer=0;if(!CL.user||CL.busy||CL.applying||tabIdle||CL.st==="conflict"||CL.st==="connecting")return Promise.resolve();
+  // If the new account could not be read, retry the comparison before writing another player's local progress.
+  if(CL.other){clSet("connecting");return clReadAccount().catch(clAccountError)}
   const full=clHash(clCanon(clPayload(save)));if(full===CL.meta.full&&CL.st==="synced")return Promise.resolve();
   return clUpload(CL.meta.rev)}
 // If the service isn't loaded yet (loading it failed when the panel opened), the tap only loads it and the button
