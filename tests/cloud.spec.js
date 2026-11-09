@@ -99,6 +99,41 @@ test.describe("cloud save", () => {
     expect(await game.eval(() => __T.state)).toBe("GARAGE");
   });
 
+  test("the Firebase scripts come from cdnjs (as three.js does), each checked against its hash", async ({ game }) => {
+    await game.open();
+    // the test server can't reach the internet: loading fails, but the script tags it asks for can be checked
+    game.allowErrors.push(/ERR_BLOCKED_BY_CLIENT/);
+    const r = await game.eval(async () => {
+      const ad = __T.fbAdapter();
+      let err = null;
+      await ad.init().catch((e) => (err = e.message));
+      return { err, tags: [...document.scripts].filter((s) => /firebase/.test(s.src)).map((s) => ({ src: s.src, sri: s.integrity, co: s.crossOrigin })) };
+    });
+    expect(r.err).toMatch(/Couldn't reach the sign-in service/);
+    expect(r.tags.length).toBeGreaterThan(0);
+    for (const t of r.tags) {
+      expect(t.src).toMatch(/^https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/firebase\/10\.12\.2\/firebase-(app|auth|firestore)-compat\.js$/);
+      expect(t.sri).toMatch(/^sha384-/);
+      expect(t.co).toBe("anonymous");
+    }
+  });
+
+  test("the page's security policy allows every host Firebase and the visit counter use", async ({ game }) => {
+    await game.open();
+    // the policy once allowed only cdnjs and the page itself: the browser blocked Firebase and sign-in failed on every device
+    const r = await game.eval(() => ({
+      csp: document.querySelector('meta[http-equiv="Content-Security-Policy"]').content,
+      auth: __T.FIREBASE_CONFIG.authDomain,
+    }));
+    const dir = Object.fromEntries(r.csp.split(";").map((d) => d.trim().split(/\s+/)).filter((d) => d[0]).map(([k, ...v]) => [k, v]));
+    const allows = (d, url) => (dir[d] || dir["default-src"]).some((src) => src === new URL(url).origin);
+    for (const u of ["https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-app-compat.js", "https://apis.google.com/js/api.js", "https://static.cloudflareinsights.com/beacon.min.js"])
+      expect(allows("script-src", u), u).toBe(true);
+    for (const u of ["https://identitytoolkit.googleapis.com/v1/accounts:lookup", "https://securetoken.googleapis.com/v1/token", "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel", "https://cloudflareinsights.com/cdn-cgi/rum"])
+      expect(allows("connect-src", u), u).toBe(true);
+    expect(allows("frame-src", "https://" + r.auth + "/__/auth/iframe")).toBe(true);
+  });
+
   test("first sign-in keeps the guest's progress: it goes to the account, and the time of the backup shows", async ({ game, page }) => {
     await page.addInitScript(FAKE_CLOUD);
     await game.open();
