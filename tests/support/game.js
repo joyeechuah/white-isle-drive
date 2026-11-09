@@ -3,6 +3,7 @@
 // Every page gets:
 //   - three.js r128 from the npm package instead of cdnjs (same file: the page's Subresource Integrity hash is
 //     still checked by the browser, so a different copy would fail to load)
+//   - Firebase 10.12.2 (for the cloud save) from the npm package in the same way
 //   - an empty stylesheet for Google Fonts, so no test waits on Google; the game falls back to system fonts
 //   - every other request to another site blocked and recorded (the game makes none on its own)
 // and, unless a test asks for the untouched page, the instrumented copy from instrument.js.
@@ -13,6 +14,10 @@ const { instrumentedPage } = require("./instrument");
 
 const THREE_URL = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
 const THREE_FILE = require.resolve("three/build/three.min.js");
+// the Firebase scripts the cloud save loads, from the npm package of the same pinned version (again the page's hashes
+// are checked by the browser). Only the cloud tests that open SAVE MY PROGRESS load them
+const FIREBASE_URL = /^https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/firebase\/10\.12\.2\/(firebase-(?:app|auth|firestore)-compat\.js)$/;
+const FIREBASE_DIR = require("path").dirname(require.resolve("firebase/package.json"));
 const SAVE_KEY = "white-isle-drive-v1";
 
 // a careful autopilot along the GPS route to the current contract objective, or (stopWhen "gps") to the GPS target,
@@ -76,6 +81,9 @@ class Game {
       );
       await page.route(THREE_URL, (r) =>
         r.fulfill({ path: THREE_FILE, contentType: "text/javascript", headers: { "access-control-allow-origin": "*" } })
+      );
+      await page.route(FIREBASE_URL, (r) =>
+        r.fulfill({ path: FIREBASE_DIR + "/" + FIREBASE_URL.exec(r.request().url())[1], contentType: "text/javascript", headers: { "access-control-allow-origin": "*" } })
       );
       await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, (r) =>
         r.fulfill({ status: 200, contentType: "text/css", body: "", headers: { "access-control-allow-origin": "*" } })
