@@ -102,6 +102,65 @@ test.describe("cloud save", () => {
     expect(await game.eval(() => __T.state)).toBe("GARAGE");
   });
 
+  test("the Firebase scripts come from cdnjs (as three.js does), pass their hashes, and start the service", async ({ game }) => {
+    await game.open();
+    // the same three files from the npm package: the browser checks each against the page's hash before running it.
+    // Firebase may then try to reach Google, which the test server blocks
+    game.allowErrors.push(/ERR_BLOCKED_BY_CLIENT/);
+    const r = await game.eval(async () => {
+      const ad = __T.fbAdapter();
+      let err = null,
+        user;
+      await ad.init().then((u) => (user = u), (e) => (err = e.message));
+      return {
+        err,
+        user,
+        loaded: ad.loaded,
+        ver: window.firebase && window.firebase.SDK_VERSION,
+        parts: window.firebase ? [typeof window.firebase.auth, typeof window.firebase.firestore] : null,
+        tags: [...document.scripts].filter((s) => /firebase/.test(s.src)).map((s) => ({ src: s.src, sri: s.integrity, co: s.crossOrigin })),
+      };
+    });
+    expect(r.err).toBe(null);
+    expect(r.user).toBe(null);
+    expect([r.loaded, r.ver, r.parts]).toEqual([true, "10.12.2", ["function", "function"]]);
+    expect(r.tags.map((t) => t.src.split("/").pop()).sort()).toEqual(["firebase-app-compat.js", "firebase-auth-compat.js", "firebase-firestore-compat.js"]);
+    for (const t of r.tags) {
+      expect(t.src).toMatch(/^https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/firebase\/10\.12\.2\/firebase-(app|auth|firestore)-compat\.js$/);
+      expect(t.sri).toMatch(/^sha384-/);
+      expect(t.co).toBe("anonymous");
+    }
+  });
+
+  test("if a Firebase script can't load, sign-in says so and names the file in the console", async ({ game, page }) => {
+    await game.open();
+    await page.route(/firebase-app-compat\.js$/, (r) => r.abort("failed"));
+    game.allowErrors.push(/ERR_FAILED/);
+    const warns = [];
+    page.on("console", (m) => m.type() === "warning" && warns.push(m.text()));
+    const err = await game.eval(() => __T.fbAdapter().init().then(() => null, (e) => e.message));
+    expect(err).toBe("Couldn't load Google sign-in. Try again.");
+    expect(warns.join()).toContain("firebase-app-compat.js");
+  });
+
+  test("the page's security policy allows every host Firebase and the visit counter use", async ({ game }) => {
+    await game.open();
+    // the policy once allowed only cdnjs and the page itself: the browser blocked Firebase and sign-in failed on every device
+    const r = await game.eval(() => ({
+      csp: document.querySelector('meta[http-equiv="Content-Security-Policy"]').content,
+      auth: __T.FIREBASE_CONFIG.authDomain,
+    }));
+    const dir = Object.fromEntries(r.csp.split(";").map((d) => d.trim().split(/\s+/)).filter((d) => d[0]).map(([k, ...v]) => [k, v]));
+    const allows = (d, url) => (dir[d] || dir["default-src"]).some((src) => src === new URL(url).origin);
+    for (const u of ["https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-app-compat.js", "https://apis.google.com/js/api.js", "https://static.cloudflareinsights.com/beacon.min.js"])
+      expect(allows("script-src", u), u).toBe(true);
+    for (const u of ["https://identitytoolkit.googleapis.com/v1/accounts:lookup", "https://securetoken.googleapis.com/v1/token", "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel", "https://cloudflareinsights.com/cdn-cgi/rum"])
+      expect(allows("connect-src", u), u).toBe(true);
+    expect(allows("frame-src", "https://" + r.auth + "/__/auth/iframe")).toBe(true);
+    // and nothing more for frames: Google's sign-in page opens in a window of its own
+    expect(dir["frame-src"]).toEqual(["https://" + r.auth]);
+  });
+
   test("first sign-in keeps the guest's progress: it goes to the account, and the time of the backup shows", async ({ game, page }) => {
     await page.addInitScript(FAKE_CLOUD);
     await game.open();
@@ -226,6 +285,153 @@ test.describe("cloud save", () => {
     await expect(page.locator("#cpkDev")).toContainText("125,000");
   });
 
+  test("steady progress doesn't put the backup off: it goes a few seconds after the first change", async ({ game, page }) => {
+    await page.addInitScript(FAKE_CLOUD);
+    await game.open();
+    await signIn(page, game);
+    await expect.poll(() => status(game).then((s) => s.st)).toBe("synced");
+    const puts = (await cloud(game)).puts;
+    // a change every second for 9 s (each used to restart the 4 s wait, so nothing went until the changes stopped)
+    for (let i = 0; i < 9; i++) {
+      await game.eval(() => __T.earn(100));
+      await page.waitForTimeout(1000);
+    }
+    expect((await cloud(game)).puts).toBeGreaterThan(puts);
+  });
+
+  test("if the browser won't store the account's progress, nothing changes and saving carries on", async ({ game, page }) => {
+    await page.addInitScript(FAKE_CLOUD);
+    await game.open();
+    await setCloud(game, `const sv=JSON.parse(JSON.stringify(__T.save));sv.cr=500000;delete sv.ghost;s.docs.u1={save:JSON.stringify(sv),rev:3,at:Date.now()};`);
+    // the next write of the game's save fails (storage full)
+    await game.eval(() => {
+      const set = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (k, v) {
+        if (k === __T.SAVE_KEY) {
+          Storage.prototype.setItem = set;
+          throw new Error("QuotaExceededError");
+        }
+        return set.call(this, k, v);
+      };
+    });
+    await signIn(page, game);
+    await expect.poll(() => status(game).then((s) => s.st)).toBe("error");
+    await expect(page.locator("#clStat")).toContainText("won't store the restored progress");
+    expect(await game.eval(() => __T.CL.applying)).toBe(false);
+    // progress made now is saved here (it used to be dropped until a reload), and goes on to the account
+    await game.eval(() => __T.earn(1000));
+    expect(await game.eval(() => JSON.parse(localStorage.getItem(__T.SAVE_KEY)).cr)).toBe(121000);
+    // and the choice comes back, to try again
+    await expect.poll(() => status(game).then((s) => s.st), { timeout: 10000 }).toBe("conflict");
+    await expect(page.locator("#cloudPick")).toBeVisible();
+  });
+
+  test("if the service didn't load when the panel opened, SIGN IN only loads it; the next tap opens Google's window", async ({ game, page }) => {
+    await page.addInitScript(FAKE_CLOUD);
+    await page.addInitScript(() => {
+      // like Firebase: loaded once init succeeds; and count the times Google's window would open
+      const ad = window.__cloudAdapter,
+        init = ad.init,
+        signIn = ad.signIn;
+      ad.loaded = false;
+      ad.opened = 0;
+      ad.init = () => init().then((u) => ((ad.loaded = true), u));
+      ad.signIn = function () {
+        ad.opened++;
+        return signIn.call(this);
+      };
+    });
+    await game.open();
+    await setCloud(game, "s.fail=true;");
+    await page.locator("#gCloud").click();
+    await expect.poll(() => status(game).then((s) => s.st)).toBe("offline");
+    await setCloud(game, "s.fail=false;");
+    // a phone would block a window opened after the wait for the download, so this tap opens none
+    await page.locator("#clIn").click();
+    await expect.poll(() => status(game).then((s) => s.st)).toBe("guest");
+    await expect(page.locator("#clStat")).toContainText("Ready");
+    expect(await game.eval(() => __T.CL.ad.opened)).toBe(0);
+    await page.locator("#clIn").click();
+    await expect.poll(() => status(game).then((s) => s.st)).toBe("synced");
+    expect(await game.eval(() => __T.CL.ad.opened)).toBe(1);
+  });
+
+  test("progress made while a backup is on its way is backed up next", async ({ game, page }) => {
+    await page.addInitScript(FAKE_CLOUD);
+    await game.open();
+    await signIn(page, game);
+    await expect.poll(() => status(game).then((s) => s.st)).toBe("synced");
+    // backups take a second to get through
+    await game.eval(() => {
+      const ad = __T.CL.ad,
+        put = ad.put;
+      ad.put = (...a) => new Promise((r) => setTimeout(r, 1000)).then(() => put(...a));
+    });
+    await game.eval(() => __T.earn(100));
+    await expect.poll(() => game.eval(() => __T.CL.busy), { timeout: 10000 }).toBe(true);
+    await game.eval(() => __T.earn(5000));
+    await expect.poll(() => cloud(game).then((c) => JSON.parse(c.docs.u1.save).cr), { timeout: 15000 }).toBe(125100);
+  });
+
+  for (const pick of ["use", "new"]) {
+    test(`a different Google account on this browser is asked before this device's progress goes to it (${pick})`, async ({ game, page }) => {
+      await page.addInitScript(FAKE_CLOUD);
+      await game.open();
+      await progress(game, 345678);
+      await signIn(page, game);
+      await expect.poll(() => status(game).then((s) => s.st)).toBe("synced");
+      await page.locator("#clOut").click();
+      await expect.poll(() => status(game).then((s) => s.uid)).toBe(null);
+      // someone else signs in here, with an account that has nothing saved
+      await setCloud(game, `s.acct={uid:"u2",name:"Sam",email:"sam@example.com"};`);
+      await page.locator("#clIn").click();
+      await expect(page.locator("#cloudPick")).toBeVisible();
+      await expect(page.locator("#cpkTitle")).toHaveText("Use this device's progress for this account?");
+      await expect(page.locator("#cpkP")).toContainText("Jo's Google account");
+      await expect(page.locator("#cpkAcc")).toContainText("No progress saved yet");
+      await expect(page.locator("#cpkKeepAcc")).toHaveText("START NEW");
+      // nothing went to the new account before the choice
+      expect((await cloud(game)).docs.u2).toBeUndefined();
+      if (pick === "use") {
+        await page.locator("#cpkKeepDev").click();
+        await expect.poll(() => status(game).then((s) => s.st)).toBe("synced");
+        expect(JSON.parse((await cloud(game)).docs.u2.save).cr).toBe(345678);
+      } else {
+        await page.locator("#cpkKeepAcc").click();
+        await page.waitForEvent("load");
+        await game.boot();
+        expect(await game.eval(() => [__T.save.cr, __T.save.owned.includes("mini")])).toEqual([120000, false]);
+        await expect.poll(() => status(game).then((s) => s.st)).toBe("synced");
+        expect(JSON.parse((await cloud(game)).docs.u2.save).cr).toBe(120000);
+      }
+      // the first account's backup is untouched either way
+      expect(JSON.parse((await cloud(game)).docs.u1.save).cr).toBe(345678);
+    });
+  }
+
+  test("a repaint is progress: signing in to an account with a save asks, instead of replacing it", async ({ game, page }) => {
+    await page.addInitScript(FAKE_CLOUD);
+    await game.open();
+    await setCloud(game, `const sv=JSON.parse(JSON.stringify(__T.save));sv.cr=500000;delete sv.ghost;s.docs.u1={save:JSON.stringify(sv),rev:3,at:Date.now()};`);
+    await game.eval(() => {
+      __T.save.paint.golf = 0x1d4aa8;
+      __T.persist();
+    });
+    await signIn(page, game);
+    await expect(page.locator("#cloudPick")).toBeVisible();
+    expect(await game.eval(() => __T.save.paint.golf)).toBe(0x1d4aa8);
+  });
+
+  test("the ghost car switch is a setting, not progress", async ({ game }) => {
+    await game.open();
+    const r = await game.eval(() => {
+      const a = __T.clProg(__T.save);
+      __T.save.ghostOn = !__T.save.ghostOn;
+      return a === __T.clProg(__T.save);
+    });
+    expect(r).toBe(true);
+  });
+
   test("signing out stops the backups and keeps the progress on this device; failures to sign in leave the game as it was", async ({ game, page }) => {
     await page.addInitScript(FAKE_CLOUD);
     await game.open();
@@ -253,6 +459,16 @@ test.describe("cloud save", () => {
     await expect(page.locator("#lstart")).toBeVisible({ timeout: 240000 });
     await expect(page.locator("#lstart")).toHaveText("PLAY AS GUEST");
     await expect(page.locator("#lcloud")).toBeVisible();
+    // as plain to see as PLAY AS GUEST: the same size and gold (it was an outline), and a line saying what it's for
+    const look = await game.eval(() => {
+      const a = document.getElementById("lstart").getBoundingClientRect(),
+        b = document.getElementById("lcloud").getBoundingClientRect();
+      return { w: [Math.round(a.width), Math.round(b.width)], h: [Math.round(a.height), Math.round(b.height)], bg: [getComputedStyle(document.getElementById("lstart")).backgroundColor, getComputedStyle(document.getElementById("lcloud")).backgroundColor] };
+    });
+    expect(look.w[1]).toBe(look.w[0]);
+    expect(look.h[1]).toBe(look.h[0]);
+    expect(look.bg[1]).toBe(look.bg[0]);
+    await expect(page.locator("#lcl")).toContainText("Sign in with Google");
     await page.locator("#lcloud").click();
     await game.waitState("GARAGE");
     await expect(page.locator("#cloud")).toBeVisible();
