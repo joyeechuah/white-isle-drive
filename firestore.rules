@@ -1,0 +1,21 @@
+rules_version = '2';
+// White Isle Drive cloud saves: one document per player, saves/{uid}, readable and writable only by that player.
+// Each write must carry the save as text (under 900 KB) and the next revision number, so a device can't overwrite
+// progress another device saved meanwhile without having read it first.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /saves/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['save', 'v', 'summary', 'rev', 'at'])
+        && request.resource.data.save is string && request.resource.data.save.size() < 900000
+        && request.resource.data.rev is int
+        && request.resource.data.rev == (resource == null ? 1 : resource.data.rev + 1)
+        && request.resource.data.at == request.time;
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
