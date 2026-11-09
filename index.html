@@ -16,7 +16,7 @@
 <meta property="og:image" content="https://joyeechuah.github.io/white-isle-drive/docs/social-preview.jpg">
 <meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="640">
-<meta property="og:image:alt" content="A red open-top car on a coastal highway at dusk, under the title White Isle Drive">
+<meta property="og:image:alt" content="A red hatchback on a coastal highway in the late-afternoon sun, under the title White Isle Drive">
 <meta name="twitter:card" content="summary_large_image">
 <title>White Isle Drive</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2357,7 +2357,11 @@ function carEnvTex(){if(!CAR_ENV.tex)updateCarEnv(true);return CAR_ENV.tex}
 function updateCarEnv(force){
   const k=[skyU.top.value,skyU.hor.value,skyU.sunCol.value].map(c=>c.r+c.g+c.b).concat([skyU.sunDir.value.x,skyU.sunDir.value.y]);
   const old=CAR_ENV.key,now=performance.now();
-  if(!force&&old&&((now-CAR_ENV.t<4000&&!CAR_ENV.dirty)||k.every((v,i)=>Math.abs(v-old[i])<.06))){CAR_ENV.dirty=false;return}CAR_ENV.dirty=false;
+  // redrawn at most every 4 s as the sky changes slowly with the hour, but at once when it changes a lot: the first map
+  // is drawn while the game loads, before the hour's sky is set, and for up to 4 s after START the cars reflected
+  // that grey sky (lighter paint, grey windows) and then changed colour
+  const big=old&&k.some((v,i)=>Math.abs(v-old[i])>.25);
+  if(!force&&old&&!big&&((now-CAR_ENV.t<4000&&!CAR_ENV.dirty)||k.every((v,i)=>Math.abs(v-old[i])<.06))){CAR_ENV.dirty=false;return}CAR_ENV.dirty=false;
   if(!CAR_ENV.pm){CAR_ENV.pm=new THREE.PMREMGenerator(renderer);CAR_ENV.scene=carEnvScene()}
   CAR_ENV.ground.material.color.copy(hemi.groundColor).lerp(scene.fog.color,.35).multiplyScalar(.55);
   const rt=CAR_ENV.pm.fromScene(CAR_ENV.scene,.02,.1,200),old2=CAR_ENV.rt;CAR_ENV.rt=rt;CAR_ENV.tex=rt.texture;
@@ -2431,7 +2435,9 @@ function carShape(pr,shape){
   const cz0=cp.z0,cz1=cp.z1,cw=pr.cw/2;
   // the glasshouse starts just inside the body's shoulder and leans in towards the roof
   const csec=z=>{const T=cp.top(z),Bo=cp.bot(z),H=Math.max(0,T-Bo),f=Math.min(1,H/.12);
-    const w=Math.max(cw,halfW(z)-S.tuck*1.5-.02),wt=w-Math.min(.3,H*.55)*f;
+    // but never wider than the body's shoulder under it: towards the tail (and nose) the body narrows, and a glasshouse
+    // kept at its full width overhung the sides like a wide black hat on the Golf and the Range Rover
+    const hw=halfW(z),w=Math.min(Math.max(cw,hw-S.tuck*1.5-.02),hw-S.tuck*1.7*Math.min(1,hw/.45)-.015),wt=w-Math.min(.3,H*.55)*f;
     return[w+.01,Bo-.03, w-(w-wt)*.25,Bo+H*.4, wt+.06*f,T-.04*f, wt-.04*f,T, wt*.4,T+.02*f, 0,T+.024*f]};
   const hy=Math.max(.56,pr.ws[1]-.34);
   return{S,bp,cp,z0,z1,cz0,cz1,sec,csec,arch,halfW,Ra,hy,pr,shape};
@@ -2554,7 +2560,10 @@ function cabinPaint(K){
     if(sd){if(Math.abs(z-zB)<.045){o.c=.015;o.r=.15;o.m=0;return}
       if(y>T-.035||z<K.cz0+.25){o.c=1;o.r=.36;o.m=.35;return}glass();return}
     if(z<=zRF-.03&&z>=zRR+.03&&ny>.5){o.c=1;o.r=.36;o.m=.35;return}       // roof
-    if(mid&&(z>zRF+.03||z<zRR-.03)){glass();return}                       // windscreen, rear window
+    if(mid&&z>zRF+.03){glass();return}                                     // windscreen
+    // rear window: glass in the middle, framed in body colour (a strip under the roof's end, the pillars either side
+    // and a strip along the bottom), as on a real hatch or saloon; all dark, it looked like a black slab on the back
+    if(z<zRR-.03){if(Math.abs(nx)<.34&&z<zRR-.07&&T-Bo>.1){glass();return}o.c=1;o.r=.36;o.m=.35;return}
     o.c=.012;o.r=.6;o.m=0;                                    // pillars and frames, satin black (gloss caught the sky as white lines)
   };
 }
