@@ -89,6 +89,36 @@ test.describe("customise", () => {
     await expect(page.locator("#cuTotal")).toHaveText(/2,000 CR/);
   });
 
+  test("a paid GT-R plate is visible on both bumpers, including after reload", async ({ game, page }) => {
+    await game.eval(() => __T.gPick(__T.save.owned.indexOf("gtr")));
+    const credits = await game.eval(() => __T.save.cr);
+    await page.locator("#gCust").click();
+    await page.locator("#cuPlate").fill("WID 8888");
+    await page.locator("#cuApply").click();
+    await expect(page.locator("#cust")).toBeHidden();
+
+    const plates = () => game.eval(() => {
+      const car = __T.carMeshes.gtr;
+      car.G.updateMatrixWorld(true);
+      return car.refs.plates.map((plate) => {
+        const side = Math.sign(plate.position.z);
+        const visible = [-.19, 0, .19].every(x => [-.035, 0, .035].every(y => {
+          const origin = plate.localToWorld(new THREE.Vector3(x, y, 3));
+          const target = plate.localToWorld(new THREE.Vector3(x, y, 0));
+          const ray = new THREE.Raycaster(origin, target.sub(origin).normalize());
+          return ray.intersectObjects([car.shell.children[0], plate])[0]?.object === plate;
+        }));
+        return { side, visible, custom: plate.material.map === __T.PLATE_TEX["WID 8888"] };
+      });
+    });
+    const expected = [{ side: 1, visible: true, custom: true }, { side: -1, visible: true, custom: true }];
+    expect(await game.eval(() => __T.save.cr)).toBe(credits - 500);
+    expect(await plates()).toEqual(expected);
+    await game.reload();
+    expect(await plates()).toEqual(expected);
+    expect(await game.eval(() => __T.save.cr)).toBe(credits - 500);
+  });
+
   test("CANCEL puts the car back and charges nothing; Escape cancels too; options you can't afford can't be applied", async ({ game, page }) => {
     const before = await game.eval(model);
     await page.locator("#gCust").click();

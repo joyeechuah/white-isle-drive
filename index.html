@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="description" content="Free-roam open-world driving game on a Mediterranean island, built with three.js. Runs in the browser, no install.">
 <meta name="theme-color" content="#07090c">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://apis.google.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://cloudflareinsights.com; frame-src https://white-isle-drive-03.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'none'">
 <link rel="canonical" href="https://joyeechuah.github.io/white-isle-drive/">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2307090c'/%3E%3Cpath d='M12 58 27 10h10l15 48z' fill='%23f2b33d'/%3E%3Cpath d='M31 14h2v7h-2zM30.5 27h3v9h-3zM30 43h4v11h-4z' fill='%2307090c'/%3E%3C/svg%3E">
 <meta property="og:type" content="website">
@@ -51,9 +51,10 @@ kbd{font-family:var(--f-num);font-size:12px;border:1px solid rgba(255,255,255,.3
 #load .bar{width:200px;height:2px;background:var(--line);overflow:hidden;margin-top:12px}
 #load .fill{height:100%;width:0;background:var(--ink);transition:width .25s}
 #lmsg{font-size:12px;color:var(--mute);min-height:16px;text-align:center;max-width:300px}
-#lstart{margin-top:18px;min-width:180px}
+#lstart{margin-top:18px;width:280px}
 #lhint{font-size:11px;color:var(--mute);letter-spacing:.08em}
-#lcloud{min-width:180px;margin-top:2px}#lcl{font-size:11px;color:var(--mute);letter-spacing:.04em;text-align:center;max-width:320px}#lcl:empty{display:none}
+/* the two ways in, the same size and colour: playing as a guest, or saving progress */
+#lcloud{width:280px;margin-top:4px}#lcl{font-size:12px;color:var(--mute);letter-spacing:.04em;text-align:center;max-width:320px;line-height:1.5}#lcl:empty{display:none}
 body.touch #lhint{display:none}
 
 /* garage */
@@ -387,7 +388,7 @@ if(location.hostname==="joyeechuah.github.io"&&!navigator.globalPrivacyControl&&
   <div class="bar"><div class="fill" id="lf"></div></div>
   <div id="lmsg">Loading</div>
   <button id="lstart" class="btn gold hide">PLAY AS GUEST</button>
-  <button id="lcloud" class="btn ghost hide">SAVE MY PROGRESS</button>
+  <button id="lcloud" class="btn gold hide">SAVE MY PROGRESS</button>
   <div id="lcl"></div>
   <div id="lhint" class="hide">or press any key to play</div>
 </div>
@@ -541,7 +542,7 @@ if(location.hostname==="joyeechuah.github.io"&&!navigator.globalPrivacyControl&&
 </div></div>
 <div id="cloudPick" class="ov hide"><div class="card" role="dialog" aria-labelledby="cpkTitle" style="width:min(560px,100%)">
   <h3>CLOUD SAVE</h3><h2 id="cpkTitle">Which progress do you want to keep?</h2>
-  <p class="clp">This device and your Google account have different progress. The one you don't keep is replaced. Credits aren't added together.</p>
+  <p class="clp" id="cpkP">This device and your Google account have different progress. The one you don't keep is replaced. Credits aren't added together.</p>
   <div class="clw"><div><h4>THIS DEVICE</h4><ul id="cpkDev"></ul><button class="mbtn" id="cpkKeepDev">KEEP THIS DEVICE'S</button></div>
     <div><h4>GOOGLE ACCOUNT</h4><ul id="cpkAcc"></ul><button class="mbtn" id="cpkKeepAcc">KEEP THE ACCOUNT'S</button></div></div>
   <button class="mbtn" id="cpkLater">DECIDE LATER</button>
@@ -2811,11 +2812,20 @@ function buildLook(cd,color,env,q,mods){
   // number plates
   const pyF=K.bp.bot(K.z1-.1)+.13,pyR=K.bp.bot(K.z0+.1)+.2;
   const pm=plateMat(M.plate);
-  const pf=add(new THREE.PlaneGeometry(.46,.1),pm,0,pyF,K.z1+.0);pf.position.z=K.z1-.02+.0;
-  const pb=add(new THREE.PlaneGeometry(.46,.1),pm,0,pyR,K.z0+.02);pb.rotation.y=Math.PI;
-  // place each plate on the surface: push it out until it clears
-  for(const [p,dir] of [[pf,1],[pb,-1]]){const y=p.position.y;let z=dir>0?K.z1:K.z0;
-    for(let i=0;i<60;i++){const zz=z-dir*i*.01;if(K.halfW(zz)>.3&&K.bp.bot(zz)<y-.06&&K.bp.top(zz)>y+.06){z=zz;break}}p.position.z=z+dir*.012}
+  const pf=add(new THREE.PlaneGeometry(.46,.1),pm,0,pyF,K.z1);
+  const pb=add(new THREE.PlaneGeometry(.46,.1),pm,0,pyR,K.z0);pb.rotation.y=Math.PI;
+  // Check the actual bumper across the plate. A cross-section wide enough to hold the plate can sit behind the bumper.
+  const plateRay=new THREE.Raycaster();
+  for(const [p,dir] of [[pf,1],[pb,-1]]){
+    const end=p.position.z;let surface=null;
+    plateRay.ray.direction.set(0,0,-dir);
+    for(const x of [-.23,0,.23])for(const y of [-.05,0,.05]){
+      plateRay.ray.origin.set(x,p.position.y+y,end+dir);
+      const hit=plateRay.intersectObject(body)[0];
+      if(hit&&(surface===null||dir*hit.point.z>dir*surface))surface=hit.point.z;
+    }
+    p.position.z=(surface??end)+dir*.012;
+  }
   // exhausts in the diffuser
   const ey=K.bp.bot(K.z0+.15)+.1,ez=(()=>{let z=K.z0;for(let i=0;i<40;i++){const zz=K.z0+i*.01;if(K.halfW(zz)>.6){z=zz;break}}return z})();
   // stock tips for the body type, or TWIN (one each side), QUAD (two each side), CENTRE (two in the middle, larger)
@@ -5353,14 +5363,14 @@ const CLOUD_HOSTS=["joyeechuah.github.io"];
 const FB_VER="10.12.2",CLOUD_KEY="white-isle-drive-cloud";
 // what isn't progress: settings, the car picked, a note about a contract under way. They're backed up too, but don't
 // count as a difference worth asking about. Ghost laps stay on each device (they can pass Firestore's 1 MB limit)
-const CL_PREFS=["auto","assist","sound","music","gfx","cam","todMode","tod","steer","tilt","side","diff","cur","jobActive","ghost"];
+const CL_PREFS=["auto","assist","sound","music","gfx","cam","todMode","tod","steer","tilt","side","diff","cur","jobActive","ghost","ghostOn"];
 function clCanon(v){if(Array.isArray(v))return "["+v.map(clCanon).join(",")+"]";if(v&&typeof v==="object")return "{"+Object.keys(v).sort().map(k=>JSON.stringify(k)+":"+clCanon(v[k])).join(",")+"}";return JSON.stringify(v===undefined?null:v)}
 function clHash(str){let h=0x811c9dc5;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,0x01000193)}return(h>>>0).toString(36)+":"+str.length}
 const clProg=sv=>{const o={};for(const k in sv)if(!CL_PREFS.includes(k))o[k]=sv[k];return clHash(clCanon(o))};
 const clPayload=sv=>{const o=Object.assign({},sv);delete o.ghost;return o};
 // a save with nothing earned yet (the starting credits and cars, no records, landmarks, contracts, cups or customisation)
 function clFresh(sv){if(!sv)return true;const e=o=>!o||!Object.keys(o).length;
-  return(sv.xp||0)===0&&sv.cr===120000&&Array.isArray(sv.owned)&&sv.owned.join()===STARTERS.join()&&e(sv.rec)&&e(sv.found)&&e(sv.radar)&&e(sv.champ)&&e(sv.mods)&&!sv.passBonus&&
+  return(sv.xp||0)===0&&sv.cr===120000&&Array.isArray(sv.owned)&&sv.owned.join()===STARTERS.join()&&e(sv.paint)&&e(sv.rec)&&e(sv.found)&&e(sv.radar)&&e(sv.champ)&&e(sv.mods)&&!sv.passBonus&&
     (!sv.jobs||!Object.values(sv.jobs).some(v=>typeof v==="number"?v>0:!e(v)))}
 function clSummary(sv){const champ=sv.champ||{};return{cr:sv.cr||0,cars:(sv.owned||[]).length,lvl:lvlOf(sv.xp||0),found:Object.keys(sv.found||{}).length,
   cups:Object.values(champ).filter(c=>c&&c.won).length,mods:Object.keys(sv.mods||{}).length}}
@@ -5369,11 +5379,15 @@ function clAdapter(){if(window.__cloudAdapter)return window.__cloudAdapter;
 // Firebase (Google sign-in and Firestore), loaded only when cloud save is used: guests never download it
 function fbAdapter(){
   let auth=null,db=null,ready=null;
-  // pinned version, each file checked against its hash (as three.js is): about 510 KB, fetched on first use
+  // pinned version, each file checked against its hash (as three.js is): about 510 KB, fetched on first use. From cdnjs,
+  // like three.js. The page's security policy (the meta tag at the top) must allow every host Firebase uses: cdnjs and
+  // apis.google.com (scripts), the sign-in frame on the authDomain, and the Auth and Firestore addresses (connect-src).
+  // Google's own sign-in page opens in its own window, under its own policy, so it needs nothing here.
+  // It once allowed none of them, and sign-in said "Couldn't reach the sign-in service" on every device.
   const SRI={"firebase-app-compat.js":"sha384-AQ3POAMqIhwS81FrUH95ekxqBZHeP5tG2JfEL3+7GuTtfRLWnrRh32UxwzM+//A9",
     "firebase-auth-compat.js":"sha384-TnlRYaR4JYz/lpaGuaiU61PjNberSA4vjLjtF+oRC/IkohkJqnWxw5EmDSOt1vA1",
     "firebase-firestore-compat.js":"sha384-qn4Jh88HhJA8dplNQyGjOh9OGI4izVhrfj/qIFgaKcdgOE06pXqIKGlsCILZcLAC"};
-  const load=f=>new Promise((res,rej)=>{const s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/firebase@"+FB_VER+"/"+f;s.integrity=SRI[f];s.async=true;s.crossOrigin="anonymous";s.onload=res;s.onerror=()=>rej(new Error("Couldn't reach the sign-in service. Check your connection."));document.head.appendChild(s)});
+  const load=f=>new Promise((res,rej)=>{const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/firebase/"+FB_VER+"/"+f;s.integrity=SRI[f];s.async=true;s.crossOrigin="anonymous";s.onload=res;s.onerror=()=>{console.warn("Couldn't load "+s.src);rej(new Error("Couldn't load Google sign-in. Try again."))};document.head.appendChild(s)});
   const usr=u=>u?{uid:u.uid,name:u.displayName||"",email:u.email||""}:null;
   return{
     loaded:false,
@@ -5395,6 +5409,7 @@ function fbAdapter(){
   }}
 const clErr=e=>{const c=e&&e.code||"";if(c==="auth/popup-closed-by-user"||c==="auth/user-cancelled")return "Sign-in was cancelled.";
   if(c==="auth/popup-blocked")return "The browser blocked Google's sign-in window. Allow pop-ups for this site and try again.";
+  if(c==="auth/web-storage-unsupported")return "This browser's settings block the storage Google sign-in needs. Allow site data for this site (or turn off strict tracking protection) and try again.";
   if(c==="auth/unauthorized-domain")return "Sign-in isn't allowed on this copy of the game. It works on the GitHub Pages version.";
   if(clOff(e))return "You're offline. Your progress is safe on this device and will back up when you're connected.";
   return(e&&e.message)||"Something went wrong."};
@@ -5404,12 +5419,17 @@ const clAt=d=>d&&d.at?(typeof d.at==="number"?d.at:d.at.toMillis?d.at.toMillis()
 function clAgo(t){if(!t)return "never";const s=(Date.now()-t)/1000;if(s<60)return "just now";if(s<3600)return Math.floor(s/60)+" min ago";if(s<86400)return Math.floor(s/3600)+" h ago";
   return new Date(t).toLocaleDateString()}
 function clLoadMeta(){let m=null;try{m=JSON.parse(localStorage.getItem(CLOUD_KEY)||"null")}catch(e){}
-  return Object.assign({uid:null,name:"",email:"",rev:0,prog:"",full:"",at:0,rehash:false},m&&typeof m==="object"?m:{})}
+  // owner: the account this device's progress last went to or came from. It stays after signing out, so another
+  // account signing in here is asked before that progress goes to it
+  const o=Object.assign({uid:null,name:"",email:"",rev:0,prog:"",full:"",at:0,rehash:false,owner:null,ownerName:""},m&&typeof m==="object"?m:{});
+  if(o.uid&&!o.owner){o.owner=o.uid;o.ownerName=o.name}return o}
 function clSaveMeta(){try{localStorage.setItem(CLOUD_KEY,JSON.stringify(CL.meta))}catch(e){}}
-CL={meta:clLoadMeta(),ad:null,user:null,st:"guest",msg:"",busy:false,timer:0,pick:null,lastPut:0};
+CL={meta:clLoadMeta(),ad:null,user:null,st:"guest",msg:"",busy:false,timer:0,pick:null,lastPut:0,other:false};
+const clOwn=()=>{CL.meta.owner=CL.user.uid;CL.meta.ownerName=CL.user.name;CL.other=false};
 // state: guest | connecting | synced | pending | offline | signedout (session ended) | conflict | error
 // a backup a few seconds after a change, and at most every 30 s (the free Firebase plan allows 20,000 writes a day)
-function clChanged(){if(!CL.user||CL.st==="conflict")return;clearTimeout(CL.timer);
+// Later changes don't push a backup already waiting further back (steady progress would otherwise postpone it for good)
+function clChanged(){if(!CL.user||CL.st==="conflict"||CL.timer)return;
   CL.timer=setTimeout(clSync,Math.max(4000,(window.__cloudGap!==undefined?window.__cloudGap:30000)-(Date.now()-CL.lastPut)))}
 function clSet(st,msg){CL.st=st;CL.msg=msg||"";clRender()}
 function clBoot(){
@@ -5424,22 +5444,27 @@ function clBoot(){
 function clStartScreen(go){const b=$("lcloud");show("lcloud",!!CL.ad&&!CL.meta.uid);b.onclick=go;
   if(CL.meta.uid)$("lstart").textContent="PLAY";clRender()}
 // connecting: loads the service and finds who is signed in on this device (Firebase remembers it)
+const clAccountError=e=>clSet(clOff(e)?"offline":"error",clErr(e));
+const clReadAccount=()=>CL.ad.get(CL.user.uid).then(clReconcile);
 function clConnect(interactive){
   if(!CL.ad){clSet("error");return Promise.resolve()}
   clSet("connecting");
   const who=interactive&&CL.ad.loaded?CL.ad.signIn():CL.ad.init().then(u=>u||(interactive?CL.ad.signIn():null));
   return who.then(u=>{
     if(!u){if(CL.meta.uid){clSet("signedout","You're signed out. Sign in again to keep backing up; your progress is safe on this device.")}else clSet("guest");return}
-    CL.user=u;
-    if(CL.meta.uid&&CL.meta.uid!==u.uid){CL.meta.rev=0;CL.meta.prog="";CL.meta.full=""}
+    CL.user=u;CL.other=!!(CL.meta.owner&&CL.meta.owner!==u.uid);
+    if(CL.meta.uid&&CL.meta.uid!==u.uid||CL.other){CL.meta.rev=0;CL.meta.prog="";CL.meta.full=""}
     CL.meta.uid=u.uid;CL.meta.name=u.name;CL.meta.email=u.email;clSaveMeta();
-    return CL.ad.get(u.uid).then(clReconcile)}).catch(e=>{clSet(clOff(e)?"offline":"error",clErr(e))})}
+    return clReadAccount()}).catch(clAccountError)}
 function clReconcile(doc){
   let cloud=null;try{cloud=doc&&typeof doc.save==="string"?JSON.parse(doc.save):null}catch(e){cloud=null}
-  if(!cloud)return clUpload(doc&&doc.rev||0);                                    // nothing in the account yet: back this device up
+  if(!cloud){
+    // nothing in the account yet: back this device up, unless its progress belongs to another account (a shared browser)
+    if(CL.other&&!clFresh(save)){CL.pick={doc,cloud:null};clSet("conflict","This device has another Google account's progress. Choose whether to use it.");clPickShow();return}
+    return clUpload(doc&&doc.rev||0)}
   const L=clProg(save),C=clProg(cloud),rev=doc.rev||0;
   // the same progress, or neither side moved on since this device last synced: in step (settings are sent if changed)
-  if(L===C||(CL.meta.rev===rev&&CL.meta.prog===L)){CL.meta.rev=rev;CL.meta.prog=L;CL.meta.at=Date.now();clSaveMeta();return clUpload(rev,true)}
+  if(L===C||(CL.meta.rev===rev&&CL.meta.prog===L)){CL.meta.rev=rev;CL.meta.prog=L;CL.meta.at=Date.now();clOwn();clSaveMeta();return clUpload(rev,true)}
   if(clFresh(save))return clApply(doc,cloud);                                      // a new device: bring the account's progress here
   if(CL.meta.rev===rev&&CL.meta.prog)return clUpload(rev);                          // only this device moved on since it last synced
   if(CL.meta.rev&&CL.meta.prog===L)return clApply(doc,cloud);                        // only the account moved on (another device)
@@ -5447,9 +5472,10 @@ function clReconcile(doc){
 // the account's save becomes this device's (its ghost laps stay), and the game starts again from it
 // From here until the page reloads, this tab neither saves nor backs up: the progress still in memory would otherwise
 // go back over the restored save (on leaving the page) and up to the account
-function clApply(doc,cloud){const sv=Object.assign({},cloud,{ghost:save.ghost||{}});CL.applying=true;clearTimeout(CL.timer);
-  try{localStorage.setItem(SAVE_KEY,JSON.stringify(sv))}catch(e){clSet("error","This browser won't store the restored progress.");return}
-  CL.meta.rev=doc.rev||0;CL.meta.rehash=true;CL.meta.at=Date.now();clSaveMeta();
+function clApply(doc,cloud){const sv=Object.assign({},cloud,{ghost:save.ghost||{}});CL.applying=true;clearTimeout(CL.timer);CL.timer=0;
+  // if the browser won't store it, nothing changed: saving and backing up carry on, and the choice stays to try again
+  try{localStorage.setItem(SAVE_KEY,JSON.stringify(sv))}catch(e){CL.applying=false;CL.pick={doc,cloud};clSet("error","This browser won't store the restored progress.");return}
+  CL.meta.rev=doc.rev||0;CL.meta.rehash=true;clOwn();CL.meta.at=Date.now();clSaveMeta();
   clSet("synced","Restoring your progress…");if(window.__cloudNoReload){window.__cloudApplied=sv;return}setTimeout(()=>location.reload(),400)}
 // this device's save goes to the account, if nobody else wrote there since (otherwise: compare again)
 function clUpload(rev,onlyIfChanged){if(CL.applying)return Promise.resolve();
@@ -5458,13 +5484,20 @@ function clUpload(rev,onlyIfChanged){if(CL.applying)return Promise.resolve();
   CL.busy=true;CL.lastPut=Date.now();clRender();
   return CL.ad.put(CL.user.uid,{save:JSON.stringify(pay),v:save.v||2,summary:clSummary(save)},rev).then(r=>{CL.busy=false;
     if(!r.ok){CL.meta.rev=-1;return clReconcile(r.doc)}
-    CL.meta.rev=r.rev;CL.meta.prog=prog;CL.meta.full=full;CL.meta.at=Date.now();clSaveMeta();clSet("synced")}).catch(e=>{CL.busy=false;clSet(clOff(e)?"offline":"pending",clErr(e))})}
+    CL.meta.rev=r.rev;CL.meta.prog=prog;CL.meta.full=full;CL.meta.at=Date.now();clOwn();clSaveMeta();clSet("synced");
+    if(clHash(clCanon(clPayload(save)))!==full)clChanged()}).catch(e=>{CL.busy=false;clSet(clOff(e)?"offline":"pending",clErr(e))})}
 // a backup after the progress changed (a few seconds after, on leaving the page, when back online, and BACK UP NOW)
-function clSync(){clearTimeout(CL.timer);if(!CL.user||CL.busy||CL.applying||tabIdle||CL.st==="conflict")return Promise.resolve();
+function clSync(){clearTimeout(CL.timer);CL.timer=0;if(!CL.user||CL.busy||CL.applying||tabIdle||CL.st==="conflict"||CL.st==="connecting")return Promise.resolve();
+  // If the new account could not be read, retry the comparison before writing another player's local progress.
+  if(CL.other){clSet("connecting");return clReadAccount().catch(clAccountError)}
   const full=clHash(clCanon(clPayload(save)));if(full===CL.meta.full&&CL.st==="synced")return Promise.resolve();
   return clUpload(CL.meta.rev)}
-function clSignIn(){if(CL.busy)return;clConnect(true)}
-function clSignOut(){if(!CL.ad)return;const done=()=>{CL.user=null;CL.meta={uid:null,name:"",email:"",rev:0,prog:"",full:"",at:0,rehash:false};clSaveMeta();clSet("guest");
+// If the service isn't loaded yet (loading it failed when the panel opened), the tap only loads it and the button
+// comes back for a fresh tap: phones block a window opened after a wait, so it never opens one late
+function clSignIn(){if(CL.busy)return;
+  if(CL.ad&&CL.ad.loaded===false){clSet("connecting");CL.ad.init().then(()=>clSet(CL.meta.uid?"signedout":"guest","Ready: tap SIGN IN WITH GOOGLE."),e=>clSet(clOff(e)?"offline":"error",clErr(e)));return}
+  clConnect(true)}
+function clSignOut(){if(!CL.ad)return;const done=()=>{CL.user=null;CL.pick=null;CL.meta={uid:null,name:"",email:"",rev:0,prog:"",full:"",at:0,rehash:false,owner:CL.meta.owner,ownerName:CL.meta.ownerName};clSaveMeta();clSet("guest");
     toast("SIGNED OUT","Your progress stays on this device; it isn't backed up now")};
   CL.ad.signOut().then(done,done)}
 function clRow(sv,at){const m=clSummary(sv),li=t=>"<li>"+t+"</li>";
@@ -5472,9 +5505,20 @@ function clRow(sv,at){const m=clSummary(sv),li=t=>"<li>"+t+"</li>";
 function clPickShow(){if(!CL.pick)return;
   // not over a race or a drive: it waits for the pause menu or the garage, and a message says so
   if(state!=="GARAGE"&&state!=="PAUSE"&&state!=="LOAD"){toast("CLOUD SAVE","Your account has different progress. Pause to choose which to keep");return}
-  $("cpkDev").innerHTML=clRow(save,0);$("cpkAcc").innerHTML=clRow(CL.pick.cloud,clAt(CL.pick.doc));show("cloud",false);show("cloudPick",true)}
+  // another account's progress on this device, and nothing in this account yet: use it here too, or start new
+  const ot=!CL.pick.cloud,nm=CL.meta.ownerName;
+  $("cpkTitle").textContent=ot?"Use this device's progress for this account?":"Which progress do you want to keep?";
+  $("cpkP").textContent=ot?"This device's progress was last backed up to "+(nm?nm+"'s":"another")+" Google account. Use it for this account too, or start new here. Starting new doesn't touch the other account's backup.":
+    "This device and your Google account have different progress. The one you don't keep is replaced. Credits aren't added together.";
+  $("cpkKeepDev").textContent=ot?"USE THIS DEVICE'S":"KEEP THIS DEVICE'S";$("cpkKeepAcc").textContent=ot?"START NEW":"KEEP THE ACCOUNT'S";
+  $("cpkDev").innerHTML=clRow(save,0);$("cpkAcc").innerHTML=ot?"<li>No progress saved yet</li>":clRow(CL.pick.cloud,clAt(CL.pick.doc));show("cloud",false);show("cloudPick",true)}
+// a new game in this account: this device's save goes (its progress stays in the other account, up to its last backup)
+function clStartNew(doc){CL.applying=true;clearTimeout(CL.timer);CL.timer=0;
+  try{localStorage.removeItem(SAVE_KEY)}catch(e){CL.applying=false;CL.pick={doc,cloud:null};clSet("error","This browser won't let the game start new progress.");return}
+  CL.meta.rev=doc&&doc.rev||0;CL.meta.rehash=true;clOwn();clSaveMeta();
+  clSet("synced","Starting new progress…");if(window.__cloudNoReload){window.__cloudApplied="new";return}setTimeout(()=>location.reload(),400)}
 function clKeep(which){const p=CL.pick;if(!p)return;CL.pick=null;show("cloudPick",false);CL.st="pending";
-  if(which==="acc")clApply(p.doc,p.cloud);else clUpload(p.doc.rev||0)}
+  if(which==="acc"){if(p.cloud)clApply(p.doc,p.cloud);else clStartNew(p.doc)}else clUpload(p.doc&&p.doc.rev||0)}
 function clOpen(){if(CL.pick){clPickShow();return}show("cloud",true);
   // the service loads while the panel is open, so SIGN IN can open Google's window at once
   if(CL.ad&&!CL.user&&CL.ad.init&&!CL.ad.loaded&&CL.st!=="connecting"){CL.st="connecting";CL.ad.init().then(()=>{if(CL.st==="connecting")clSet(CL.meta.uid?"signedout":"guest")},e=>clSet(clOff(e)?"offline":"error",clErr(e)))}
@@ -5494,7 +5538,7 @@ function clLine(){const m=CL.meta;
 function clRender(){if(!CL)return;const on=!!CL.user,line=clLine(),bad=CL.st==="offline"||CL.st==="pending"||CL.st==="error"||CL.st==="signedout"||CL.st==="conflict";
   const g=$("gCloud");g.textContent=on||CL.meta.uid?(line||"SAVED").toUpperCase():"SAVE MY PROGRESS";g.classList.toggle("warn",bad&&!!CL.meta.uid);show("gCloud",!!CL.ad);
   $("pCloud").textContent=on?"CLOUD SAVE: "+(bad?"CHECK":"ON"):"SAVE MY PROGRESS";
-  $("lcl").textContent=CL.meta.uid?(CL.meta.name?"Signed in as "+CL.meta.name+" · ":"")+line:"";
+  $("lcl").textContent=CL.meta.uid?(CL.meta.name?"Signed in as "+CL.meta.name+" · ":"")+line:CL.ad?"Sign in with Google to back up your cars and credits and play on any device":"";
   show("clIntro",!on);show("clWho",on);show("clIn",!on);show("clNow",on);show("clOut",on||CL.st==="signedout");
   $("clWho").innerHTML=on?"Signed in as <b>"+(CL.meta.name||"you").replace(/[<>&]/g,"")+"</b>"+(CL.meta.email?" ("+CL.meta.email.replace(/[<>&]/g,"")+")":"")+". Your progress backs up by itself, and a copy stays on this device for playing offline.":"";
   $("clIn").disabled=!CL.ad||CL.st==="connecting";$("clIn").textContent=CL.st==="connecting"?"CONNECTING…":"SIGN IN WITH GOOGLE";$("clNow").disabled=CL.busy;
