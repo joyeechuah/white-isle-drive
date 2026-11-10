@@ -3383,7 +3383,7 @@ const TCOLS=[0xe8e8e6,0xbfc3c8,0x2d2f33,0x7a1f1f,0x2b4a7a,0xd9cfb8,0x5d6b4a,0xa0
 function initTraffic(){
   TEDGES=EDGES.filter(e=>e.type!=="drive"&&e.len>24);let c=0;TEDGE_CUM=TEDGES.map(e=>c+=e.len);
   const n=isTouch?22:34;
-  for(let i=0;i<n;i++){const c=buildTrafficCar(TCOLS[i%TCOLS.length],i%3===0?"hatch":"sedan");scene.add(c.G);TRAFFIC.push({c,e:null,dir:1,s:0,lane:0,off:0,offCur:0,base:0,v:0,stopT:0,hitT:0,waitT:0,passT:0,pa:null,wx:1e6,wz:1e6,yaw:0})}
+  for(let i=0;i<n;i++){const c=buildTrafficCar(TCOLS[i%TCOLS.length],i%3===0?"hatch":"sedan");c.G.visible=false;scene.add(c.G);TRAFFIC.push({c,e:null,lost:true,dir:1,s:0,lane:0,off:0,offCur:0,base:0,v:0,stopT:0,hitT:0,waitT:0,passT:0,pa:null,wx:1e6,wz:1e6,yaw:0})}
 }
 function pickEdge(){const r=Math.random()*TEDGE_CUM[TEDGE_CUM.length-1];let i=0;while(TEDGE_CUM[i]<r)i++;return TEDGES[i]}
 function setLane(t){const ln=RT[t.e.type].lanes;t.lane=Math.min(t.lane,ln.length-1);t.off=ln[t.lane]*SIDE();t.offCur=t.off;t.passT=0;t.waitT=0;t.base=RT[t.e.type].spd*(.85+Math.random()*.3)}
@@ -3407,12 +3407,14 @@ function spawnTraffic(t,dmin,dmax,avoidView){
     let dir=Math.random()<.5?1:-1;if(oncoming(e,dir)){dir=-dir;if(oncoming(e,dir))continue}
     // never on top of another car
     if(TRAFFIC.some(o=>o!==t&&o.e&&Math.abs(o.wx-p.x)<14&&Math.abs(o.wz-p.z)<14))continue;
-    t.e=e;t.s=s;t.dir=dir;t.lane=Math.floor(Math.random()*2);setLane(t);t.v=t.base;t.stopT=0;t.pa=null;
+    t.e=e;t.lost=false;t.s=s;t.dir=dir;t.lane=Math.floor(Math.random()*2);setLane(t);t.v=t.base;t.stopT=0;t.pa=null;
     t.damage=t.damageT=0;showDamageSmoke(t.c,0);
     // where it stands now and which way it faces, so a car placed next in the same frame sees it, and nothing reads
     // its old heading at its new place
     const ux=p.dx*dir,uz=p.dz*dir;t.wx=p.x-uz*t.off;t.wz=p.z+ux*t.off;t.yaw=Math.atan2(ux,uz);return true;
   }
+  // A failed placement remains hidden and retries with the next traffic bubble.
+  t.e=null;t.lost=true;t.c.G.visible=false;t.wx=t.wz=1e6;
   return false;
 }
 // at the start of an event: every car driving against the race on its route goes somewhere else, out of sight
@@ -3742,7 +3744,9 @@ function updateEvent(dt){
   const pace=DIFFS[ev.diff].pace;
   for(const a of ev.ai){
     tickDamage(a,dt);
-    if(ev.phase!=="count"){
+    // Finished rivals coast to a stop without receiving racing acceleration.
+    if(a.fin){a.v=Math.max(0,a.v-2.5*dt);a.s+=a.v*dt}
+    else if(ev.phase!=="count"){
       const i=Math.min(E.vp.length-1,Math.floor(a.s/4));
       const lead=a.s-ev.s,rb=lead>120?.9:lead<-150?1.07:1;
       let vt=Math.min(a.vmax,E.vp[i]*a.sk)*rb*pace*damagePower(a);
@@ -3755,11 +3759,9 @@ function updateEvent(dt){
         if(ahead.v<a.v+1&&obs.every(b=>b===a||Math.abs(b.lat-other)>2.2||b.s-a.s<-7||b.s-a.s>(b.tc?25:12)))a.lane=other;
         if(ag<(ahead.tc?22:10))vt=Math.min(vt,Math.max(0,ahead.v-(ag<6.5?1.5:0))+(ahead.tc?Math.max(0,ag-8)*.6:0))}
       a.v+=clamp(vt-a.v,-11*dt,a.acc*pace*Math.max(.15,1-(a.v/a.vmax)**2)*dt);
-      // past the line a rival rolls on and slows gently, clearing the finish for the cars behind
       // its finish time is when it reached the line within this frame (two cars over the line in the same frame are
       // placed by who got there first, not both given the frame's end)
-      if(!a.fin){a.s+=a.v*dt;if(a.s>=R.len)a.fin=ev.t-(a.v>0?Math.min(dt,(a.s-R.len)/a.v):0)}
-      else{a.v=Math.max(0,a.v-2.5*dt);a.s+=a.v*dt}
+      a.s+=a.v*dt;if(a.s>=R.len)a.fin=ev.t-(a.v>0?Math.min(dt,(a.s-R.len)/a.v):0);
       // keep out of the player's way
       const ds=ev.s-a.s;
       let nl=a.lat;
@@ -4165,7 +4167,7 @@ function audioInit(){
   }catch(e){AC=null}
 }
 // wake the audio clock: "suspended" here, or "interrupted" on an iPhone after a call, Siri or an alarm
-function acResume(){if(!AC||AC.state==="running"||AC.state==="closed")return;try{const p=AC.resume();if(p&&p.catch)p.catch(()=>{})}catch(e){}}
+function acResume(){if(tabIdle||!AC||AC.state==="running"||AC.state==="closed")return;try{const p=AC.resume();if(p&&p.catch)p.catch(()=>{})}catch(e){}}
 function audioOn(on){if(!AU)return;if(on)acResume();AU.master.gain.setTargetAtTime(on&&save.sound?1:0,AC.currentTime,.12)}
 // surf: 0 on asphalt, 1 on the gravel verge, 2 on grass and dirt
 function audioUpd(rpm,gear,thr,slip,surf,speed,scrape){if(!AU)return;const t=AC.currentTime,sp=pc&&pc.mods&&pc.mods.exhS?1:0,base=(50+rpm*175+gear*6)*(sp?.88:1);
@@ -4349,7 +4351,7 @@ function songTick(n,now){const S=SONGS[n],P=S.p;if(!P)return;
 }
 // which song for which screen: the lounge indoors, the road outside, the race track during events, quieter behind menus
 function musicWant(){
-  if(!save.music)return [null,0];   // SOUND FX covers engine, tyres and beeps; music has its own switch
+  if(tabIdle||!save.music)return [null,0];   // SOUND FX covers engine, tyres and beeps; music has its own switch
   if(state==="GARAGE"||state==="LOAD"||state==="DEALER")return ["lounge",1];
   if(state==="EXIT")return ["coast",.8];
   const road=ev?"race":"coast";
@@ -4394,7 +4396,7 @@ setInterval(musicTick,50);
 // alarm, and may not restart it), the next tap or key brings it back
 const GESTURES=["pointerdown","pointerup","touchend","click","keydown"];
 function firstGesture(){
-  if(document.hidden||(MUSIC&&AC&&AC.state==="running"))return;
+  if(tabIdle||document.hidden||(MUSIC&&AC&&AC.state==="running"))return;
   // iPhone: play through the ringer's silent switch like a game or video would, instead of being muted by it
   try{if(navigator.audioSession&&navigator.audioSession.type!=="playback")navigator.audioSession.type="playback"}catch(e){}
   audioInit();musicInit();acResume();
@@ -4925,8 +4927,9 @@ function placeOnRoad(nr,dirSign){
 // fade to black and run fn in the dark. Meanwhile the game is in state FADE, which takes no input and
 // moves nothing, so a key or tap in that half second can't open a menu over it or start something twice
 function fadeThen(ms,fn){
+  if(tabIdle)return;
   setState("FADE");$("fade").style.opacity=1;
-  setTimeout(()=>{fn();$("fade").style.opacity=0;if(state==="FADE")setState("DRIVE")},ms);
+  setTimeout(()=>{if(tabIdle)return;fn();$("fade").style.opacity=0;if(state==="FADE")setState("DRIVE")},ms);
 }
 function resetToRoad(fade){
   const go=()=>{const nr=nearestRoadGlobal(P.x,P.z,true);if(!nr)return;const f=fwdOf(P.h);placeOnRoad(nr,f.x*nr.dx+f.z*nr.dz>=0?1:-1);snapCam()};
@@ -5510,7 +5513,9 @@ $("c").addEventListener("pointermove",e=>{if(state!=="GARAGE"||e.pointerType!=="
    more and says so, with a button to play there instead (it reloads, taking the latest save). */
 const TAB_ID=Math.random().toString(36).slice(2),TAB_KEY="white-isle-drive-tab";
 const tabCh=typeof BroadcastChannel==="function"?new BroadcastChannel("white-isle-drive-tabs"):null;
-function tabStop(){if(tabIdle)return;tabIdle=true;if(state==="DRIVE")pauseOn();clearInput();audioOn(false);show("tabIdle",true);try{$("tiHere").focus({preventScroll:true})}catch(e){}}
+function tabStop(){if(tabIdle)return;tabIdle=true;if(state==="DRIVE")pauseOn();clearInput();audioOn(false);
+  if(AC){try{const p=AC.suspend();if(p&&p.catch)p.catch(()=>{})}catch(e){}}
+  show("tabIdle",true);try{$("tiHere").focus({preventScroll:true})}catch(e){}}
 // by BroadcastChannel; a browser without it gets a note in storage instead (the save stays the only key otherwise)
 function tabHello(){const m={t:"hello",id:TAB_ID};if(tabCh){tabCh.postMessage(m);return}try{localStorage.setItem(TAB_KEY,JSON.stringify(Object.assign({at:Date.now()},m)))}catch(e){}}
 if(tabCh)tabCh.onmessage=e=>{if(e.data&&e.data.t==="hello"&&e.data.id!==TAB_ID)tabStop()};
@@ -5806,7 +5811,9 @@ function syncRenderView(){
   sun.position.copy(f).addScaledVector(MOON,220);sun.target.position.copy(f);sun.target.updateMatrixWorld();
 }
 function frame(ts){
-  requestAnimationFrame(frame);pollPad();
+  requestAnimationFrame(frame);
+  if(tabIdle){prevTs=ts;return}
+  pollPad();
   const raw=(ts-prevTs)/1000||.016,dt=Math.min(.05,raw);prevTs=ts;adaptRes(raw);
   // automatic time: an hour every 30 s by day, and the night passes about twice as fast
   if(save.todMode===0&&(state==="DRIVE"||state==="GARAGE"||state==="EXIT"))save.tod=(save.tod+dt/30*(1+1.4*night))%24;
