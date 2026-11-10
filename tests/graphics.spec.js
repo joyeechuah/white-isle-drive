@@ -1,5 +1,29 @@
 const { test, expect } = require("./support/game");
 
+for (const density of [1, 2]) {
+  test(`Auto lowers render scale at ${density}x and recovers when frames improve`, async ({ game, page }) => {
+    await page.addInitScript(density => {
+      Object.defineProperty(window, "devicePixelRatio", { configurable: true, value: density });
+    }, density);
+    await game.open({ save: { v: 3, gfx: 0 } });
+    const scales = await game.eval(() => {
+      const T = __T, ratio = () => T.renderer.getPixelRatio();
+      const advance = (hz, seconds) => {
+        for (let i = 0; i < hz * seconds; i++) T.adaptRes(1 / hz);
+        return ratio();
+      };
+      const initial = ratio(), slow = advance(24, 18), recovered = advance(60, 18);
+      const settings = document.getElementById("pGfx");
+      settings.click();
+      const sharp = advance(24, 18);
+      settings.click();
+      const smooth = advance(24, 18);
+      return { initial, slow, recovered, sharp, smooth };
+    });
+    expect(scales).toEqual({ initial: density, slow: .75, recovered: density, sharp: density, smooth: 1 });
+  });
+}
+
 test("changing graphics quality preserves a paused test drive's paint and pose", async ({ game }) => {
   await game.open({ save: { v: 3, gfx: 1 } });
   const result = await game.eval(() => {
