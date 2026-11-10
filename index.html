@@ -773,10 +773,10 @@ const paintOf=id=>save.paint[id]!==undefined?save.paint[id]:carById(id).body;
 let W=innerWidth,H=innerHeight;
 // sharp on high-density phone screens too: up to 2 rendered pixels per CSS pixel, with edge smoothing
 // (multisampling is cheap on the tile-based GPUs in phones). adaptRes lowers this if frames run slow.
-// GRAPHICS setting: AUTO keeps it sharp and only eases off (never below 1.5) when frames get slow;
+// GRAPHICS setting: AUTO starts sharp and can lower the render scale even on a 1x display when frames stay slow;
 // SHARP always renders at the screen's full sharpness; SMOOTH renders at 1 for weak phones and long battery
 let PR_DEV=Math.min(devicePixelRatio||1,2),PR_MAX=PR_DEV,PR_MIN=PR_DEV;
-function gfxLimits(){const g=save.gfx;PR_MAX=g===2?Math.min(PR_DEV,1):PR_DEV;PR_MIN=g===0?Math.min(PR_DEV,1.5):PR_MAX}
+function gfxLimits(){const g=save.gfx;PR_MAX=g===2?Math.min(PR_DEV,1):PR_DEV;PR_MIN=g===0?Math.min(PR_MAX,.75):PR_MAX}
 gfxLimits();
 let prNow=PR_MAX;
 const renderer=new THREE.WebGLRenderer({canvas:$("c"),antialias:true,powerPreference:"high-performance"});
@@ -3008,7 +3008,12 @@ const trafficDisc=(()=>{const g=new THREE.CylinderGeometry(.238,.225,.04,28);g.r
 const carMeshes={},showMeshes={};
 function getCar(id){if(!carMeshes[id]){carMeshes[id]=buildHeroCar(carById(id),paintOf(id),modsOf(id));scene.add(carMeshes[id].G)}return carMeshes[id]}
 function getShowCar(id){if(!showMeshes[id]){const c=buildHeroCar(carById(id),paintOf(id),modsOf(id));c.G.visible=false;podium.add(c.G);c.G.position.y=.3;showMeshes[id]=c}return showMeshes[id]}
-function parkCar(c,slot){const[sx,sz,sy]=SPOTS[slot];c.G.position.copy(gW(sx,sz));c.G.rotation.set(0,gYaw+Math.PI+sy,0);c.front.forEach(f=>f.rotation.y=0);c.inside.visible=false;c.glass.visible=true;c.shell.visible=true;c.G.visible=true}
+function parkCar(c,slot){
+  const[sx,sz,sy]=SPOTS[slot];c.G.position.copy(gW(sx,sz));c.G.rotation.set(0,gYaw+Math.PI+sy,0);c.front.forEach(f=>f.rotation.y=0);
+  c.inside.visible=false;c.glass.visible=true;c.shell.visible=true;c.G.visible=true;
+  // A car can be parked straight from a drive, with blurred spokes and its suspension still loaded.
+  c.blurOn=false;c.wheels.forEach(w=>{w.parent.position.y=c.wr;w.userData.blur.visible=false;w.userData.spokes.forEach(s=>s.visible=true)});
+}
 // park every owned car in its bay; cars you no longer own are hidden
 // cars parked in the garage are only drawn when the camera is near the house
 function cullParked(){const near=Math.hypot(camera.position.x-HOUSE.x,camera.position.z-HOUSE.z)<150;
@@ -3168,6 +3173,7 @@ function laneNear(e,x){
   let best=x,bd=1e9;for(const l of RT[e.type].lanes)for(const c of [l,-l]){const d=Math.abs(x-c);if(d<bd){bd=d;best=c}}
   return best;
 }
+const REVERSE_STOP=.03; // allow for tiny residual movement, but brake a car that is still creeping forwards
 function stepPlayer(dt){
   const cd=curCar();
   const fx=Math.sin(P.h),fz=Math.cos(P.h),rx=-fz,rz=fx;
@@ -3208,6 +3214,8 @@ function stepPlayer(dt){
   // it eases towards how far the pedal is pressed (a controller's trigger part-way), never past it: ramping towards full
   // and pulling back afterwards let a light trigger build up to full throttle at a crawl, where the ramp is quickest
   const tT=Math.min(thrCap,gA),t0=P.thr||0;P.thr=t0<tT?Math.min(tT,t0+thrUp*dt):Math.max(tT,t0-8*dt);
+  // Holding the brake from a crawl must stop the car. Check motion before this step's slope force.
+  const bHeld=kB();if(!bHeld)P.brkHold=false;else if(vF>REVERSE_STOP)P.brkHold=true;
   if(!P.air){const sl=(surfH(P.x+fx*2,P.z+fz*2)-surfH(P.x-fx*2,P.z-fz*2))/4;vF-=9.81*sl*.75*dt}
   // the brake builds up while it's held: gentle at first (6 m/s²), full (13 m/s²) after a second, so a quick press
   // slows the car instead of stopping it dead. Nov 2026: was 9 to 22 m/s² in 0.7 s, which threw away speed into bends.
@@ -3216,7 +3224,6 @@ function stepPlayer(dt){
   const bF=ev&&ev.phase==="finish"?24:lerp(HD.brk0,HD.brk1,smooth(0,HD.brkUp,P.brkT));
   // a brake held from moving stops the car and keeps it there; reversing takes a fresh press at a standstill
   // (holding the brake to stop used to carry straight on into reverse, up to 40 km/h)
-  const bHeld=kB();if(!bHeld)P.brkHold=false;else if(vF>.5)P.brkHold=true;
   if(gas&&!brake&&vF<-.5)vF+=22*dt;
   else if(brake){if(vF>.5)vF-=bF*bA*dt;else if(P.brkHold||!bHeld){const d=Math.max(bF,6)*dt;vF=Math.abs(vF)<=d?0:vF-Math.sign(vF)*d}else vF=Math.max(vF-5*bA*dt,-HD.revMax)}
   else if(P.thr>0&&!P.air)vF+=power*P.thr*Math.max(0,1-(vF/vMax)**2)*dt;
@@ -4109,14 +4116,14 @@ const mptr=new Map();let mDrag=null,mPinch=null;
 // compared with those same two fingers: when one of them lifts and two or more are still down, the pinch starts
 // afresh from the fingers now on the glass, so the zoom can't jump by comparing one pair's spread with another's
 function pinchStart(){const it=[...mptr.entries()];if(it.length<2){mPinch=null;return}const[[ia,a],[ib,b]]=it;mPinch={ia,ib,d:Math.max(8,Math.hypot(a.x-b.x,a.y-b.y)),z:MV.z};mDrag=null}
-mapc.addEventListener("pointerdown",e=>{try{mapc.setPointerCapture(e.pointerId)}catch(err){}mptr.set(e.pointerId,{x:e.clientX,y:e.clientY});
+mapc.addEventListener("pointerdown",e=>{if(e.button!==0)return;try{mapc.setPointerCapture(e.pointerId)}catch(err){}mptr.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(mptr.size===1)mDrag={x:e.clientX,y:e.clientY,cx:MV.cx,cz:MV.cz,moved:0};
   else if(!mPinch)pinchStart()});
 mapc.addEventListener("pointermove",e=>{if(!mptr.has(e.pointerId))return;mptr.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(mPinch){const a=mptr.get(mPinch.ia),b=mptr.get(mPinch.ib);if(a&&b){const d=Math.max(8,Math.hypot(a.x-b.x,a.y-b.y));mapZoomAt(mPinch.z*d/mPinch.d/MV.z,(a.x+b.x)/2,(a.y+b.y)/2)}return}
   if(mDrag){const dx=e.clientX-mDrag.x,dy=e.clientY-mDrag.y;mDrag.moved=Math.max(mDrag.moved,Math.hypot(dx,dy));if(mDrag.moved>5){MV.cx=mDrag.cx-dx/MV.s;MV.cz=mDrag.cz-dy/MV.s;clampMap();$("mapPop").classList.add("hide")}}});
-const mapUp=e=>{const id=e.pointerId,had=mptr.has(id);mptr.delete(id);
-  if(had&&mDrag&&mDrag.moved<=5&&e.type==="pointerup")openMapPopup(e.clientX,e.clientY);
+const mapUp=e=>{const id=e.pointerId;if(!mptr.delete(id))return;
+  if(mDrag&&mDrag.moved<=5&&e.type==="pointerup")openMapPopup(e.clientX,e.clientY);
   if(mPinch){
     // pinch ended with one finger still down: that finger pans from here (marked as moved, so lifting it is not a tap)
     if(mptr.size===1){const[r]=[...mptr.values()];mDrag={x:r.x,y:r.y,cx:MV.cx,cz:MV.cz,moved:6};mPinch=null}
@@ -4124,7 +4131,7 @@ const mapUp=e=>{const id=e.pointerId,had=mptr.has(id);mptr.delete(id);
     else if(!mptr.size)mPinch=null;
   }
   if(!mptr.size)mDrag=null};
-mapc.addEventListener("pointerup",mapUp);mapc.addEventListener("pointercancel",mapUp);
+["pointerup","pointercancel","lostpointercapture"].forEach(type=>mapc.addEventListener(type,mapUp));
 mapc.addEventListener("wheel",e=>{e.preventDefault();mapZoomAt(Math.exp(-e.deltaY*.0015),e.clientX,e.clientY)},{passive:false});
 $("mapIn").onclick=()=>mapZoomAt(1.6,MV.ox,MV.oy);
 $("mapOut").onclick=()=>mapZoomAt(1/1.6,MV.ox,MV.oy);
@@ -4439,7 +4446,7 @@ function photoEnter(){
 function photoExit(){
   CAR_ENV.dirty=true;
   if(!PH.on)return;
-  photoShotClose();PH.on=false;PH.ptr.clear();PH.pinch=null;photoLook=null;
+  photoShotClose();PH.on=false;PH.busy=false;PH.ptr.clear();PH.pinch=null;photoLook=null;
   show("photo",false);
   const S=PH.saved;
   // the zoom follows the screen's shape, which may have changed while photo mode was open (a phone turned round)
@@ -4466,7 +4473,7 @@ function photoFrame(dt){
 // ---- pointer: drag orbits, two fingers or the wheel move closer or further away
 const phPad=$("phPad");
 function phPinchStart(){const it=[...PH.ptr.entries()];if(it.length<2){PH.pinch=null;return}const[[ia,a],[ib,b]]=it;PH.pinch={ia,ib,d:Math.max(8,Math.hypot(a.x-b.x,a.y-b.y)),dist:PH.dist}}
-phPad.addEventListener("pointerdown",e=>{if(!PH.on)return;try{phPad.setPointerCapture(e.pointerId)}catch(_){}PH.ptr.set(e.pointerId,{x:e.clientX,y:e.clientY});
+phPad.addEventListener("pointerdown",e=>{if(!PH.on||e.button!==0)return;try{phPad.setPointerCapture(e.pointerId)}catch(_){}PH.ptr.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(PH.ptr.size===1)PH.last={id:e.pointerId,x:e.clientX,y:e.clientY};else if(!PH.pinch)phPinchStart()});
 phPad.addEventListener("pointermove",e=>{if(!PH.on||!PH.ptr.has(e.pointerId))return;PH.ptr.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(PH.pinch){const a=PH.ptr.get(PH.pinch.ia),b=PH.ptr.get(PH.pinch.ib);if(a&&b){PH.dist=clamp(PH.pinch.dist*PH.pinch.d/Math.max(8,Math.hypot(a.x-b.x,a.y-b.y)),PH_D[0],PH_D[1]);phSync()}return}
@@ -4475,7 +4482,7 @@ phPad.addEventListener("pointermove",e=>{if(!PH.on||!PH.ptr.has(e.pointerId))ret
 const phUp=e=>{if(!PH.ptr.has(e.pointerId))return;PH.ptr.delete(e.pointerId);
   if(PH.pinch&&(e.pointerId===PH.pinch.ia||e.pointerId===PH.pinch.ib))phPinchStart();
   if(PH.ptr.size===1){const[[id,r]]=[...PH.ptr.entries()];PH.last={id,x:r.x,y:r.y}}else if(!PH.ptr.size)PH.last=null};
-phPad.addEventListener("pointerup",phUp);phPad.addEventListener("pointercancel",phUp);
+["pointerup","pointercancel","lostpointercapture"].forEach(type=>phPad.addEventListener(type,phUp));
 phPad.addEventListener("wheel",e=>{if(!PH.on)return;e.preventDefault();PH.dist=clamp(PH.dist*Math.exp(e.deltaY*.0011),PH_D[0],PH_D[1]);phSync()},{passive:false});
 $("phZoom").addEventListener("input",e=>{PH.fov=clamp(PH_F[1]-(+e.target.value),PH_F[0],PH_F[1])});
 $("phDist").addEventListener("input",e=>{PH.dist=clamp(+e.target.value/10,PH_D[0],PH_D[1])});
@@ -4486,14 +4493,16 @@ if(isTouch)$("phHint").textContent="Drag to move around the car, pinch to move c
 // ---- the picture: a fresh frame, copied straight away (the 3D canvas keeps no copy once it is shown), as a PNG
 function photoName(){const d=new Date(),p=n=>String(n).padStart(2,"0");return "white-isle-drive-"+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+"-"+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds())+".png"}
 function photoCapture(){
-  if(!PH.on||PH.busy)return Promise.resolve(false);PH.busy=true;
+  if(!PH.on||PH.busy)return Promise.resolve(false);
+  // PNG encoding can finish after this visit to Photo Mode has ended.
+  const capture={};PH.busy=capture;
   return new Promise(res=>{
     const fail=err=>{PH.busy=false;phMsg("Couldn't save the photo: "+((err&&err.message)||err||"the browser blocked it"),"bad");res(false)};
     try{
       applyDayNight();updateLampLights();photoFrame(0);syncRenderView();renderer.render(scene,camera);
       const src=renderer.domElement,c=document.createElement("canvas");c.width=src.width;c.height=src.height;
       const x=c.getContext("2d");if(!x)throw new Error("no 2D canvas");x.drawImage(src,0,0);
-      c.toBlob(b=>{if(!PH.on){PH.busy=false;res(false);return}if(!b){fail(new Error("the browser returned no image"));return}PH.busy=false;photoShotShow(b);res(true)},"image/png");
+      c.toBlob(b=>{if(PH.busy!==capture){res(false);return}if(!b){fail(new Error("the browser returned no image"));return}PH.busy=false;photoShotShow(b);res(true)},"image/png");
     }catch(err){fail(err)}
   });
 }
@@ -5340,7 +5349,12 @@ $("pGhost").onclick=()=>{save.ghostOn=!save.ghostOn;syncPause();persist();if(!sa
 $("pSnd").onclick=()=>{save.sound=!save.sound;if(save.sound)audioInit();syncPause();persist()};
 $("pMus").onclick=$("gMus").onclick=()=>{save.music=!save.music;audioInit();musicInit();syncPause();persist()};
 function openMap(){if(state!=="DRIVE")return;setState("MAP");clearInput();audioOn(false);show("map",true);show("mapPop",false);MV.z=1;MV.cx=0;MV.cz=0}
-function closeMap(){if(state!=="MAP")return;show("map",false);setState("DRIVE");audioOn(true)}
+function closeMap(){if(state!=="MAP")return;
+  // A release after reopening belongs to the old visit and must not set a waypoint.
+  for(const id of mptr.keys()){if(mapc.hasPointerCapture(id))mapc.releasePointerCapture(id)}
+  mptr.clear();mDrag=mPinch=null;
+  show("map",false);setState("DRIVE");audioOn(true)
+}
 $("mapClose").onclick=closeMap;$("chMap").onclick=openMap;$("chCam").onclick=cycleCam;$("chPause").onclick=pauseOn;
 const rearButton=$("chRear");
 rearButton.addEventListener("pointerdown",e=>{
@@ -5572,7 +5586,7 @@ function clStartScreen(go){const b=$("lcloud");show("lcloud",!!CL.ad&&!CL.meta.u
 const clAccountError=e=>clSet(clOff(e)?"offline":"error",clErr(e));
 // Cloud replies only belong to the session that started them.
 function clForUser(user,run){
-  const current=()=>{if(CL.user===user)return run()};
+  const current=()=>{if(!tabIdle&&CL.user===user)return run()};
   return CL.signingOut?CL.signingOut.then(current):current();
 }
 function clReadAccount(){const user=CL.user;
@@ -5582,6 +5596,7 @@ function clConnect(interactive){
   clSet("connecting");
   const who=interactive&&CL.ad.loaded?CL.ad.signIn():CL.ad.init().then(u=>u||(interactive?CL.ad.signIn():null));
   return who.then(u=>{
+    if(tabIdle)return;
     if(!u){if(CL.meta.uid){clSet("signedout","You're signed out. Sign in again to keep backing up; your progress is safe on this device.")}else clSet("guest");return}
     CL.user=u;CL.other=!!(CL.meta.owner&&CL.meta.owner!==u.uid);
     if(CL.meta.uid&&CL.meta.uid!==u.uid||CL.other){CL.meta.rev=0;CL.meta.prog="";CL.meta.full="";CL.meta.at=0}
@@ -5607,9 +5622,9 @@ function clApply(doc,cloud){const sv=Object.assign({},cloud,{ghost:save.ghost||{
   // if the browser won't store it, nothing changed: saving and backing up carry on, and the choice stays to try again
   try{localStorage.setItem(SAVE_KEY,JSON.stringify(sv))}catch(e){CL.applying=false;CL.pick={doc,cloud};clSet("error","This browser won't store the restored progress.");return}
   CL.meta.rev=doc.rev||0;CL.meta.rehash=true;clOwn();CL.meta.at=clAt(doc);clSaveMeta();
-  clSet("synced","Restoring your progress…");if(window.__cloudNoReload){window.__cloudApplied=sv;return}setTimeout(()=>location.reload(),400)}
+  clSet("synced","Restoring your progress…");if(window.__cloudNoReload){window.__cloudApplied=sv;return}setTimeout(()=>{if(!tabIdle)location.reload()},400)}
 // this device's save goes to the account, if nobody else wrote there since (otherwise: compare again)
-function clUpload(rev,onlyIfChanged){if(CL.applying||CL.signingOut)return Promise.resolve();
+function clUpload(rev,onlyIfChanged){if(tabIdle||CL.applying||CL.signingOut)return Promise.resolve();
   const user=CL.user;
   const pay=clPayload(save),full=clHash(clCanon(pay)),prog=clProg(save);
   if(onlyIfChanged&&full===CL.meta.full){clSet("synced");return Promise.resolve()}
@@ -5657,8 +5672,8 @@ function clPickShow(){if(!CL.pick)return;
 function clStartNew(doc){CL.applying=true;clearTimeout(CL.timer);CL.timer=0;
   try{localStorage.removeItem(SAVE_KEY)}catch(e){CL.applying=false;CL.pick={doc,cloud:null};clSet("error","This browser won't let the game start new progress.");return}
   CL.meta.rev=doc&&doc.rev||0;CL.meta.rehash=true;clOwn();CL.meta.at=0;clSaveMeta();
-  clSet("synced","Starting new progress…");if(window.__cloudNoReload){window.__cloudApplied="new";return}setTimeout(()=>location.reload(),400)}
-function clKeep(which){const p=CL.pick;if(!p)return;CL.pick=null;show("cloudPick",false);CL.st="pending";
+  clSet("synced","Starting new progress…");if(window.__cloudNoReload){window.__cloudApplied="new";return}setTimeout(()=>{if(!tabIdle)location.reload()},400)}
+function clKeep(which){const p=CL.pick;if(tabIdle||!p)return;CL.pick=null;show("cloudPick",false);CL.st="pending";
   if(which==="acc"){if(p.cloud)clApply(p.doc,p.cloud);else clStartNew(p.doc)}else clUpload(p.doc&&p.doc.rev||0)}
 function clOpen(){if(CL.pick){clPickShow();return}show("cloud",true);
   // the service loads while the panel is open, so SIGN IN can open Google's window at once
@@ -5701,7 +5716,7 @@ function updateHUD(dt){
   const damage=$("damageHud"),amount=Math.round(P.damage||0),label="DAMAGE "+amount+"%";
   if(damage.textContent!==label){damage.textContent=label;show("damageHud",amount>0)}
   const cd=curCar(),vF=speedF(),kph=Math.abs(vF)*3.6,gi=gearInfo(kph,cd.top,vF<-.5);
-  const bB=$("bB"),rev=vF<.5&&!(P.brkHold&&kB()),lbl=rev?"REVERSE":"BRAKE";if(bB.textContent!==lbl){bB.textContent=lbl;bB.classList.toggle("rev",rev)}
+  const bB=$("bB"),rev=vF<=REVERSE_STOP&&!(P.brkHold&&kB()),lbl=rev?"REVERSE":"BRAKE";if(bB.textContent!==lbl){bB.textContent=lbl;bB.classList.toggle("rev",rev)}
   if(rev&&pad.B&&vF<-.5&&!padRevShown&&!ev){padRevShown=true;toast("REVERSING","Stopped, press REVERSE again to back up. While you're moving forward the same button brakes")}
   drawSpeedo(kph,gi.rpm*8,gi.g);
   if(camMode===3)drawGauges(kph,gi.rpm*8,gi.g);
@@ -5744,8 +5759,8 @@ function adaptRes(dt){
   if(document.hidden)return;dt=Math.min(dt,.25);RES.avg+=(Math.min(dt,.1)-RES.avg)*.05;RES.t+=dt;RES.badT+=dt;RES.upT+=dt;if(RES.t<RES.wait)return;
   if(RES.badT>30)RES.bad=99;
   if(PR_MIN>=PR_MAX)return;
-  let p=prNow;if(RES.avg>1/36){p=Math.max(PR_MIN,p-.25);if(RES.upT<8){RES.bad=prNow;RES.badT=0}}
-  else if(RES.avg<1/50&&prNow+.25<RES.bad){p=Math.min(PR_MAX,p+.25);if(p!==prNow)RES.upT=0}
+  let p=prNow;if(RES.avg>1/36){p=Math.max(PR_MIN,p-.25);if(p!==prNow&&RES.upT<8){RES.bad=prNow;RES.badT=0}}
+  else if(RES.avg<1/50){const next=Math.min(PR_MAX,p+.25);if(next>p&&next<RES.bad){p=next;RES.upT=0}}
   RES.t=0;RES.wait=.5;
   if(p!==prNow){prNow=p;renderer.setPixelRatio(p);renderer.setSize(W,H,false);RES.wait=3}
 }
