@@ -2974,7 +2974,7 @@ function buildHeroCar(cd,color,mods){
   });
   if(!pr.open){add(B(cw-.08,.04,1.5),headlinerM,0,pr.roof-.04,pr.roofF-.7,0,0,inside);add(B(.24,.07,.03),darkInM,0,pr.roof-.12,pr.roofF-.12,0,0,inside)}
   else add(B(cw-.2,.05,.05),darkInM,0,pr.roof-.02,pr.roofF+.05,0,0,inside);
-  return{G,id:cd.id,wheels:w.wheels,front:w.front,tailM,headM,glass,shell,inside,steerWheel:sw,bodyM:body,wr:pr.wr,wb:pr.wb,tr:pr.tr,
+  return{G,damageSmoke:createDamageSmoke(G),id:cd.id,wheels:w.wheels,front:w.front,tailM,headM,glass,shell,inside,steerWheel:sw,bodyM:body,wr:pr.wr,wb:pr.wb,tr:pr.tr,
     eye:new V3(dx,Math.max(pr.eye+.03,wy+.24),ez),front_z:pr.front,shape:cd.shape,paint:L.paint,q,mods:L.mods,refs:L.refs};
 }
 
@@ -2998,7 +2998,7 @@ function buildTrafficCar(color,shape){
   TRAFFIC_MATS.add(bodyM);
   const b=new THREE.Mesh(parts.body,bodyM),c=new THREE.Mesh(parts.cabin,cabM),w=new THREE.Mesh(tGeoCache[key],trafficWheelM);
   b.castShadow=c.castShadow=true;G.add(b,c,w);
-  return{G,wheels:[],len:TPROF[shape].len};
+  return{G,damageSmoke:createDamageSmoke(G),wheels:[],len:TPROF[shape].len};
 }
 const trafficWheelM=new THREE.MeshLambertMaterial({vertexColors:true});
 // traffic wheels don't turn, so they get a plain dished disc rather than spokes that would stand still at speed
@@ -3295,19 +3295,22 @@ function damageVehicle(car,speed){
 }
 function tickDamage(car,dt){if(car.damageT>0)car.damageT-=dt}
 let smokeMaterial=null;
-function showDamageSmoke(model,damage,dt=0){
-  let smoke=model.damageSmoke;
-  if(!(damage>=35)){if(smoke)smoke.visible=false;return}
-  if(!smoke){
-    if(!smokeMaterial){
-      const canvas=document.createElement("canvas");canvas.width=canvas.height=32;
-      const ctx=canvas.getContext("2d"),g=ctx.createRadialGradient(16,16,1,16,16,16);
-      g.addColorStop(0,"rgba(91,92,94,.65)");g.addColorStop(.55,"rgba(108,110,112,.33)");g.addColorStop(1,"rgba(115,116,118,0)");
-      ctx.fillStyle=g;ctx.fillRect(0,0,32,32);
-      smokeMaterial=new THREE.SpriteMaterial({map:new THREE.CanvasTexture(canvas),transparent:true,depthWrite:false});
-    }
-    smoke=model.damageSmoke=new THREE.Sprite(smokeMaterial);model.G.add(smoke);smoke.userData.age=0;
+// Allocate one hidden puff with each car, so collisions never grow the scene.
+// Its material/texture are shared for the session; disposing a car must not dispose them.
+function createDamageSmoke(group){
+  if(!smokeMaterial){
+    const canvas=document.createElement("canvas");canvas.width=canvas.height=32;
+    const ctx=canvas.getContext("2d"),g=ctx.createRadialGradient(16,16,1,16,16,16);
+    g.addColorStop(0,"rgba(91,92,94,.65)");g.addColorStop(.55,"rgba(108,110,112,.33)");g.addColorStop(1,"rgba(115,116,118,0)");
+    ctx.fillStyle=g;ctx.fillRect(0,0,32,32);
+    smokeMaterial=new THREE.SpriteMaterial({map:new THREE.CanvasTexture(canvas),transparent:true,depthWrite:false});
   }
+  const smoke=new THREE.Sprite(smokeMaterial);
+  smoke.visible=false;smoke.userData.age=0;group.add(smoke);return smoke;
+}
+function showDamageSmoke(model,damage,dt=0){
+  const smoke=model.damageSmoke;
+  if(!(damage>=35)){smoke.visible=false;smoke.userData.age=0;return}
   smoke.visible=true;const age=smoke.userData.age=(smoke.userData.age+dt*.8)%1;
   smoke.position.set(0,1.15+age*.65,model.front_z?model.front_z*.62:1.05);
   smoke.scale.setScalar(.6+age*.45+damage*.004);

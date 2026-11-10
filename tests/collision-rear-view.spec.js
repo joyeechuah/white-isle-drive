@@ -139,3 +139,34 @@ test.describe("touch rear view", () => {
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   });
 });
+
+
+test("damage smoke reuses prebuilt puffs through damage, repair and traffic recycling", async ({ game }) => {
+  await driving(game);
+  const result = await game.eval(() => {
+    const T = __T;
+    T.startEvent(T.EVENTS.find(e => e.type === "race"));
+    const models = [T.pc, ...T.TRAFFIC.map(t => t.c), ...T.ev.ai.map(a => a.m)];
+    const count = () => { let n = 0; T.scene.traverse(() => n++); return n; };
+    const before = count(), puffs = models.map(m => m.damageSmoke);
+    const initiallyHidden = puffs.every(p => p && !p.visible);
+    const counts = [], visible = [];
+    for (const damage of [35, 34, 100, 0, 75]) {
+      for (const m of models) T.showDamageSmoke(m, damage, .5);
+      counts.push(count());
+      visible.push(models.every(m => m.damageSmoke.visible === (damage >= 35)));
+    }
+    const traffic = T.TRAFFIC[0];
+    traffic.damage = 75;
+    const recycled = T.spawnTraffic(traffic, 0, Infinity, false);
+    return { before, counts, initiallyHidden, visible,
+      samePuffs: models.every((m, i) => m.damageSmoke === puffs[i] && m.damageSmoke.parent === m.G),
+      recycled, damage: traffic.damage, smokeVisible: traffic.c.damageSmoke.visible,
+      age: traffic.c.damageSmoke.userData.age };
+  });
+  expect(result.initiallyHidden).toBe(true);
+  expect(result.counts).toEqual(Array(5).fill(result.before));
+  expect(result.visible).toEqual(Array(5).fill(true));
+  expect(result.samePuffs).toBe(true);
+  expect(result).toMatchObject({ recycled: true, damage: 0, smokeVisible: false, age: 0 });
+});
