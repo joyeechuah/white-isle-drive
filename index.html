@@ -173,7 +173,10 @@ body.touch #lhint{display:none}
 /* phones and tablets: the page never zooms or pans (a double tap or a pinch used to zoom Safari in, with no way back
    but pinching out); menus and lists that scroll still scroll */
 .card,#pzList,#jbList,#cpList,#mapSide,#cuList{touch-action:pan-y}#dList{touch-action:pan-x pan-y}
-#zoomed{position:fixed;left:0;top:0;z-index:99;transform-origin:0 0;background:#e2483d;color:#fff;font-weight:700;font-size:13px;letter-spacing:.06em;padding:10px 14px;border-radius:0 0 8px 0;pointer-events:none}
+#zoomed{position:fixed;left:0;top:0;z-index:99;transform-origin:0 0;background:#e2483d;color:#fff;font:inherit;font-weight:700;font-size:13px;letter-spacing:.06em;padding:12px 16px;border:0;border-radius:0 0 8px 0;cursor:pointer}
+/* a zoomed-in page lets the browser's own pinch (and two-finger drag) through everywhere, so pinching out works: with
+   it switched off, as it is the rest of the time, an iPad that had zoomed in couldn't be pinched back */
+html.zoomed,html.zoomed body,html.zoomed *{touch-action:manipulation!important}
 #iDiff{display:flex;gap:6px;margin-top:12px}#iDiff .mbtn{flex:1;margin:0}#iDiff .mbtn.on{background:#fff;color:#0b0c0e;border-color:#fff}
 .card .acts{margin-top:18px}
 .card .acts .btn{flex:1}
@@ -426,7 +429,7 @@ if(location.hostname==="joyeechuah.github.io"&&!navigator.globalPrivacyControl&&
     <div class="cub"><button class="mbtn" id="cuCancel">CANCEL</button><button class="mbtn pri" id="cuApply">APPLY</button></div></div>
 </div>
 
-<div id="zoomed" class="hide" role="status">ZOOMED IN · pinch out with two fingers to get back</div>
+<button id="zoomed" class="hide">ZOOMED IN · TAP HERE TO ZOOM OUT (or pinch with two fingers)</button>
 <div id="hud" class="hide">
   <div id="vig"></div><div id="mblur"></div><div id="edge"></div>
   <div id="tl">
@@ -5376,15 +5379,30 @@ $("drive").onclick=goDrive;$("gprev").onclick=()=>gPick((gSel-1+save.owned.lengt
 
 /* ---------- input wiring ---------- */
 // Safari zooms on a pinch (its own gesture events) and on a double tap even where touch-action says not to, on some
-// versions: both are stopped here. A second tap on a button within 0.3 s still presses it
-document.addEventListener("gesturestart",e=>e.preventDefault());document.addEventListener("gesturechange",e=>e.preventDefault());
-let lastTapEnd=0;
+// versions: both are stopped here, and so is a two-finger move (an iPad still zoomed in on one with the gesture
+// events alone). A second tap on a button within 0.3 s still presses it.
+// Once the page IS zoomed in, all of this steps aside: stopping the pinch also stopped the pinch back out, so an iPad
+// stayed zoomed in whatever you did
+let pageZoomed=false;
+for(const t of ["gesturestart","gesturechange"])document.addEventListener(t,e=>{if(!pageZoomed)e.preventDefault()});
+document.addEventListener("touchmove",e=>{if(!pageZoomed&&e.touches.length>1&&e.cancelable)e.preventDefault()},{passive:false});
+// (not when the two "taps" are the two fingers of a pinch lifting one after the other: that pressed a paint colour
+// under the second finger)
+let lastTapEnd=0,twoDown=false;
+document.addEventListener("touchstart",e=>{twoDown=e.touches.length>1},{passive:true});
 document.addEventListener("touchend",e=>{const now=performance.now();
-  if(e.cancelable&&now-lastTapEnd<300&&e.changedTouches.length===1&&!e.target.closest("#pzList,#jbList,#cpList,#dList,#cuList")){e.preventDefault();const b=e.target.closest("button,a");if(b)b.click()}
+  if(!pageZoomed&&e.cancelable&&now-lastTapEnd<300&&e.changedTouches.length===1&&!e.target.closest("#pzList,#jbList,#cpList,#dList,#cuList")){e.preventDefault();const b=e.target.closest("button,a");if(b&&!twoDown)b.click()}
   lastTapEnd=now},{passive:false});
-// if the page is zoomed in anyway, a note says how to get back (it sits at the top left of what's on screen)
-if(window.visualViewport){const vv=visualViewport,z=$("zoomed"),fit=()=>{const on=vv.scale>1.05;show("zoomed",on);if(on)z.style.transform=`translate(${vv.offsetLeft}px,${vv.offsetTop}px) scale(${1/vv.scale})`};
-  vv.addEventListener("resize",fit);vv.addEventListener("scroll",fit)}
+// if the page is zoomed in anyway, a button at the top left of what's on screen zooms back out, and pinching works too.
+// A page can't set the browser's zoom directly: writing the viewport tag again with its scale fixed at 1 makes Safari
+// go back to 1, and the tag is then put back as it was
+function zoomReset(){const m=document.querySelector('meta[name="viewport"]'),was=m.content;
+  m.content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover";
+  setTimeout(()=>{m.content=was},300)}
+if(window.visualViewport){const vv=visualViewport,z=$("zoomed"),fit=()=>{const on=vv.scale>1.05,was=pageZoomed;pageZoomed=on;
+    document.documentElement.classList.toggle("zoomed",on);show("zoomed",on);
+    if(on){z.style.transform=`translate(${vv.offsetLeft}px,${vv.offsetTop}px) scale(${1/vv.scale})`;if(!was)zoomReset()}};
+  vv.addEventListener("resize",fit);vv.addEventListener("scroll",fit);z.onclick=zoomReset;fit()}
 addEventListener("blur",()=>{clearInput();if(state==="DRIVE"&&!window.__autostart)pauseOn()});
 document.addEventListener("visibilitychange",()=>{if(document.hidden){clearInput();if(state==="DRIVE")pauseOn()}});
 // a button reached with Tab belongs to the keyboard user: Enter presses it and does nothing else. Focus that
@@ -5455,8 +5473,17 @@ function hitSlot(cx,cy){ndc.x=cx/W*2-1;ndc.y=-(cy/H)*2+1;ray.setFromCamera(ndc,c
 const cv=$("c");
 // the view keeps the finger or mouse it started with even when it slides off the canvas or over the panel
 // (pointer capture), and lets go of it however the press ends: lifted, cancelled by the browser, or capture lost
-cv.addEventListener("pointerdown",e=>{if(state!=="GARAGE")return;try{cv.setPointerCapture(e.pointerId)}catch(_){}GO.ptr.set(e.pointerId,{x:e.clientX,y:e.clientY});if(GO.ptr.size===1)GO.moved=0;
-  if(GO.ptr.size===1)GO.last={id:e.pointerId,x:e.clientX,y:e.clientY};else{const[a,b]=[...GO.ptr.values()];GO.pinch={d:Math.max(8,Math.hypot(a.x-b.x,a.y-b.y)),z:GO.zoom}}});
+const goDown=e=>{if(state!=="GARAGE")return;try{cv.setPointerCapture(e.pointerId)}catch(_){}GO.ptr.set(e.pointerId,{x:e.clientX,y:e.clientY});if(GO.ptr.size===1)GO.moved=0;
+  if(GO.ptr.size===1)GO.last={id:e.pointerId,x:e.clientX,y:e.clientY};else{const[a,b]=[...GO.ptr.values()];GO.pinch={d:Math.max(8,Math.hypot(a.x-b.x,a.y-b.y)),z:GO.zoom}}};
+cv.addEventListener("pointerdown",goDown);
+// The car's name and figures cover the bottom of the screen (two fifths of a phone held upright). A finger that lands
+// there, away from its buttons, turns and zooms the view too: pinching out starts with the fingers apart, one of them
+// usually down there, and the view then only turned, so a phone could zoom in but not back out. It never counts as
+// a tap on a car behind the bar. With a finger already on the view, a second one anywhere on the garage screen
+// (a button included) is the other half of a pinch, and doesn't press what it landed on
+$("gui").addEventListener("pointerdown",e=>{const btn=e.target.closest("button,a,input");
+  if(GO.ptr.size?e.pointerType!=="touch":btn||!e.target.closest("#gbar"))return;
+  goDown(e);GO.moved=Math.max(GO.moved,7)});
 cv.addEventListener("pointermove",e=>{if(state!=="GARAGE"||!GO.ptr.has(e.pointerId))return;const p=GO.ptr.get(e.pointerId);GO.moved+=Math.abs(e.clientX-p.x)+Math.abs(e.clientY-p.y);p.x=e.clientX;p.y=e.clientY;
   if(GO.pinch&&GO.ptr.size>1){const[a,b]=[...GO.ptr.values()];GO.zoom=clamp(GO.pinch.z*GO.pinch.d/Math.max(8,Math.hypot(a.x-b.x,a.y-b.y)),GO_Z[0],GO_Z[1]);GO.user=true;return}
   if(GO.last&&GO.last.id===e.pointerId){const dx=e.clientX-GO.last.x,dy=e.clientY-GO.last.y;GO.last.x=e.clientX;GO.last.y=e.clientY;

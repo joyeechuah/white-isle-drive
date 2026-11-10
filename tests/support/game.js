@@ -206,8 +206,7 @@ class Game {
         T.P.z = spot.z;
         T.resetToRoad(false);
         T.P.vx = T.P.vz = 0;
-        // and no throttle left over from a key held just before: the game's own frames, which run between a test's
-        // calls, would creep the car forwards with it, and a brake press then counts as braking, not reversing
+        // Clear leftover input so the car cannot creep before a reverse test.
         T.P.thr = 0;
         T.P.brkHold = false;
         if (document.activeElement) document.activeElement.blur();
