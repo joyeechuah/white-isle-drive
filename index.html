@@ -770,10 +770,10 @@ const paintOf=id=>save.paint[id]!==undefined?save.paint[id]:carById(id).body;
 let W=innerWidth,H=innerHeight;
 // sharp on high-density phone screens too: up to 2 rendered pixels per CSS pixel, with edge smoothing
 // (multisampling is cheap on the tile-based GPUs in phones). adaptRes lowers this if frames run slow.
-// GRAPHICS setting: AUTO keeps it sharp and only eases off (never below 1.5) when frames get slow;
+// GRAPHICS setting: AUTO starts sharp and can lower the render scale even on a 1x display when frames stay slow;
 // SHARP always renders at the screen's full sharpness; SMOOTH renders at 1 for weak phones and long battery
 let PR_DEV=Math.min(devicePixelRatio||1,2),PR_MAX=PR_DEV,PR_MIN=PR_DEV;
-function gfxLimits(){const g=save.gfx;PR_MAX=g===2?Math.min(PR_DEV,1):PR_DEV;PR_MIN=g===0?Math.min(PR_DEV,1.5):PR_MAX}
+function gfxLimits(){const g=save.gfx;PR_MAX=g===2?Math.min(PR_DEV,1):PR_DEV;PR_MIN=g===0?Math.min(PR_MAX,.75):PR_MAX}
 gfxLimits();
 let prNow=PR_MAX;
 const renderer=new THREE.WebGLRenderer({canvas:$("c"),antialias:true,powerPreference:"high-performance"});
@@ -5661,8 +5661,8 @@ function adaptRes(dt){
   if(document.hidden)return;dt=Math.min(dt,.25);RES.avg+=(Math.min(dt,.1)-RES.avg)*.05;RES.t+=dt;RES.badT+=dt;RES.upT+=dt;if(RES.t<RES.wait)return;
   if(RES.badT>30)RES.bad=99;
   if(PR_MIN>=PR_MAX)return;
-  let p=prNow;if(RES.avg>1/36){p=Math.max(PR_MIN,p-.25);if(RES.upT<8){RES.bad=prNow;RES.badT=0}}
-  else if(RES.avg<1/50&&prNow+.25<RES.bad){p=Math.min(PR_MAX,p+.25);if(p!==prNow)RES.upT=0}
+  let p=prNow;if(RES.avg>1/36){p=Math.max(PR_MIN,p-.25);if(p!==prNow&&RES.upT<8){RES.bad=prNow;RES.badT=0}}
+  else if(RES.avg<1/50){const next=Math.min(PR_MAX,p+.25);if(next>p&&next<RES.bad){p=next;RES.upT=0}}
   RES.t=0;RES.wait=.5;
   if(p!==prNow){prNow=p;renderer.setPixelRatio(p);renderer.setSize(W,H,false);RES.wait=3}
 }
