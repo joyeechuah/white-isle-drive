@@ -29,7 +29,7 @@ A free-roam driving game set on a Mediterranean island modelled loosely on Ibiza
 
 **Game controller:** left stick steers, right trigger is the gas and left trigger the brake (part-way works too), A is the handbrake, X the prompt (E), Y changes camera, hold the left bumper (LB) to look behind, View/Back opens the map, Start pauses and B goes back. In menus, A confirms and the D-pad moves.
 
-Hard impacts transfer speed and damage the vehicles involved, including traffic and race rivals. Damage reduces engine performance, and badly damaged cars smoke. Returning to the garage repairs your car for free, and races start with fresh cars. Damage lasts for the current drive and is not part of your save.
+Hard impacts transfer speed and damage the vehicles involved, including traffic and race rivals. Damage reduces engine performance, and badly damaged cars smoke. Tap the **DAMAGE** indicator (or choose **VEHICLE CONDITION** from Pause) to see condition and repair choices. **Returning to the garage repairs your car for free**, including via **Go Home** in Pause; returning home ends a current race or contract. When stopped and not racing or test-driving, an optional roadside repair costs **1,000 + 20 × damage percentage** credits (3,000 at 100%) and requires a second confirmation press. Damage warnings appear at 25%, 60%, 90% and 100%. The car stays drivable at full damage. Races start with fresh cars. Damage lasts for the current drive and is not part of your save.
 
 In the garage, `←` / `→` choose a car and `Enter` drives it; CUSTOMISE opens the options for it (`Esc` or controller B cancels, controller A applies). On the map, drag to pan, scroll or pinch to zoom, click a marker to set the GPS or travel there, or click a road to drop a waypoint.
 
