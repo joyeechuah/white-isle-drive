@@ -5306,9 +5306,12 @@ $("drive").onclick=goDrive;$("gprev").onclick=()=>gPick((gSel-1+save.owned.lengt
 let pageZoomed=false;
 for(const t of ["gesturestart","gesturechange"])document.addEventListener(t,e=>{if(!pageZoomed)e.preventDefault()});
 document.addEventListener("touchmove",e=>{if(!pageZoomed&&e.touches.length>1&&e.cancelable)e.preventDefault()},{passive:false});
-let lastTapEnd=0;
+// (not when the two "taps" are the two fingers of a pinch lifting one after the other: that pressed a paint colour
+// under the second finger)
+let lastTapEnd=0,twoDown=false;
+document.addEventListener("touchstart",e=>{twoDown=e.touches.length>1},{passive:true});
 document.addEventListener("touchend",e=>{const now=performance.now();
-  if(!pageZoomed&&e.cancelable&&now-lastTapEnd<300&&e.changedTouches.length===1&&!e.target.closest("#pzList,#jbList,#cpList,#dList,#cuList")){e.preventDefault();const b=e.target.closest("button,a");if(b)b.click()}
+  if(!pageZoomed&&e.cancelable&&now-lastTapEnd<300&&e.changedTouches.length===1&&!e.target.closest("#pzList,#jbList,#cpList,#dList,#cuList")){e.preventDefault();const b=e.target.closest("button,a");if(b&&!twoDown)b.click()}
   lastTapEnd=now},{passive:false});
 // if the page is zoomed in anyway, a button at the top left of what's on screen zooms back out, and pinching works too.
 // A page can't set the browser's zoom directly: writing the viewport tag again with its scale fixed at 1 makes Safari
@@ -5390,8 +5393,17 @@ function hitSlot(cx,cy){ndc.x=cx/W*2-1;ndc.y=-(cy/H)*2+1;ray.setFromCamera(ndc,c
 const cv=$("c");
 // the view keeps the finger or mouse it started with even when it slides off the canvas or over the panel
 // (pointer capture), and lets go of it however the press ends: lifted, cancelled by the browser, or capture lost
-cv.addEventListener("pointerdown",e=>{if(state!=="GARAGE")return;try{cv.setPointerCapture(e.pointerId)}catch(_){}GO.ptr.set(e.pointerId,{x:e.clientX,y:e.clientY});if(GO.ptr.size===1)GO.moved=0;
-  if(GO.ptr.size===1)GO.last={id:e.pointerId,x:e.clientX,y:e.clientY};else{const[a,b]=[...GO.ptr.values()];GO.pinch={d:Math.max(8,Math.hypot(a.x-b.x,a.y-b.y)),z:GO.zoom}}});
+const goDown=e=>{if(state!=="GARAGE")return;try{cv.setPointerCapture(e.pointerId)}catch(_){}GO.ptr.set(e.pointerId,{x:e.clientX,y:e.clientY});if(GO.ptr.size===1)GO.moved=0;
+  if(GO.ptr.size===1)GO.last={id:e.pointerId,x:e.clientX,y:e.clientY};else{const[a,b]=[...GO.ptr.values()];GO.pinch={d:Math.max(8,Math.hypot(a.x-b.x,a.y-b.y)),z:GO.zoom}}};
+cv.addEventListener("pointerdown",goDown);
+// The car's name and figures cover the bottom of the screen (two fifths of a phone held upright). A finger that lands
+// there, away from its buttons, turns and zooms the view too: pinching out starts with the fingers apart, one of them
+// usually down there, and the view then only turned, so a phone could zoom in but not back out. It never counts as
+// a tap on a car behind the bar. With a finger already on the view, a second one anywhere on the garage screen
+// (a button included) is the other half of a pinch, and doesn't press what it landed on
+$("gui").addEventListener("pointerdown",e=>{const btn=e.target.closest("button,a,input");
+  if(GO.ptr.size?e.pointerType!=="touch":btn||!e.target.closest("#gbar"))return;
+  goDown(e);GO.moved=Math.max(GO.moved,7)});
 cv.addEventListener("pointermove",e=>{if(state!=="GARAGE"||!GO.ptr.has(e.pointerId))return;const p=GO.ptr.get(e.pointerId);GO.moved+=Math.abs(e.clientX-p.x)+Math.abs(e.clientY-p.y);p.x=e.clientX;p.y=e.clientY;
   if(GO.pinch&&GO.ptr.size>1){const[a,b]=[...GO.ptr.values()];GO.zoom=clamp(GO.pinch.z*GO.pinch.d/Math.max(8,Math.hypot(a.x-b.x,a.y-b.y)),GO_Z[0],GO_Z[1]);GO.user=true;return}
   if(GO.last&&GO.last.id===e.pointerId){const dx=e.clientX-GO.last.x,dy=e.clientY-GO.last.y;GO.last.x=e.clientX;GO.last.y=e.clientY;

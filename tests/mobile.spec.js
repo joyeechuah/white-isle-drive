@@ -181,6 +181,48 @@ test.describe("no zooming on phones and tablets", () => {
   });
 });
 
+test.describe("garage view on a phone held upright", () => {
+  test.use({ viewport: { width: 412, height: 800 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+
+  test("pinching out works with a finger on the car's name and figures, or on a button there, and presses nothing", async ({ game, page }) => {
+    await game.open();
+    const cdp = await page.context().newCDPSession(page);
+    // two fingers one above the other, d apart around the middle of the view: 420 apart, the lower one is on the bar
+    // at the bottom (on a paint colour), which is where a pinch out starts and a pinch in ends
+    const pts = (d) => [
+      { id: 1, x: 206, y: 420 - d / 2 },
+      { id: 2, x: 206, y: 420 + d / 2 },
+    ];
+    const pinch = async (d0, d1) => {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [pts(d0)[0]] });
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pts(d0) });
+      for (let i = 1; i <= 10; i++) {
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pts(d0 + ((d1 - d0) * i) / 10) });
+        await page.waitForTimeout(16);
+      }
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [pts(d1)[0]] });
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      await page.waitForTimeout(350);
+    };
+    const now = () => game.eval(() => ({ zoom: +__T.GO.zoom.toFixed(2), held: __T.GO.ptr.size, state: __T.state, cur: __T.save.cur, paint: JSON.stringify(__T.save.paint) }));
+    const under = await game.eval(() => !!document.elementFromPoint(206, 630).closest("#gbar button"));
+    expect(under, "the lower finger starts on a button in the bar").toBe(true);
+    const a = await now();
+    await pinch(80, 420);
+    expect((await now()).zoom).toBe(0.55);
+    // it used to stay at 0.55: the finger on the bar didn't count, so the view only turned
+    await pinch(420, 80);
+    const b = await now();
+    expect(b.zoom).toBe(1.6);
+    expect([b.held, b.state, b.cur, b.paint]).toEqual([0, "GARAGE", a.cur, a.paint]);
+    // one finger on a paint colour still picks it
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ id: 1, x: 206, y: 630 }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await expect.poll(() => now().then((n) => n.paint)).not.toBe(a.paint);
+    expect((await now()).state).toBe("GARAGE");
+  });
+});
+
 test.describe("brake and reverse button", () => {
   test.use({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
 
