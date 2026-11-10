@@ -73,6 +73,23 @@ test.describe("map on a computer", () => {
     await expect(page.locator("#gpsTxt")).not.toBeEmpty();
   });
 
+  test("right clicks and releases after closing the map do not set waypoints", async ({ game, page }) => {
+    const p = await game.eval(ROAD_PIXEL);
+    expect(p).not.toBeNull();
+    await page.mouse.click(p.x, p.y, { button: "right" });
+    expect(await game.eval(() => __T.gps.t)).toBeNull();
+    await page.mouse.move(p.x, p.y);
+    await page.mouse.down();
+    await game.key("m");
+    await game.waitState("DRIVE");
+    await game.key("m");
+    await game.waitState("MAP");
+    await page.mouse.up();
+    expect(await game.eval(() => __T.gps.t)).toBeNull();
+    await page.mouse.click(p.x, p.y);
+    await expect.poll(() => game.eval(() => __T.gps.label)).toBe("Waypoint");
+  });
+
   test("routes join any two places on the road network, end to end", async ({ game }) => {
     const bad = await game.eval(() => {
       const T = __T,

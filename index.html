@@ -4056,14 +4056,14 @@ const mptr=new Map();let mDrag=null,mPinch=null;
 // compared with those same two fingers: when one of them lifts and two or more are still down, the pinch starts
 // afresh from the fingers now on the glass, so the zoom can't jump by comparing one pair's spread with another's
 function pinchStart(){const it=[...mptr.entries()];if(it.length<2){mPinch=null;return}const[[ia,a],[ib,b]]=it;mPinch={ia,ib,d:Math.max(8,Math.hypot(a.x-b.x,a.y-b.y)),z:MV.z};mDrag=null}
-mapc.addEventListener("pointerdown",e=>{try{mapc.setPointerCapture(e.pointerId)}catch(err){}mptr.set(e.pointerId,{x:e.clientX,y:e.clientY});
+mapc.addEventListener("pointerdown",e=>{if(e.button!==0)return;try{mapc.setPointerCapture(e.pointerId)}catch(err){}mptr.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(mptr.size===1)mDrag={x:e.clientX,y:e.clientY,cx:MV.cx,cz:MV.cz,moved:0};
   else if(!mPinch)pinchStart()});
 mapc.addEventListener("pointermove",e=>{if(!mptr.has(e.pointerId))return;mptr.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(mPinch){const a=mptr.get(mPinch.ia),b=mptr.get(mPinch.ib);if(a&&b){const d=Math.max(8,Math.hypot(a.x-b.x,a.y-b.y));mapZoomAt(mPinch.z*d/mPinch.d/MV.z,(a.x+b.x)/2,(a.y+b.y)/2)}return}
   if(mDrag){const dx=e.clientX-mDrag.x,dy=e.clientY-mDrag.y;mDrag.moved=Math.max(mDrag.moved,Math.hypot(dx,dy));if(mDrag.moved>5){MV.cx=mDrag.cx-dx/MV.s;MV.cz=mDrag.cz-dy/MV.s;clampMap();$("mapPop").classList.add("hide")}}});
-const mapUp=e=>{const id=e.pointerId,had=mptr.has(id);mptr.delete(id);
-  if(had&&mDrag&&mDrag.moved<=5&&e.type==="pointerup")openMapPopup(e.clientX,e.clientY);
+const mapUp=e=>{const id=e.pointerId;if(!mptr.delete(id))return;
+  if(mDrag&&mDrag.moved<=5&&e.type==="pointerup")openMapPopup(e.clientX,e.clientY);
   if(mPinch){
     // pinch ended with one finger still down: that finger pans from here (marked as moved, so lifting it is not a tap)
     if(mptr.size===1){const[r]=[...mptr.values()];mDrag={x:r.x,y:r.y,cx:MV.cx,cz:MV.cz,moved:6};mPinch=null}
@@ -4071,7 +4071,7 @@ const mapUp=e=>{const id=e.pointerId,had=mptr.has(id);mptr.delete(id);
     else if(!mptr.size)mPinch=null;
   }
   if(!mptr.size)mDrag=null};
-mapc.addEventListener("pointerup",mapUp);mapc.addEventListener("pointercancel",mapUp);
+["pointerup","pointercancel","lostpointercapture"].forEach(type=>mapc.addEventListener(type,mapUp));
 mapc.addEventListener("wheel",e=>{e.preventDefault();mapZoomAt(Math.exp(-e.deltaY*.0015),e.clientX,e.clientY)},{passive:false});
 $("mapIn").onclick=()=>mapZoomAt(1.6,MV.ox,MV.oy);
 $("mapOut").onclick=()=>mapZoomAt(1/1.6,MV.ox,MV.oy);
@@ -4413,7 +4413,7 @@ function photoFrame(dt){
 // ---- pointer: drag orbits, two fingers or the wheel move closer or further away
 const phPad=$("phPad");
 function phPinchStart(){const it=[...PH.ptr.entries()];if(it.length<2){PH.pinch=null;return}const[[ia,a],[ib,b]]=it;PH.pinch={ia,ib,d:Math.max(8,Math.hypot(a.x-b.x,a.y-b.y)),dist:PH.dist}}
-phPad.addEventListener("pointerdown",e=>{if(!PH.on)return;try{phPad.setPointerCapture(e.pointerId)}catch(_){}PH.ptr.set(e.pointerId,{x:e.clientX,y:e.clientY});
+phPad.addEventListener("pointerdown",e=>{if(!PH.on||e.button!==0)return;try{phPad.setPointerCapture(e.pointerId)}catch(_){}PH.ptr.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(PH.ptr.size===1)PH.last={id:e.pointerId,x:e.clientX,y:e.clientY};else if(!PH.pinch)phPinchStart()});
 phPad.addEventListener("pointermove",e=>{if(!PH.on||!PH.ptr.has(e.pointerId))return;PH.ptr.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(PH.pinch){const a=PH.ptr.get(PH.pinch.ia),b=PH.ptr.get(PH.pinch.ib);if(a&&b){PH.dist=clamp(PH.pinch.dist*PH.pinch.d/Math.max(8,Math.hypot(a.x-b.x,a.y-b.y)),PH_D[0],PH_D[1]);phSync()}return}
@@ -4422,7 +4422,7 @@ phPad.addEventListener("pointermove",e=>{if(!PH.on||!PH.ptr.has(e.pointerId))ret
 const phUp=e=>{if(!PH.ptr.has(e.pointerId))return;PH.ptr.delete(e.pointerId);
   if(PH.pinch&&(e.pointerId===PH.pinch.ia||e.pointerId===PH.pinch.ib))phPinchStart();
   if(PH.ptr.size===1){const[[id,r]]=[...PH.ptr.entries()];PH.last={id,x:r.x,y:r.y}}else if(!PH.ptr.size)PH.last=null};
-phPad.addEventListener("pointerup",phUp);phPad.addEventListener("pointercancel",phUp);
+["pointerup","pointercancel","lostpointercapture"].forEach(type=>phPad.addEventListener(type,phUp));
 phPad.addEventListener("wheel",e=>{if(!PH.on)return;e.preventDefault();PH.dist=clamp(PH.dist*Math.exp(e.deltaY*.0011),PH_D[0],PH_D[1]);phSync()},{passive:false});
 $("phZoom").addEventListener("input",e=>{PH.fov=clamp(PH_F[1]-(+e.target.value),PH_F[0],PH_F[1])});
 $("phDist").addEventListener("input",e=>{PH.dist=clamp(+e.target.value/10,PH_D[0],PH_D[1])});
@@ -5271,7 +5271,12 @@ $("pGhost").onclick=()=>{save.ghostOn=!save.ghostOn;syncPause();persist();if(!sa
 $("pSnd").onclick=()=>{save.sound=!save.sound;if(save.sound)audioInit();syncPause();persist()};
 $("pMus").onclick=$("gMus").onclick=()=>{save.music=!save.music;audioInit();musicInit();syncPause();persist()};
 function openMap(){if(state!=="DRIVE")return;setState("MAP");clearInput();audioOn(false);show("map",true);show("mapPop",false);MV.z=1;MV.cx=0;MV.cz=0}
-function closeMap(){if(state!=="MAP")return;show("map",false);setState("DRIVE");audioOn(true)}
+function closeMap(){if(state!=="MAP")return;
+  // A release after reopening belongs to the old visit and must not set a waypoint.
+  for(const id of mptr.keys()){if(mapc.hasPointerCapture(id))mapc.releasePointerCapture(id)}
+  mptr.clear();mDrag=mPinch=null;
+  show("map",false);setState("DRIVE");audioOn(true)
+}
 $("mapClose").onclick=closeMap;$("chMap").onclick=openMap;$("chCam").onclick=cycleCam;$("chPause").onclick=pauseOn;
 // each acts once: a second click or key press while the first is under way does nothing
 $("iGo").onclick=()=>{if(state!=="INTRO")return;show("intro",false);const c=introCup;fadeThen(420,()=>{startEvent(introE,c);audioOn(true)})};

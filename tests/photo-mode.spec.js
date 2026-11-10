@@ -29,6 +29,28 @@ async function driving(game, opts) {
 }
 
 test.describe("photo mode", () => {
+  test("losing pointer capture leaves the next drag free to orbit", async ({ game }) => {
+    await driving(game);
+    await game.key("v");
+    const result = await game.eval(() => {
+      const pad = document.getElementById("phPad"), PH = __T.PH;
+      const send = (type, id, x, button = 0) => pad.dispatchEvent(new PointerEvent(type, {
+        pointerId: id, pointerType: "mouse", clientX: x, clientY: 200, button
+      }));
+      send("pointerdown", 1, 200, 2);
+      const afterRight = PH.ptr.size;
+      send("pointerup", 1, 200, 2);
+      send("pointerdown", 2, 200);
+      send("lostpointercapture", 2, 200);
+      const afterLoss = PH.ptr.size, yaw = PH.yaw;
+      send("pointerdown", 3, 200);
+      send("pointermove", 3, 245);
+      send("pointerup", 3, 245);
+      return { afterRight, afterLoss, orbited: PH.yaw !== yaw, remaining: PH.ptr.size };
+    });
+    expect(result).toEqual({ afterRight: 0, afterLoss: 0, orbited: true, remaining: 0 });
+  });
+
   test("opens from free ride (V), the PHOTO chip and the pause menu, and goes back where it came from", async ({ game, page }) => {
     await driving(game);
     await game.key("v");
