@@ -151,6 +151,8 @@ body.touch #lhint{display:none}
 #chips{position:fixed;top:calc(14px + var(--st));right:calc(14px + var(--sr));z-index:26;display:flex;gap:6px}
 .chip{background:var(--panel);border:1px solid var(--line);padding:8px 12px;font-size:10px;letter-spacing:.18em;border-radius:3px;cursor:pointer;font-weight:700;backdrop-filter:blur(8px)}
 .chip:hover{border-color:#fff}
+#chRear[aria-pressed="true"]{border-color:var(--acc);color:var(--acc)}
+#damageHud{margin-left:4px;color:var(--acc);font-weight:700;font-size:11px;white-space:nowrap}
 
 /* touch pads */
 #pads{position:fixed;left:0;right:0;bottom:0;z-index:25;padding:0 calc(16px + var(--sr)) calc(16px + var(--sb)) calc(16px + var(--sl));display:flex;justify-content:space-between;align-items:flex-end;pointer-events:none}
@@ -431,7 +433,7 @@ if(location.hostname==="joyeechuah.github.io"&&!navigator.globalPrivacyControl&&
 <div id="hud" class="hide">
   <div id="vig"></div><div id="mblur"></div><div id="edge"></div>
   <div id="tl">
-    <div class="money"><span class="coin">CR</span><b id="crv">0</b></div>
+    <div class="money"><span class="coin">CR</span><b id="crv">0</b><span id="damageHud" class="hide"></span></div>
     <div class="lvl"><span>LEVEL <b id="lvv">1</b></span><div class="xp"><i id="xpf"></i></div></div>
     <div class="loc"><span id="zone">EIVISSA</span><span class="num" id="clock">16:30</span></div>
   </div>
@@ -450,12 +452,13 @@ if(location.hostname==="joyeechuah.github.io"&&!navigator.globalPrivacyControl&&
   <div id="minWrap"><canvas id="mini"></canvas><div id="gpsTxt"></div></div>
   <canvas id="speedo"></canvas>
   <button id="prompt" class="hide"><kbd>E</kbd> <span id="promptTxt"></span></button>
-  <div id="keys"><kbd>W</kbd><kbd>S</kbd> gas / brake, reverse &nbsp; <kbd>A</kbd><kbd>D</kbd> steer &nbsp; <kbd>Space</kbd> handbrake &nbsp; <kbd>M</kbd> map &nbsp; <kbd>C</kbd> camera &nbsp; <kbd>V</kbd> photo &nbsp; <kbd>R</kbd> back to road &nbsp; <kbd>Esc</kbd> pause</div>
+  <div id="keys"><kbd>W</kbd><kbd>S</kbd> gas / brake, reverse &nbsp; <kbd>A</kbd><kbd>D</kbd> steer &nbsp; <kbd>Space</kbd> handbrake &nbsp; <kbd>M</kbd> map &nbsp; <kbd>C</kbd> camera &nbsp; <kbd>B</kbd> hold to look behind &nbsp; <kbd>V</kbd> photo &nbsp; <kbd>R</kbd> back to road &nbsp; <kbd>Esc</kbd> pause</div>
 </div>
 
 <div id="chips" class="hide">
   <button class="chip" id="chMap">MAP</button>
   <button class="chip" id="chCam">CAM</button>
+  <button class="chip" id="chRear" aria-label="Hold to look behind" aria-pressed="false" title="Hold to look behind (B)">REAR</button>
   <button class="chip" id="chPhoto">PHOTO</button>
   <button class="chip" id="chPause">PAUSE</button>
 </div>
@@ -2974,7 +2977,7 @@ function buildHeroCar(cd,color,mods){
   });
   if(!pr.open){add(B(cw-.08,.04,1.5),headlinerM,0,pr.roof-.04,pr.roofF-.7,0,0,inside);add(B(.24,.07,.03),darkInM,0,pr.roof-.12,pr.roofF-.12,0,0,inside)}
   else add(B(cw-.2,.05,.05),darkInM,0,pr.roof-.02,pr.roofF+.05,0,0,inside);
-  return{G,id:cd.id,wheels:w.wheels,front:w.front,tailM,headM,glass,shell,inside,steerWheel:sw,bodyM:body,wr:pr.wr,wb:pr.wb,tr:pr.tr,
+  return{G,damageSmoke:createDamageSmoke(G),id:cd.id,wheels:w.wheels,front:w.front,tailM,headM,glass,shell,inside,steerWheel:sw,bodyM:body,wr:pr.wr,wb:pr.wb,tr:pr.tr,
     eye:new V3(dx,Math.max(pr.eye+.03,wy+.24),ez),front_z:pr.front,shape:cd.shape,paint:L.paint,q,mods:L.mods,refs:L.refs};
 }
 
@@ -2998,7 +3001,7 @@ function buildTrafficCar(color,shape){
   TRAFFIC_MATS.add(bodyM);
   const b=new THREE.Mesh(parts.body,bodyM),c=new THREE.Mesh(parts.cabin,cabM),w=new THREE.Mesh(tGeoCache[key],trafficWheelM);
   b.castShadow=c.castShadow=true;G.add(b,c,w);
-  return{G,wheels:[],len:TPROF[shape].len};
+  return{G,damageSmoke:createDamageSmoke(G),wheels:[],len:TPROF[shape].len};
 }
 const trafficWheelM=new THREE.MeshLambertMaterial({vertexColors:true});
 // traffic wheels don't turn, so they get a plain dished disc rather than spokes that would stand still at speed
@@ -3029,14 +3032,14 @@ function clearInput(){for(const k in keys)keys[k]=false;for(const k in pad)pad[k
 let locked=false,autoHold=false;
 // a game controller (the first one connected, standard layout): left stick steers, right trigger is the gas, left
 // trigger the brake, A the handbrake; Start pauses, View/Back opens the map, Y changes camera, X is the prompt key
-const GP={on:false,steer:0,gas:0,brake:0,hb:false,prev:[]};
+const GP={on:false,steer:0,gas:0,brake:0,hb:false,rear:false,prev:[]};
 // screens opened from the pause menu, and how each closes
 const PAUSE_SUBS=[["passport",()=>passportClose()],["jobs",()=>jobsClose()],["cups",()=>cupsClose()]];
 function pollPad(){
   let g=null;try{const l=navigator.getGamepads?navigator.getGamepads():[];for(const x of l)if(x&&x.connected){g=x;break}}catch(e){}
-  if(!g){GP.on=false;GP.steer=GP.gas=GP.brake=0;GP.hb=false;GO.stick[0]=GO.stick[1]=0;return}
+  if(!g){GP.on=false;GP.steer=GP.gas=GP.brake=0;GP.hb=GP.rear=false;GO.stick[0]=GO.stick[1]=0;return}
   const ax=g.axes[0]||0,b=i=>g.buttons[i]||{pressed:false,value:0},v=i=>{const q=b(i);return typeof q.value==="number"&&q.value>0?q.value:q.pressed?1:0};
-  GP.on=true;GP.steer=Math.abs(ax)<.12?0:Math.sign(ax)*(Math.abs(ax)-.12)/.88;GP.gas=v(7);GP.brake=v(6);GP.hb=b(0).pressed;
+  GP.on=true;GP.steer=Math.abs(ax)<.12?0:Math.sign(ax)*(Math.abs(ax)-.12)/.88;GP.gas=v(7);GP.brake=v(6);GP.hb=b(0).pressed;GP.rear=b(4).pressed;
   // buttons pressed since the last frame
   const now=g.buttons.map(q=>!!(q&&q.pressed)),was=GP.prev,hit=i=>now[i]&&!was[i];GP.prev=now;
   // the cloud save's screens sit over the garage or the pause menu: B closes them, and nothing behind them reacts
@@ -3184,7 +3187,7 @@ function stepPlayer(dt){
   const surf=onRoad?1:sand?.55:.72;
   // past the finish line the car brakes itself to a stop (the controls are locked) before the result shows
   const gas=kG(),brake=kB()||(!!ev&&ev.phase==="finish"&&vF>.5),hb=kH(),sp0=Math.abs(vF),gA=gas?gasAmt():0,bA=kB()?brakeIn():1;
-  const vMax=onRoad?cd.top/3.6:sand?Math.min(cd.top/3.6*.35,20):Math.min(cd.top/3.6*.45,30),power=HD.pBase+cd.acc*HD.pAcc;
+  const vMax=onRoad?cd.top/3.6:sand?Math.min(cd.top/3.6*.35,20):Math.min(cd.top/3.6*.45,30),power=(HD.pBase+cd.acc*HD.pAcc)*damagePower(P);
   // tyre grip: arcade-strong on asphalt, a bit more at low speed
   const vN=clamp(sp0/55,0,1),aLatRoad=9.81*(HD.latBase+cd.grip*HD.latGrip)*(1+HD.latLow*(1-vN)),aLat=aLatRoad*surf;
   // road the car is driving along, and which way along it
@@ -3294,22 +3297,54 @@ function stepPlayer(dt){
   P.air=false;P.vy=0;P.y=P.ty;
   P.water=tNew<-.6;
 }
+// Glancing contact is harmless. A hard impact loses power, but the car always remains drivable.
+const damagePower=car=>1-(car.damage||0)*.0035;
+function damageVehicle(car,speed){
+  if(speed<=4||(car.damageT||0)>0)return;
+  car.damage=Math.min(100,(car.damage||0)+Math.min(30,(speed-4)*1.4));car.damageT=.25;
+}
+function tickDamage(car,dt){if(car.damageT>0)car.damageT-=dt}
+let smokeMaterial=null;
+// Allocate one hidden puff with each car, so collisions never grow the scene.
+// Its material/texture are shared for the session; disposing a car must not dispose them.
+function createDamageSmoke(group){
+  if(!smokeMaterial){
+    const canvas=document.createElement("canvas");canvas.width=canvas.height=32;
+    const ctx=canvas.getContext("2d"),g=ctx.createRadialGradient(16,16,1,16,16,16);
+    g.addColorStop(0,"rgba(91,92,94,.65)");g.addColorStop(.55,"rgba(108,110,112,.33)");g.addColorStop(1,"rgba(115,116,118,0)");
+    ctx.fillStyle=g;ctx.fillRect(0,0,32,32);
+    smokeMaterial=new THREE.SpriteMaterial({map:new THREE.CanvasTexture(canvas),transparent:true,depthWrite:false});
+  }
+  const smoke=new THREE.Sprite(smokeMaterial);
+  smoke.visible=false;smoke.userData.age=0;group.add(smoke);return smoke;
+}
+function showDamageSmoke(model,damage,dt=0){
+  const smoke=model.damageSmoke;
+  if(!(damage>=35)){smoke.visible=false;smoke.userData.age=0;return}
+  smoke.visible=true;const age=smoke.userData.age=(smoke.userData.age+dt*.8)%1;
+  smoke.position.set(0,1.15+age*.65,model.front_z?model.front_z*.62:1.05);
+  smoke.scale.setScalar(.6+age*.45+damage*.004);
+}
 function collidePlayer(){
   const fx=Math.sin(P.h),fz=Math.cos(P.h);let impact=0;
   let touch=false,cn=null;
   // push out of the obstacle; the speed into it bounces back a little, and the speed
   // along it is only trimmed by friction, so the car slides along a wall or guardrail
-  const resolve=(nx,nz,pen)=>{P.x+=nx*pen;P.z+=nz*pen;touch=true;const vn=P.vx*nx+P.vz*nz;
-    if(vn<0){const b=-vn>6?1.25:1.05;P.vx-=b*vn*nx;P.vz-=b*vn*nz;
+  const resolve=(nx,nz,pen,npc,sn,cs)=>{P.x+=nx*pen;P.z+=nz*pen;touch=true;
+    const along=npc?nx*sn+nz*cs:0,speed=npc?.v||0,closing=speed*along-P.vx*nx-P.vz*nz;
+    if(closing>0){
+      const impulse=closing*(npc ? .72 : closing>6 ? 1.25 : 1.05);P.vx+=impulse*nx;P.vz+=impulse*nz;
+      // NPCs follow lanes, so the impact changes the part of their speed along the lane.
+      if(npc){npc.v=Math.max(0,speed-impulse*along);damageVehicle(npc,closing)}
       const vb=P.vx*nx+P.vz*nz,tx=P.vx-vb*nx,tz=P.vz-vb*nz,tl=Math.hypot(tx,tz);
-      if(tl>1e-3){const k=Math.max(0,1-.28*(-vn)/tl);P.vx=vb*nx+tx*k;P.vz=vb*nz+tz*k}
-      if(-vn>impact){impact=-vn;cn=[nx,nz]}}};
-  const boxHit=(cx,cz,r,ox,oz,hx,hz,cs,sn)=>{
+      if(tl>1e-3){const k=Math.max(0,1-.28*closing/tl);P.vx=vb*nx+tx*k;P.vz=vb*nz+tz*k}
+      if(closing>impact){impact=closing;cn=[nx,nz]}}};
+  const boxHit=(cx,cz,r,ox,oz,hx,hz,cs,sn,npc)=>{
     const dx=cx-ox,dz=cz-oz,lx=dx*cs-dz*sn,lz=dx*sn+dz*cs;
     const qx=clamp(lx,-hx,hx),qz=clamp(lz,-hz,hz);let ex=lx-qx,ez=lz-qz,d=Math.hypot(ex,ez);
     if(d>=r)return;
     let pen;if(d<1e-4){const px=hx-Math.abs(lx),pz=hz-Math.abs(lz);if(px<pz){ex=Math.sign(lx)||1;ez=0;pen=px+r}else{ex=0;ez=Math.sign(lz)||1;pen=pz+r}}else{ex/=d;ez/=d;pen=r-d}
-    resolve(ex*cs+ez*sn,-ex*sn+ez*cs,pen);return true;
+    resolve(ex*cs+ez*sn,-ex*sn+ez*cs,pen,npc,sn,cs);return true;
   };
   for(const k of [-1.35,0,1.35]){
     const cx=P.x+fx*k,cz=P.z+fz*k,r=1.0;
@@ -3318,9 +3353,9 @@ function collidePlayer(){
       else boxHit(cx,cz,r,o.x,o.z,o.hx,o.hz,o.cs,o.sn);
     });
     for(const t of TRAFFIC){if(Math.abs(t.wx-cx)>7||Math.abs(t.wz-cz)>7)continue;
-      if(boxHit(cx,cz,r,t.wx,t.wz,.95,t.c.len,Math.cos(t.yaw),Math.sin(t.yaw))){if(t.hitT<=0)t.v*=.6;t.hitT=1.5}}
-    if(ev)for(const a of ev.ai){if(a.fin)continue;if(Math.abs(a.x-cx)>7||Math.abs(a.z-cz)>7)continue;
-      if(boxHit(cx,cz,r,a.x,a.z,1.0,2.3,Math.cos(a.yaw),Math.sin(a.yaw))){a.v*=.97;a.lat+=Math.sign(a.lat-P.lat||1)*.05}}
+      if(boxHit(cx,cz,r,t.wx,t.wz,.95,t.c.len,Math.cos(t.yaw),Math.sin(t.yaw),t))t.hitT=1.5}
+    if(ev)for(const a of ev.ai){if(Math.abs(a.x-cx)>7||Math.abs(a.z-cz)>7)continue;
+      if(boxHit(cx,cz,r,a.x,a.z,1.0,2.3,Math.cos(a.yaw),Math.sin(a.yaw),a))a.lat+=Math.sign(a.lat-P.lat||1)*.05}
   }
   if(impact>3){P.r*=.6;const f=1-.3*Math.min(1,(impact-3)/17);P.vx*=f;P.vz*=f}else if(impact>0)P.r*=.92;
   // a glancing contact turns the car along the wall or rail instead of letting it grind into it;
@@ -3328,6 +3363,7 @@ function collidePlayer(){
   if(cn&&speedF()>2){const tx=-cn[1],tz=cn[0],sg=(P.vx*tx+P.vz*tz)>=0?1:-1,e=wrapA(Math.atan2(tx*sg,tz*sg)-P.h);
     if(Math.abs(e)<1.05){P.h+=e*Math.min(.45,.12+impact*.05);P.r*=.5}}
   if(touch)P.scrape=Math.max(P.scrape||0,Math.min(1,Math.hypot(P.vx,P.vz)/22));
+  damageVehicle(P,impact);
   if(impact>5.5){const now=performance.now()/1000;shake=Math.max(shake,Math.min(.6,(impact-4)/16));P.hitT=1.2;streakCrash();
     if(impact>8)P.flashT=Math.min(.7,impact/30);
     if(!(now-(P.lastThump||0)<.3)){P.lastThump=now;playThump(impact)}}
@@ -3369,6 +3405,7 @@ function spawnTraffic(t,dmin,dmax,avoidView){
     // never on top of another car
     if(TRAFFIC.some(o=>o!==t&&o.e&&Math.abs(o.wx-p.x)<14&&Math.abs(o.wz-p.z)<14))continue;
     t.e=e;t.s=s;t.dir=dir;t.lane=Math.floor(Math.random()*2);setLane(t);t.v=t.base;t.stopT=0;t.pa=null;
+    t.damage=t.damageT=0;showDamageSmoke(t.c,0);
     // where it stands now and which way it faces, so a car placed next in the same frame sees it, and nothing reads
     // its old heading at its new place
     const ux=p.dx*dir,uz=p.dz*dir;t.wx=p.x-uz*t.off;t.wz=p.z+ux*t.off;t.yaw=Math.atan2(ux,uz);return true;
@@ -3419,7 +3456,8 @@ function updateTraffic(dt){
   const pf=fwdOf(P.h),kph=kphNow();
   for(const t of TRAFFIC){
     if(!t.e){if(bubble&&t.lost)t.lost=!spawnTraffic(t,220,560,true);continue}
-    let target=t.base;
+    tickDamage(t,dt);
+    let target=t.base*damagePower(t);
     if(t.stopT>0){t.stopT-=dt;target=0}
     t.hitT-=dt;
     const p0=edgePos(t.e,t.s),tx=p0.dx*t.dir,tz=p0.dz*t.dir;
@@ -3431,9 +3469,14 @@ function updateTraffic(dt){
     // queue 20 m ahead too late to stop, and ran into the back of it)
     const look=Math.max(20,10+t.v*t.v/14);
     for(const o of TRAFFIC){if(o===t||!o.e)continue;const ox=o.wx-t.wx,oz=o.wz-t.wz;if(Math.abs(ox)>look||Math.abs(oz)>look)continue;
-      const gap=ox*tx+oz*tz;if(gap<=0||gap>=look||Math.abs(ox*-tz+oz*tx)>=1.6)continue;
+      const gap=ox*tx+oz*tz,side=Math.abs(ox*-tz+oz*tx);if(gap<=0||gap>=look||side>=1.6)continue;
+      const alignment=Math.sin(o.yaw)*tx+Math.cos(o.yaw)*tz;
+      const closing=t.v-o.v*alignment;
+      if(gap<t.c.len+o.c.len&&closing>4){
+        damageVehicle(t,closing);damageVehicle(o,closing);t.hitT=o.hitT=1.5;
+      }
       // only cars going its way: one waiting to cross, or coming the other way, is not followed (that could lock both)
-      if(Math.sin(o.yaw)*tx+Math.cos(o.yaw)*tz<.5)continue;
+      if(alignment<.5)continue;
       target=Math.min(target,gap<6.5?0:Math.min(o.v*(gap<9?.4:.95)+Math.sqrt(14*Math.max(0,gap-9)),Math.sqrt(o.v*o.v+14*(gap-6.5))));if(gap<9)close=true}
     // where roads meet, one car crosses at a time: it holds the junction from 12 m out until it is 14 m clear of it,
     // and the others wait 7.5 m short, clear of the road they cross (cars crossing a junction together used to drive
@@ -3471,7 +3514,7 @@ function updateTraffic(dt){
     const dpx=t.wx-P.x,dpz=t.wz-P.z,d=Math.hypot(dpx,dpz);
     t.c.G.visible=d<560;
     // nose up or down with the road, so a car on a hill sits on all four wheels
-    if(t.c.G.visible){const yF=edgeY(t.e,t.s+1.3*t.dir),yB=edgeY(t.e,t.s-1.3*t.dir);t.c.G.position.set(t.wx,(yF+yB)/2+YO,t.wz);t.c.G.rotation.set(-Math.atan((yF-yB)/2.6),t.yaw,0,"YXZ");for(const w of t.c.wheels)w.rotation.x+=t.v*dt/.36}
+    if(t.c.G.visible){const yF=edgeY(t.e,t.s+1.3*t.dir),yB=edgeY(t.e,t.s-1.3*t.dir);t.c.G.position.set(t.wx,(yF+yB)/2+YO,t.wz);t.c.G.rotation.set(-Math.atan((yF-yB)/2.6),t.yaw,0,"YXZ");for(const w of t.c.wheels)w.rotation.x+=t.v*dt/.36;showDamageSmoke(t.c,t.damage||0,dt)}
     // near miss: the car passes beside you without touching
     if(d<14){const along=dpx*pf.x+dpz*pf.z,side=Math.abs(dpx*-pf.z+dpz*pf.x);
       if(t.pa!==null&&((t.pa>0&&along<=0)||(t.pa<0&&along>=0))&&side>2.05&&side<4.2&&kph>70&&t.hitT<=0&&P.hitT<=0)streakAction("NEAR MISS",Math.round(150+kph*1.6),true);
@@ -3638,6 +3681,7 @@ function rivalModel(cd,key){
   return m;
 }
 function startEvent(E,cup){
+  P.damage=P.damageT=0;
   const R=E.route,me=curCar(),idx=CARS.indexOf(me);
   ev={E,R,t:-3,phase:"count",cp:0,hint:0,s:14,sNow:14,d:99,ai:[],done:false,wrongT:0,last:4,px:null,pz:null,gate:gateOf(R,E.cps[0]),reT:0,missT:0,diff:E.type==="race"?save.diff:1,obs:[],cup:cup||null,tg:cup&&E.type==="tt"?cupTimes(E,cup.cls):E,rec:E.type==="tt"?[]:null,ghost:E.type==="tt"&&save.ghost[E.id]?save.ghost[E.id]:null};
   const p=edgePos(R,14);
@@ -3653,7 +3697,7 @@ function startEvent(E,cup){
       const pick=pool.length?pool[i%pool.length]:CARS[clamp(idx+[1,-1,0][i],0,CARS.length-1)];
       let key,k=0;do key=pick.id+"#"+(k++);while(used.has(key));used.add(key);
       const m=rivalModel(pick,key);AIM[i]=m;
-      m.G.visible=true;
+      m.G.visible=true;showDamageSmoke(m,0);
       ev.ai.push({m,s:grid[i][0],lat:grid[i][1],lane:grid[i][1],v:0,sk:[.95,.91,.98][i],vmax:pick.top/3.6*[.91,.88,.94][i],acc:HD.pBase+pick.acc*HD.pAcc,fin:0,x:0,z:0,yaw:0,name:pick.mk+" "+pick.md});
     }
   }
@@ -3694,10 +3738,11 @@ function updateEvent(dt){
       const q=edgePos(R,tr.s);obs.push({s:tr.s,lat:tr.side,v:Math.max(0,t.v*(Math.sin(t.yaw)*q.dx+Math.cos(t.yaw)*q.dz)),tc:t})}}
   const pace=DIFFS[ev.diff].pace;
   for(const a of ev.ai){
+    tickDamage(a,dt);
     if(ev.phase!=="count"){
       const i=Math.min(E.vp.length-1,Math.floor(a.s/4));
       const lead=a.s-ev.s,rb=lead>120?.9:lead<-150?1.07:1;
-      let vt=Math.min(a.vmax,E.vp[i]*a.sk)*rb*pace;
+      let vt=Math.min(a.vmax,E.vp[i]*a.sk)*rb*pace*damagePower(a);
       // room for the others: closing on a car in its lane (another rival, or traffic), a rival moves out to pass once
       // the other lane is clear beside it, and holds back behind until then (two of them start in the same lane, and
       // used to drive through each other)
@@ -3715,8 +3760,12 @@ function updateEvent(dt){
       // keep out of the player's way
       const ds=ev.s-a.s;
       let nl=a.lat;
-      if(ds>-3&&ds<9&&Math.abs(P.lat-a.lat)<2.4)nl+=Math.sign(a.lat-P.lat||1)*3*dt;
-      else nl+=clamp(a.lane-a.lat,-1.4*dt,1.4*dt);
+      if(ds>-3&&ds<16&&Math.abs(P.lat-a.lat)<2.4){
+        const side=Math.sign(a.lat-P.lat||1);
+        // If the player is near the edge, that side can run out of space to pass.
+        const pass=Math.abs(P.lat-side*3.2)>=2.4?side:-side;
+        nl+=clamp(pass*3.2-a.lat,-3*dt,3*dt);
+      }else nl+=clamp(a.lane-a.lat,-1.4*dt,1.4*dt);
       nl=clamp(nl,-3.2,3.2);
       // a sideways move never takes it closer to a car level with it along the road (that left one inside the other,
       // and the spacing below then made the one behind drop back)
@@ -3724,13 +3773,17 @@ function updateEvent(dt){
       // and never closer than a car length to a rival ahead that is still level with it across the road (it drops back
       // to that at most 0.3 m a frame, so it never moves backwards on screen); behind a traffic car that has only just
       // come onto the route that close, it brakes hard instead
-      for(const b of obs){const g=b.s-a.s;if(b!==a&&g>=0&&g<5&&Math.abs(b.lat-a.lat)<1.8){if(b.tc)a.v=Math.min(a.v,b.v*.7);else{a.s=Math.max(b.s-5,a.s-.3);a.v=Math.min(a.v,b.v*.9)}}}
+      for(const b of obs){const g=b.s-a.s;if(b!==a&&g>=0&&g<5&&Math.abs(b.lat-a.lat)<1.8){
+        const closing=a.v-b.v;damageVehicle(a,closing);damageVehicle(b.tc||b,closing);
+        if(b.tc)a.v=Math.min(a.v,b.v*.7);else{a.s=Math.max(b.s-5,a.s-.3);a.v=Math.min(a.v,b.v*.9)}
+      }}
       // note any traffic car this rival is inside (dealt with below, once every rival has been seen)
       for(const b of obs)if(b.tc&&Math.abs(b.s-a.s)<4.6&&Math.abs(b.lat-a.lat)<1.8)b.tc.ovHit=true;
     }
     const q=edgePos(R,Math.min(a.s,R.len)),over=Math.max(0,a.s-R.len);a.x=q.x-q.dz*a.lat+q.dx*over;a.z=q.z+q.dx*a.lat+q.dz*over;a.yaw=Math.atan2(q.dx,q.dz);
     // on all four wheels on hills and crests (they used to sit level, nose in the road and tail in the air)
     seatCar(a,a.m.G,a.x,a.z,a.yaw,a.m.wb||1.45,a.m.tr||.92,dt,0);
+    showDamageSmoke(a.m,a.damage||0,dt);
     for(const w of a.m.wheels)w.rotation.x+=a.v*dt/.36;
   }
   // a traffic car that stays inside any rival for 0.3 s (it came onto the route right there) is taken off the road and
@@ -4795,6 +4848,7 @@ function hudOn(on){show("hud",on);show("chips",on);show("pads",on&&isTouch)}
 
 /* ---------- player car ---------- */
 function attachCar(id,temp){
+  if(id!==curId){if(pc)showDamageSmoke(pc,0);P.damage=P.damageT=0}
   curId=id;if(!temp)save.cur=id;
   pc=getCar(id);pc.G.visible=true;
   if(!headLight){headLight=new THREE.SpotLight(0xfff4dc,0,150,.62,.55,1);headLight.target=new THREE.Object3D();fillLight=new THREE.PointLight(0xdfe6ff,0,14,1.4)}
@@ -4890,7 +4944,7 @@ function fastTravel(m){
 // keep the chase camera out of tree crowns and buildings: when one stands between the car
 // and the camera, the camera comes in closer (and a little higher) until it is clear.
 // Low walls and guardrails are ignored, the camera is above them.
-let camBoom=null;
+let camBoom=null,lookingBehind=false;
 function boomClear(px,pz,fx,fz,back){
   for(let d=2.2;d<=back+.01;d+=.8){const x=px-fx*d,z=pz-fz*d;let hit=false;
     obstaclesNear(x,z,3.6,o=>{if(hit)return;
@@ -4926,6 +4980,19 @@ function camWant(at){
 function snapCam(){if(!pc)return;camYaw=P.h;camBoom=null;if(camMode<2){const c=camWant(new V3(P.x,P.y,P.z));camP.copy(c.pos);camL.copy(c.look)}}
 function updateCam(dt){
   const v=Math.abs(speedF());
+  const rear=!!(keys.b||pad.rear||GP.rear);
+  if(rear!==lookingBehind){
+    lookingBehind=rear;$("chRear").setAttribute("aria-pressed",String(rear));
+    if(!rear)snapCam();
+  }
+  if(rear){
+    const p=pc.G.position,fx=Math.sin(P.h),fz=Math.cos(P.h);
+    const front=boomClear(p.x,p.z,-fx,-fz,5.5),x=p.x+fx*front,z=p.z+fz*front;
+    pc.inside.visible=false;pc.glass.visible=pc.shell.visible=true;
+    camera.position.set(x,Math.max(p.y+3.2,camFloor(x,z,p)),z);
+    camera.lookAt(p.x-fx*18,p.y+1.2,p.z-fz*18);
+    camera.fov=64;camera.updateProjectionMatrix();return;
+  }
   pc.inside.visible=camMode===3;pc.glass.visible=camMode!==3;pc.shell.visible=camMode!==3;
   if(camMode>=2){
     pc.G.updateMatrixWorld(true);
@@ -5103,6 +5170,7 @@ $("cuMin").onclick=()=>{const m=$("cust").classList.toggle("mini");$("cuMin").in
 function goGarage(fromFade){
   const doIt=()=>{
     endEvent();if(testDrive)finishTestDrive(false);
+    P.damage=P.damageT=0;if(pc)showDamageSmoke(pc,0);
     // going home ends a contract; the garage hides the HUD, so the message waits for the next drive
     if(job&&jobEnd("abandoned"))jobNotices.push(["CONTRACT ABANDONED","You went home, so it ended without a reward"]);
     setState("GARAGE");audioOn(false);
@@ -5210,7 +5278,7 @@ function closeDealer(){
 /* ---------- test drives: 90 s in any car from the dealership ---------- */
 function startTestDrive(id){
   if(save.owned.includes(id))return;
-  testDrive={id,prev:curId,t:90,paint:dPaint};
+  testDrive={id,prev:curId,t:90,paint:dPaint,damage:P.damage||0};
   if(pc)pc.G.visible=false;   // your own car waits at the dealer
   getCar(id).paint(dPaint);
   attachCar(id,true);
@@ -5223,6 +5291,7 @@ function finishTestDrive(backToDealer){
   show("tdPill",false);
   if(!save.owned.includes(td.id))getCar(td.id).G.visible=false;
   attachCar(td.prev);
+  P.damage=td.damage||0;showDamageSmoke(pc,P.damage);
   if(backToDealer)openDealer(td.id);
 }
 function endTestDrive(){
@@ -5290,6 +5359,17 @@ function closeMap(){if(state!=="MAP")return;
   show("map",false);setState("DRIVE");audioOn(true)
 }
 $("mapClose").onclick=closeMap;$("chMap").onclick=openMap;$("chCam").onclick=cycleCam;$("chPause").onclick=pauseOn;
+const rearButton=$("chRear");
+rearButton.addEventListener("pointerdown",e=>{
+  if(e.button!==0||state!=="DRIVE")return;
+  rearButton.setPointerCapture(e.pointerId);pad.rear=true;
+});
+["pointerup","pointercancel","lostpointercapture","blur"].forEach(type=>rearButton.addEventListener(type,()=>{pad.rear=false}));
+function rearButtonKey(e){
+  if(e.key!==" "&&e.key!=="Enter")return;
+  e.preventDefault();e.stopPropagation();pad.rear=e.type==="keydown";
+}
+rearButton.addEventListener("keydown",rearButtonKey);rearButton.addEventListener("keyup",rearButtonKey);
 // each acts once: a second click or key press while the first is under way does nothing
 $("iGo").onclick=()=>{if(state!=="INTRO")return;show("intro",false);const c=introCup;fadeThen(420,()=>{startEvent(introE,c);audioOn(true)})};
 $("iNo").onclick=()=>{if(state!=="INTRO")return;show("intro",false);setState("DRIVE");audioOn(true)};
@@ -5660,6 +5740,8 @@ let hudT=0,waterT=0;
 // it reverses in a session, a message says so
 let padRevShown=false;
 function updateHUD(dt){
+  const damage=$("damageHud"),amount=Math.round(P.damage||0),label="DAMAGE "+amount+"%";
+  if(damage.textContent!==label){damage.textContent=label;show("damageHud",amount>0)}
   const cd=curCar(),vF=speedF(),kph=Math.abs(vF)*3.6,gi=gearInfo(kph,cd.top,vF<-.5);
   const bB=$("bB"),rev=vF<=REVERSE_STOP&&!(P.brkHold&&kB()),lbl=rev?"REVERSE":"BRAKE";if(bB.textContent!==lbl){bB.textContent=lbl;bB.classList.toggle("rev",rev)}
   if(rev&&pad.B&&vF<-.5&&!padRevShown&&!ev){padRevShown=true;toast("REVERSING","Stopped, press REVERSE again to back up. While you're moving forward the same button brakes")}
@@ -5679,6 +5761,7 @@ function updateHUD(dt){
   audioUpd(gi.rpm,gi.n,kG()?1:0,slip,surf,Math.abs(vF),P.scrape);
 }
 function driveUpdate(dt){
+  tickDamage(P,dt);
   const steps=Math.ceil(dt/.017),h=dt/steps;
   for(let i=0;i<steps;i++){stepPlayer(h);collidePlayer()}
   P.hitT-=dt;
@@ -5687,7 +5770,7 @@ function driveUpdate(dt){
   if(state!=="DRIVE")return;
   if(testDrive){testDrive.t-=dt;if(testDrive.t<=0){testDrive.t=1e9;toast("TEST DRIVE OVER","Taking the car back to the dealer");endTestDrive()}}
   updateStreak(dt);updateRadars(dt);updatePassport();jobTick(dt);if(state!=="DRIVE")return;updateGPS(dt);updatePrompt();
-  placeCarMesh(dt);updateCam(dt);updateHUD(dt);drawMini();
+  placeCarMesh(dt);showDamageSmoke(pc,P.damage||0,dt);updateCam(dt);updateHUD(dt);drawMini();
   // every visit to the sea gets the same 0.6 s: the count starts again at the reset and whenever the car is out
   // of the water (it used to be left at -1 after a reset, so every later visit took 1.6 s). Nothing moves during
   // the fade, so the reset can't fire twice
