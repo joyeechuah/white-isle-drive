@@ -3047,6 +3047,7 @@ function pollPad(){
   if(tabIdle||clOverlayOpen())GO.stick[0]=GO.stick[1]=0;
   if(tabIdle)return;
   if(clOverlayOpen()){if(hit(1))clEscape();return}
+  const inputState=state;
   if(state==="DRIVE"){if(hit(9))pauseOn();else if(hit(8))openMap();else if(hit(3))cycleCam();else if(hit(2)&&promptAct)promptAct()}
   // in the pause menu, B or Start closes a screen opened from it (passport, contracts) before the menu itself
   else if(state==="PAUSE"){if(hit(9)||hit(1)){const sub=PAUSE_SUBS.find(([id])=>!$(id).classList.contains("hide"));if(sub)sub[1]();else pauseOff()}}
@@ -3054,6 +3055,8 @@ function pollPad(){
   else if(state==="MAP"){if(hit(8)||hit(1)){if(!$("passport").classList.contains("hide"))passportClose();else closeMap()}}
   // B closes the picture just taken first, as Escape does; from Photo Mode itself it goes back
   else if(state==="PHOTO"){if(hit(1)){if(!$("phShot").classList.contains("hide"))photoShotClose();else photoExit()}}
+  // A press that opened another screen belongs only to the screen it started on.
+  if(state!==inputState){GO.stick[0]=GO.stick[1]=0;return}
   // the right stick turns the garage view; it's read here and applied by time in garageCam (per frame, it turned four
   // times as fast at 120 fps as at 30)
   {const dz=a=>Math.abs(a)<.2?0:Math.sign(a)*(Math.abs(a)-.2)/.8;GO.stick[0]=state==="GARAGE"?dz(g.axes[2]||0):0;GO.stick[1]=state==="GARAGE"?dz(g.axes[3]||0):0}
@@ -5474,10 +5477,14 @@ const ray=new THREE.Raycaster(),ndc=new THREE.Vector2();
 function hitSlot(cx,cy){ndc.x=cx/W*2-1;ndc.y=-(cy/H)*2+1;ray.setFromCamera(ndc,camera);const h=ray.intersectObjects(pickers,false).filter(x=>x.object.userData.slot<save.owned.length);return h.length?h[0].object.userData.slot:-1}
 // dragging the garage view (a short drag still counts as a tap on a car)
 const cv=$("c");
+function goPinchStart(){
+  const pair=[...GO.ptr.entries()];if(pair.length<2){GO.pinch=null;return}
+  const[[ia,a],[ib,b]]=pair;GO.pinch={ia,ib,d:Math.max(8,Math.hypot(a.x-b.x,a.y-b.y)),z:GO.zoom};
+}
 // the view keeps the finger or mouse it started with even when it slides off the canvas or over the panel
 // (pointer capture), and lets go of it however the press ends: lifted, cancelled by the browser, or capture lost
 const goDown=e=>{if(state!=="GARAGE")return;try{cv.setPointerCapture(e.pointerId)}catch(_){}GO.ptr.set(e.pointerId,{x:e.clientX,y:e.clientY});if(GO.ptr.size===1)GO.moved=0;
-  if(GO.ptr.size===1)GO.last={id:e.pointerId,x:e.clientX,y:e.clientY};else{const[a,b]=[...GO.ptr.values()];GO.pinch={d:Math.max(8,Math.hypot(a.x-b.x,a.y-b.y)),z:GO.zoom}}};
+  if(GO.ptr.size===1)GO.last={id:e.pointerId,x:e.clientX,y:e.clientY};else if(!GO.pinch)goPinchStart()};
 cv.addEventListener("pointerdown",goDown);
 // The car's name and figures cover the bottom of the screen (two fifths of a phone held upright). A finger that lands
 // there, away from its buttons, turns and zooms the view too: pinching out starts with the fingers apart, one of them
@@ -5488,11 +5495,12 @@ $("gui").addEventListener("pointerdown",e=>{const btn=e.target.closest("button,a
   if(GO.ptr.size?e.pointerType!=="touch":btn||!e.target.closest("#gbar"))return;
   goDown(e);GO.moved=Math.max(GO.moved,7)});
 cv.addEventListener("pointermove",e=>{if(state!=="GARAGE"||!GO.ptr.has(e.pointerId))return;const p=GO.ptr.get(e.pointerId);GO.moved+=Math.abs(e.clientX-p.x)+Math.abs(e.clientY-p.y);p.x=e.clientX;p.y=e.clientY;
-  if(GO.pinch&&GO.ptr.size>1){const[a,b]=[...GO.ptr.values()];GO.zoom=clamp(GO.pinch.z*GO.pinch.d/Math.max(8,Math.hypot(a.x-b.x,a.y-b.y)),GO_Z[0],GO_Z[1]);GO.user=true;return}
+  if(GO.pinch){const a=GO.ptr.get(GO.pinch.ia),b=GO.ptr.get(GO.pinch.ib);GO.zoom=clamp(GO.pinch.z*GO.pinch.d/Math.max(8,Math.hypot(a.x-b.x,a.y-b.y)),GO_Z[0],GO_Z[1]);GO.user=true;return}
   if(GO.last&&GO.last.id===e.pointerId){const dx=e.clientX-GO.last.x,dy=e.clientY-GO.last.y;GO.last.x=e.clientX;GO.last.y=e.clientY;
     if(GO.moved>6){GO.yaw-=dx*.009;GO.yawS-=dx*.009;GO.pitch=clamp(GO.pitch+dy*.012,GO_P[0],GO_P[1]);GO.user=true;if(GO.spin)goSpin(false)}}});
 // lifting one of two fingers carries on as a one-finger turn from where the other finger is, without a jump
-const goUp=e=>{if(!GO.ptr.delete(e.pointerId))return;if(GO.ptr.size<2)GO.pinch=null;
+const goUp=e=>{if(!GO.ptr.delete(e.pointerId))return;
+  if(GO.pinch&&(e.pointerId===GO.pinch.ia||e.pointerId===GO.pinch.ib))goPinchStart();
   if(!GO.ptr.size)GO.last=null;else if(!GO.last||GO.last.id===e.pointerId||GO.ptr.size===1){const[id,p]=[...GO.ptr.entries()][0];GO.last={id,x:p.x,y:p.y}}};
 ["pointerup","pointercancel","lostpointercapture"].forEach(t=>cv.addEventListener(t,goUp));
 cv.addEventListener("wheel",e=>{if(state!=="GARAGE")return;e.preventDefault();GO.zoom=clamp(GO.zoom*Math.exp(e.deltaY*.0012),GO_Z[0],GO_Z[1]);GO.user=true},{passive:false});
