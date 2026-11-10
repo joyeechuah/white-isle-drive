@@ -3005,7 +3005,12 @@ const trafficDisc=(()=>{const g=new THREE.CylinderGeometry(.238,.225,.04,28);g.r
 const carMeshes={},showMeshes={};
 function getCar(id){if(!carMeshes[id]){carMeshes[id]=buildHeroCar(carById(id),paintOf(id),modsOf(id));scene.add(carMeshes[id].G)}return carMeshes[id]}
 function getShowCar(id){if(!showMeshes[id]){const c=buildHeroCar(carById(id),paintOf(id),modsOf(id));c.G.visible=false;podium.add(c.G);c.G.position.y=.3;showMeshes[id]=c}return showMeshes[id]}
-function parkCar(c,slot){const[sx,sz,sy]=SPOTS[slot];c.G.position.copy(gW(sx,sz));c.G.rotation.set(0,gYaw+Math.PI+sy,0);c.front.forEach(f=>f.rotation.y=0);c.inside.visible=false;c.glass.visible=true;c.shell.visible=true;c.G.visible=true}
+function parkCar(c,slot){
+  const[sx,sz,sy]=SPOTS[slot];c.G.position.copy(gW(sx,sz));c.G.rotation.set(0,gYaw+Math.PI+sy,0);c.front.forEach(f=>f.rotation.y=0);
+  c.inside.visible=false;c.glass.visible=true;c.shell.visible=true;c.G.visible=true;
+  // A car can be parked straight from a drive, with blurred spokes and its suspension still loaded.
+  c.blurOn=false;c.wheels.forEach(w=>{w.parent.position.y=c.wr;w.userData.blur.visible=false;w.userData.spokes.forEach(s=>s.visible=true)});
+}
 // park every owned car in its bay; cars you no longer own are hidden
 // cars parked in the garage are only drawn when the camera is near the house
 function cullParked(){const near=Math.hypot(camera.position.x-HOUSE.x,camera.position.z-HOUSE.z)<150;
@@ -3165,6 +3170,7 @@ function laneNear(e,x){
   let best=x,bd=1e9;for(const l of RT[e.type].lanes)for(const c of [l,-l]){const d=Math.abs(x-c);if(d<bd){bd=d;best=c}}
   return best;
 }
+const REVERSE_STOP=.03; // allow for tiny residual movement, but brake a car that is still creeping forwards
 function stepPlayer(dt){
   const cd=curCar();
   const fx=Math.sin(P.h),fz=Math.cos(P.h),rx=-fz,rz=fx;
@@ -3205,6 +3211,8 @@ function stepPlayer(dt){
   // it eases towards how far the pedal is pressed (a controller's trigger part-way), never past it: ramping towards full
   // and pulling back afterwards let a light trigger build up to full throttle at a crawl, where the ramp is quickest
   const tT=Math.min(thrCap,gA),t0=P.thr||0;P.thr=t0<tT?Math.min(tT,t0+thrUp*dt):Math.max(tT,t0-8*dt);
+  // Holding the brake from a crawl must stop the car. Check motion before this step's slope force.
+  const bHeld=kB();if(!bHeld)P.brkHold=false;else if(vF>REVERSE_STOP)P.brkHold=true;
   if(!P.air){const sl=(surfH(P.x+fx*2,P.z+fz*2)-surfH(P.x-fx*2,P.z-fz*2))/4;vF-=9.81*sl*.75*dt}
   // the brake builds up while it's held: gentle at first (6 m/s²), full (13 m/s²) after a second, so a quick press
   // slows the car instead of stopping it dead. Nov 2026: was 9 to 22 m/s² in 0.7 s, which threw away speed into bends.
@@ -3213,7 +3221,6 @@ function stepPlayer(dt){
   const bF=ev&&ev.phase==="finish"?24:lerp(HD.brk0,HD.brk1,smooth(0,HD.brkUp,P.brkT));
   // a brake held from moving stops the car and keeps it there; reversing takes a fresh press at a standstill
   // (holding the brake to stop used to carry straight on into reverse, up to 40 km/h)
-  const bHeld=kB();if(!bHeld)P.brkHold=false;else if(vF>.5)P.brkHold=true;
   if(gas&&!brake&&vF<-.5)vF+=22*dt;
   else if(brake){if(vF>.5)vF-=bF*bA*dt;else if(P.brkHold||!bHeld){const d=Math.max(bF,6)*dt;vF=Math.abs(vF)<=d?0:vF-Math.sign(vF)*d}else vF=Math.max(vF-5*bA*dt,-HD.revMax)}
   else if(P.thr>0&&!P.air)vF+=power*P.thr*Math.max(0,1-(vF/vMax)**2)*dt;
@@ -4386,7 +4393,7 @@ function photoEnter(){
 function photoExit(){
   CAR_ENV.dirty=true;
   if(!PH.on)return;
-  photoShotClose();PH.on=false;PH.ptr.clear();PH.pinch=null;photoLook=null;
+  photoShotClose();PH.on=false;PH.busy=false;PH.ptr.clear();PH.pinch=null;photoLook=null;
   show("photo",false);
   const S=PH.saved;
   // the zoom follows the screen's shape, which may have changed while photo mode was open (a phone turned round)
@@ -4433,14 +4440,16 @@ if(isTouch)$("phHint").textContent="Drag to move around the car, pinch to move c
 // ---- the picture: a fresh frame, copied straight away (the 3D canvas keeps no copy once it is shown), as a PNG
 function photoName(){const d=new Date(),p=n=>String(n).padStart(2,"0");return "white-isle-drive-"+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+"-"+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds())+".png"}
 function photoCapture(){
-  if(!PH.on||PH.busy)return Promise.resolve(false);PH.busy=true;
+  if(!PH.on||PH.busy)return Promise.resolve(false);
+  // PNG encoding can finish after this visit to Photo Mode has ended.
+  const capture={};PH.busy=capture;
   return new Promise(res=>{
     const fail=err=>{PH.busy=false;phMsg("Couldn't save the photo: "+((err&&err.message)||err||"the browser blocked it"),"bad");res(false)};
     try{
       applyDayNight();updateLampLights();photoFrame(0);syncRenderView();renderer.render(scene,camera);
       const src=renderer.domElement,c=document.createElement("canvas");c.width=src.width;c.height=src.height;
       const x=c.getContext("2d");if(!x)throw new Error("no 2D canvas");x.drawImage(src,0,0);
-      c.toBlob(b=>{if(!PH.on){PH.busy=false;res(false);return}if(!b){fail(new Error("the browser returned no image"));return}PH.busy=false;photoShotShow(b);res(true)},"image/png");
+      c.toBlob(b=>{if(PH.busy!==capture){res(false);return}if(!b){fail(new Error("the browser returned no image"));return}PH.busy=false;photoShotShow(b);res(true)},"image/png");
     }catch(err){fail(err)}
   });
 }
@@ -5492,7 +5501,7 @@ function clStartScreen(go){const b=$("lcloud");show("lcloud",!!CL.ad&&!CL.meta.u
 const clAccountError=e=>clSet(clOff(e)?"offline":"error",clErr(e));
 // Cloud replies only belong to the session that started them.
 function clForUser(user,run){
-  const current=()=>{if(CL.user===user)return run()};
+  const current=()=>{if(!tabIdle&&CL.user===user)return run()};
   return CL.signingOut?CL.signingOut.then(current):current();
 }
 function clReadAccount(){const user=CL.user;
@@ -5502,6 +5511,7 @@ function clConnect(interactive){
   clSet("connecting");
   const who=interactive&&CL.ad.loaded?CL.ad.signIn():CL.ad.init().then(u=>u||(interactive?CL.ad.signIn():null));
   return who.then(u=>{
+    if(tabIdle)return;
     if(!u){if(CL.meta.uid){clSet("signedout","You're signed out. Sign in again to keep backing up; your progress is safe on this device.")}else clSet("guest");return}
     CL.user=u;CL.other=!!(CL.meta.owner&&CL.meta.owner!==u.uid);
     if(CL.meta.uid&&CL.meta.uid!==u.uid||CL.other){CL.meta.rev=0;CL.meta.prog="";CL.meta.full="";CL.meta.at=0}
@@ -5527,9 +5537,9 @@ function clApply(doc,cloud){const sv=Object.assign({},cloud,{ghost:save.ghost||{
   // if the browser won't store it, nothing changed: saving and backing up carry on, and the choice stays to try again
   try{localStorage.setItem(SAVE_KEY,JSON.stringify(sv))}catch(e){CL.applying=false;CL.pick={doc,cloud};clSet("error","This browser won't store the restored progress.");return}
   CL.meta.rev=doc.rev||0;CL.meta.rehash=true;clOwn();CL.meta.at=clAt(doc);clSaveMeta();
-  clSet("synced","Restoring your progress…");if(window.__cloudNoReload){window.__cloudApplied=sv;return}setTimeout(()=>location.reload(),400)}
+  clSet("synced","Restoring your progress…");if(window.__cloudNoReload){window.__cloudApplied=sv;return}setTimeout(()=>{if(!tabIdle)location.reload()},400)}
 // this device's save goes to the account, if nobody else wrote there since (otherwise: compare again)
-function clUpload(rev,onlyIfChanged){if(CL.applying||CL.signingOut)return Promise.resolve();
+function clUpload(rev,onlyIfChanged){if(tabIdle||CL.applying||CL.signingOut)return Promise.resolve();
   const user=CL.user;
   const pay=clPayload(save),full=clHash(clCanon(pay)),prog=clProg(save);
   if(onlyIfChanged&&full===CL.meta.full){clSet("synced");return Promise.resolve()}
@@ -5577,8 +5587,8 @@ function clPickShow(){if(!CL.pick)return;
 function clStartNew(doc){CL.applying=true;clearTimeout(CL.timer);CL.timer=0;
   try{localStorage.removeItem(SAVE_KEY)}catch(e){CL.applying=false;CL.pick={doc,cloud:null};clSet("error","This browser won't let the game start new progress.");return}
   CL.meta.rev=doc&&doc.rev||0;CL.meta.rehash=true;clOwn();CL.meta.at=0;clSaveMeta();
-  clSet("synced","Starting new progress…");if(window.__cloudNoReload){window.__cloudApplied="new";return}setTimeout(()=>location.reload(),400)}
-function clKeep(which){const p=CL.pick;if(!p)return;CL.pick=null;show("cloudPick",false);CL.st="pending";
+  clSet("synced","Starting new progress…");if(window.__cloudNoReload){window.__cloudApplied="new";return}setTimeout(()=>{if(!tabIdle)location.reload()},400)}
+function clKeep(which){const p=CL.pick;if(tabIdle||!p)return;CL.pick=null;show("cloudPick",false);CL.st="pending";
   if(which==="acc"){if(p.cloud)clApply(p.doc,p.cloud);else clStartNew(p.doc)}else clUpload(p.doc&&p.doc.rev||0)}
 function clOpen(){if(CL.pick){clPickShow();return}show("cloud",true);
   // the service loads while the panel is open, so SIGN IN can open Google's window at once
@@ -5619,7 +5629,7 @@ let hudT=0,waterT=0;
 let padRevShown=false;
 function updateHUD(dt){
   const cd=curCar(),vF=speedF(),kph=Math.abs(vF)*3.6,gi=gearInfo(kph,cd.top,vF<-.5);
-  const bB=$("bB"),rev=vF<.5&&!(P.brkHold&&kB()),lbl=rev?"REVERSE":"BRAKE";if(bB.textContent!==lbl){bB.textContent=lbl;bB.classList.toggle("rev",rev)}
+  const bB=$("bB"),rev=vF<=REVERSE_STOP&&!(P.brkHold&&kB()),lbl=rev?"REVERSE":"BRAKE";if(bB.textContent!==lbl){bB.textContent=lbl;bB.classList.toggle("rev",rev)}
   if(rev&&pad.B&&vF<-.5&&!padRevShown&&!ev){padRevShown=true;toast("REVERSING","Stopped, press REVERSE again to back up. While you're moving forward the same button brakes")}
   drawSpeedo(kph,gi.rpm*8,gi.g);
   if(camMode===3)drawGauges(kph,gi.rpm*8,gi.g);
