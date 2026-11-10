@@ -4,6 +4,8 @@ A free-roam driving game set on a Mediterranean island modelled loosely on Ibiza
 
 ### [▶ Play now](https://joyeechuah.github.io/white-isle-drive/)
 
+**[Controls](#controls) · [Features](#features) · [How it works](#how-it-works) · [Testing](#testing) · [Privacy](#privacy) · [Architecture](docs/ARCHITECTURE.md) · [Changelog](CHANGELOG.md)**
+
 ![A red hatchback driving along the coastal highway in the late-afternoon sun, with the sea and a rocky islet on the left, and the credits, minimap and speedometer on screen](docs/screenshot.jpg)
 
 ## Play
@@ -31,6 +33,8 @@ A free-roam driving game set on a Mediterranean island modelled loosely on Ibiza
 
 Hard impacts transfer speed and damage the vehicles involved, including traffic and race rivals. Damage reduces engine performance, and badly damaged cars smoke. Tap the **DAMAGE** indicator (or choose **VEHICLE CONDITION** from Pause) to see condition and repair choices. **Returning to the garage repairs your car for free**, including via **Go Home** in Pause; returning home ends a current race or contract. When stopped and not racing or test-driving, an optional roadside repair costs **1,000 + 20 × damage percentage** credits (3,000 at 100%) and requires a second confirmation press. Damage warnings appear at 25%, 60%, 90% and 100%. The car stays drivable at full damage. Races start with fresh cars. Damage lasts for the current drive and is not part of your save.
 
+Repairs use the **VEHICLE CONDITION** screen from the damage HUD or Pause menu. A stopped vehicle with enough credits can request an optional roadside repair; a second confirmation is required before credits are deducted. Returning home is always free but ends any active event or contract. See [PR #38](https://github.com/joyeechuah/white-isle-drive/pull/38) and [Changelog](CHANGELOG.md).
+
 In the garage, `←` / `→` choose a car and `Enter` drives it; CUSTOMISE opens the options for it (`Esc` or controller B cancels, controller A applies). On the map, drag to pan, scroll or pinch to zoom, click a marker to set the GPS or travel there, or click a road to drop a waypoint.
 
 In photo mode, drag (or use the arrow keys) to move around the car and scroll, pinch or press `+` / `−` to move closer. The ZOOM and DISTANCE sliders do the same, `1` to `4` pick a look (AS IS, GOLDEN HOUR, NIGHT DRIVE, COASTAL SUNSET), `R` resets the camera, `Enter` takes the picture and `Esc` or `V` goes back to the game. The world stands still while it's open, and the looks change the light only in photo mode.
@@ -53,6 +57,9 @@ The pause menu opens photo mode, the Island Passport, the Contracts board and th
 - Contracts: parcel deliveries, timed courier runs and scenic tours between the towns, with the GPS guiding you and a reward on completion
 - Speed radars, plus a free-ride points streak for speed, near misses, oncoming-lane driving and drifts that you bank as credits
 - Traffic on the roads, keeping to the left by default or to the right (DRIVE ON in the pause menu), a GPS minimap that draws the route to any marker or waypoint, and a full map with fast travel
+- Collision damage with impact-based momentum transfer, engine-power penalties and smoke; rear-view control on keyboard, touch and gamepad; **free garage repairs or optional credit-paid roadside repairs** via an interactive condition panel
+- Improved driving session lifecycle: finished AI rivals coast to a stop, inactive tabs stop simulation/audio, and traffic vehicles recover from failed placements
+- Garage touch controls that support pinch-zoom from the lower information panel, plus stable three-finger pinch handoffs; controller actions don't accidentally activate a second screen
 - A three-track soundtrack: a Mediterranean lounge groove in the garage and dealership, Balearic house for free driving and a faster track for races, looping without a gap, quieter behind menus and softer after dark
 - Engine, tyre, surface and impact sound synthesised live with the Web Audio API
 - Responsive HUD for desktop and touch screens in landscape or portrait
@@ -60,7 +67,21 @@ The pause menu opens photo mode, the Island Passport, the Contracts board and th
 
 ## How it works
 
-The game itself is one file, `index.html`. The only library is [three.js](https://threejs.org/) r128 (MIT licence), loaded from cdnjs with a Subresource Integrity hash so the browser rejects a modified copy. Terrain, roads, buildings, vegetation, cars, textures and sound effects are all generated procedurally. The only asset files are the three music tracks in `audio/` (about 2 MB each), which are loaded only when needed and looped on the Web Audio clock. Two backup tracks composed in code play if the files can't load. A Content Security Policy in the page only lets it load scripts from itself and cdnjs, fonts from Google Fonts and music from its own folder.
+The playable game lives in `index.html`: HTML and CSS for the interface, vanilla JavaScript for simulation and game state, and [three.js](https://threejs.org/) r128 (MIT licence) for WebGL graphics. Terrain, roads, buildings, vegetation, vehicle models, many textures and sound effects are generated in code. Three soundtrack files in `audio/` load on demand, with synthesized backup music if they cannot load. A Content Security Policy restricts network connections and embedded resources.
+
+Optional cloud backup uses Firebase Authentication and Firestore, with the Firebase scripts loaded only when cloud save is used. Hosting is static through GitHub Pages. Node.js, Playwright and ESLint are **development and test tools**, not runtime requirements.
+
+| Component | Technology / entry point |
+| --- | --- |
+| 3D world and cars | three.js / WebGL — `index.html` |
+| Driving, races, traffic, controls | Vanilla JavaScript — `index.html` |
+| Screens and responsive HUD | HTML / CSS — `index.html` |
+| Audio and soundtrack | Web Audio API, `audio/` |
+| Local progress | Browser `localStorage` |
+| Optional account backup | Google sign-in, Firebase / Firestore — `CLOUD_SETUP.md` |
+| Automated validation | Playwright, ESLint, GitHub Actions — `tests/`, `.github/workflows/test.yml` |
+
+For implementation details, game-state transitions, save handling and test architecture, see **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**. For significant changes, see **[CHANGELOG.md](CHANGELOG.md)**.
 
 ## Testing
 
@@ -90,7 +111,10 @@ The tests run against the real `index.html`, read fresh on every run. For tests 
 - **Saves**: reloads, a save from the first release, corrupt and malformed saves, storage being refused.
 - **Cloud save** (with a stand-in for Google and Firestore): guests see nothing in the way and download nothing; the first sign-in backs up the guest's progress; another device gets it back; when both differ the player chooses, both ways, and credits are never added together; backups after changes, offline and catching up; another device's newer save isn't overwritten, and the choice waits for the pause menu; signing out; the start screen.
 - **Phones**: touch controls, and layouts at six screen sizes (including 360 px tall phones held sideways), and turning the device, the race panel kept clear of the car and the road, the BRAKE / REVERSE label, rolling a thumb from BRAKE onto GAS, and no zooming from a double tap or a pinch.
-- **Traffic**: cars keep their distance at junctions, in queues and where they appear, and none waits for good, even behind a parked car.
+- **Traffic and collisions**: cars keep their distance at junctions, in queues and where they appear; failed spawns retry; NPC and player contacts transfer momentum and cause damage, smoke and acceleration penalties.
+- **Input handoffs**: one controller press doesn't open a dealership and start a test drive simultaneously; garage pinch gestures retain their position when additional fingers join or leave, including when a finger begins over the info bar.
+- **Race and tab lifecycle**: finished rivals decelerate without further race acceleration; an inactive tab skips frames, audio and delayed fade callbacks.
+- **Damage, repairs and cameras**: gentle contacts are harmless; harder impacts damage vehicles, lower engine output and show smoke; rear view works on keyboard, touch and gamepad. Repair tests check garage repairs without credit deductions, roadside payments after confirmation, moving/race restrictions and insufficient funds (`tests/damage-repairs.spec.js`).
 - **Ghost**: a record run is saved and a slower one isn't, the replay follows the recorded path, is see-through, shows the gap and can't be hit, the switch, and damaged ghosts in a save.
 - **Championships**: which cups are open in which car, points, NEXT ROUND, the prize paid once, 22 points to win, quitting a round, class medal times (with the autopilot getting a medal in an A1 and an A7 car), the garage's cups won, and damaged saves.
 - **Driving side**: traffic and the car on the left by default, switching to the right at once and after a reload, the mirrored race grid, and ONCOMING points on each side.
@@ -105,21 +129,27 @@ GitHub Actions (`.github/workflows/test.yml`) runs ESLint and then the suite on 
 
 The tests come in two Playwright projects. `chromium` runs the logic and interaction tests with 3D drawing switched off, which is many times faster. `webgl` runs the tests tagged `@webgl`, which draw with real WebGL. Run one with `npx playwright test --project=webgl`.
 
-Limits: on machines without a GPU, CI runners included, Chrome draws with its software renderer (SwiftShader). The rendering tests prove the scene builds and draws, and the performance numbers are comparisons between runs, not frame rates on real devices. Phones are emulated screen sizes with emulated touch in desktop Chromium. Firefox and Safari aren't covered by the automated tests yet.
+Limits: on machines without a GPU, CI runners included, Chrome draws with its software renderer (SwiftShader). The rendering tests prove the scene builds and draws, and the performance numbers are comparisons between runs, not frame rates on real devices. Phones are emulated screen sizes with emulated touch in desktop Chromium. Firefox and Safari aren't covered by the automated tests yet. **Known limitations:** WebGL is required; low-power phones may need the SMOOTH graphics setting; browser storage can be cleared; the game needs a network connection for its CDN-hosted renderer and web fonts; optional cloud features need Google sign-in and connectivity. The game does not support offline installation or cross-device synchronization for guest saves.
 
 ## Privacy
 
-The game has no ads and no tracking of players. Progress is saved in your own browser's `localStorage` (key `white-isle-drive-v1`); clearing site data resets it; nothing about your progress is sent anywhere unless you sign in (below).
+The game has no ads and does not use individually targeted advertising or player-behaviour profiles. It does use **aggregate Cloudflare Web Analytics** for visits, as explained below. Progress is saved in your browser's `localStorage` (key `white-isle-drive-v1`); clearing site data resets it. Game progress is not uploaded to Firebase unless you opt into cloud saving.
 
 Visits are counted with [Cloudflare Web Analytics](https://www.cloudflare.com/web-analytics/): page views, the country, the browser and device type, the page the visit came from, and how fast the page loaded. It uses no cookies or browser storage and doesn't identify anyone. It only runs on the game's own site, and not at all if your browser sends Global Privacy Control or Do Not Track.
 
 Accounts are optional. If you choose SAVE MY PROGRESS and sign in with Google, the game stores your save, a short summary of it (credits, number of cars, level, landmarks, cups) and the time of each backup in a Firebase (Google) database under your Google user id. Only you can read or write it. Your name and email come from Google for showing who is signed in; they aren't stored in the save. SIGN OUT stops the backups; the copy in your browser stays. The feedback links only open Google Forms or GitHub in a new tab when you click them; the form collects no email addresses.
 
-The page makes two kinds of outside requests: three.js from cdnjs.cloudflare.com and the Barlow fonts from Google Fonts. As with any web font, Google receives the visitor's IP address when the fonts load. To avoid that, delete the three Google Fonts `<link>` lines at the top of `index.html`; the game then uses the system font.
+**External connections:** the page loads three.js from cdnjs.cloudflare.com and the Barlow fonts from Google Fonts. The soundtrack is served from this site's own `audio/` folder. On the official site, eligible visits load Cloudflare's analytics script and send aggregate analytics; requests are suppressed when Global Privacy Control or Do Not Track is detected. Google sign-in and Firestore require additional Google/Firebase requests **only if cloud saves are used**; the Firebase client scripts are downloaded on first use. The Content Security Policy in `index.html` lists the network origins permitted for those capabilities. An origin being permitted does not mean it is contacted on every visit.
+
+When Google Fonts load, Google can receive the visitor's IP address as part of the request. To disable Google Fonts in a self-hosted copy, remove the Google Fonts stylesheet links in the `<head>` of `index.html`; the game then falls back to system fonts.
 
 ## Music
 
 The soundtrack was generated with Google Flow Music under a Google AI Plus plan: *Mediterranean Showroom* (garage and dealership), *Coastal Cruise Loop* (free driving) and *Island Highway Run* (races and time trials). The backup tracks used when the files can't load are composed in the game's code.
+
+## Project development and contributions
+
+This project was created through AI-assisted development. My contributions include defining features and UX requirements, selecting trade-offs, reproducing and documenting bugs, validating game behaviour through playtesting, and reviewing automated checks and pull requests. The implementation has evolved through iterative fixes to driving physics, mobile controls, performance, collision systems and lifecycle behaviour. The [changelog](CHANGELOG.md) records major developments; the [architecture guide](docs/ARCHITECTURE.md) explains how to navigate the code.
 
 ## Feedback
 
@@ -130,7 +160,7 @@ Found a bug or have an idea? I'd love to hear it.
 
 ## How this was made
 
-This game was vibe coded: I directed the design and features, playtested each version, and reported bugs and changes, while the code was written by an AI assistant (Claude by Anthropic). Testing used automated browser checks on desktop and phone screen sizes, plus my own playthroughs in the browser.
+This game uses AI-assisted coding. I directed features and design, tested gameplay, reported issues and reviewed proposed fixes; implementation was developed with AI coding assistance, including Claude and Codex. Verification combines Playwright browser tests and hands-on playtesting. Contributions and implementation details are outlined above and in the linked documentation.
 
 ## Disclaimer
 
