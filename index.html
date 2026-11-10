@@ -152,7 +152,19 @@ body.touch #lhint{display:none}
 .chip{background:var(--panel);border:1px solid var(--line);padding:8px 12px;font-size:10px;letter-spacing:.18em;border-radius:3px;cursor:pointer;font-weight:700;backdrop-filter:blur(8px)}
 .chip:hover{border-color:#fff}
 #chRear[aria-pressed="true"]{border-color:var(--acc);color:var(--acc)}
-#damageHud{margin-left:4px;color:var(--acc);font-weight:700;font-size:11px;white-space:nowrap}
+#damageHud{align-self:flex-start;pointer-events:auto;cursor:pointer;min-height:42px;background:rgba(10,22,31,.88);color:#f2b33d;border:1px solid rgba(242,179,61,.55);border-radius:4px;padding:7px 12px;font-size:11px;font-weight:800;letter-spacing:.08em;white-space:nowrap;text-align:left;touch-action:manipulation}
+#damageHud.high{color:#f2b33d}
+#damageHud.critical{color:#ff8f82;border-color:#e2483d}
+#repair{z-index:72}
+#repair .card{width:min(460px,100%);max-height:calc(100dvh - 32px);overflow:auto}
+#repair .repairTrack{height:9px;background:rgba(255,255,255,.12);border-radius:10px;overflow:hidden;margin:8px 0 16px}
+#repairFill{display:block;height:100%;width:0;background:#f2b33d;transition:width .2s}
+#repairDetails{font-size:13px;line-height:1.5;margin:0 0 12px}
+#repairHint,#repairRule{color:var(--mute);font-size:12px;line-height:1.45;margin:8px 0 12px}
+#repair .mbtn{display:block;width:100%;min-height:44px;white-space:normal}
+#repairNow:disabled,#repairHome:disabled{opacity:.45;cursor:not-allowed}
+#repairClose{margin-top:16px}
+@media(max-width:420px){#repair .card{padding:18px 20px}}
 
 /* touch pads */
 #pads{position:fixed;left:0;right:0;bottom:0;z-index:25;padding:0 calc(16px + var(--sr)) calc(16px + var(--sb)) calc(16px + var(--sl));display:flex;justify-content:space-between;align-items:flex-end;pointer-events:none}
@@ -433,7 +445,8 @@ if(location.hostname==="joyeechuah.github.io"&&!navigator.globalPrivacyControl&&
 <div id="hud" class="hide">
   <div id="vig"></div><div id="mblur"></div><div id="edge"></div>
   <div id="tl">
-    <div class="money"><span class="coin">CR</span><b id="crv">0</b><span id="damageHud" class="hide"></span></div>
+    <div class="money"><span class="coin">CR</span><b id="crv">0</b></div>
+    <button type="button" id="damageHud" class="hide" aria-label="Vehicle damage. Tap to see repair options.">DAMAGE 0% · REPAIR</button>
     <div class="lvl"><span>LEVEL <b id="lvv">1</b></span><div class="xp"><i id="xpf"></i></div></div>
     <div class="loc"><span id="zone">EIVISSA</span><span class="num" id="clock">16:30</span></div>
   </div>
@@ -469,6 +482,19 @@ if(location.hostname==="joyeechuah.github.io"&&!navigator.globalPrivacyControl&&
   <div class="pz" style="flex-direction:column-reverse;gap:10px"><div class="pb" id="bG">GAS</div><div class="pb" id="bB">BRAKE</div></div>
 </div>
 
+<div id="repair" class="ov hide" role="dialog" aria-modal="true" aria-labelledby="repairTitle">
+  <div class="card">
+    <h3>VEHICLE CONDITION</h3><h2 id="repairTitle">DAMAGE 0%</h2>
+    <div class="repairTrack" aria-hidden="true"><i id="repairFill"></i></div>
+    <p id="repairDetails">Your vehicle is in good condition.</p>
+    <p id="repairHint">Return to your garage to repair for free, or pay credits for a roadside repair.</p>
+    <button class="mbtn" id="repairHome" type="button">RETURN HOME · FREE REPAIR</button>
+    <button class="mbtn pri" id="repairNow" type="button">ROADSIDE REPAIR</button>
+    <p id="repairRule" aria-live="polite"></p>
+    <button class="mbtn" id="repairClose" type="button">RESUME DRIVING</button>
+  </div>
+</div>
+
 <div id="pause" class="ov hide"><div class="card">
   <h3>PAUSED</h3><h2 id="pTitle">Free ride</h2>
   <button class="mbtn pri" id="pRes">RESUME</button>
@@ -479,6 +505,7 @@ if(location.hostname==="joyeechuah.github.io"&&!navigator.globalPrivacyControl&&
   <button class="mbtn" id="pCups">CHAMPIONSHIPS</button>
   <button class="mbtn" id="pQuit">QUIT EVENT</button>
   <button class="mbtn" id="pHome">GO HOME</button>
+  <button class="mbtn" id="pRepair">VEHICLE CONDITION</button>
   <button class="mbtn" id="pTime">TIME OF DAY: AUTO</button>
   <button class="mbtn" id="pAssist">DRIVING ASSIST: ON</button>
   <button class="mbtn" id="pAuto">AUTO GAS: OFF</button>
@@ -3034,7 +3061,7 @@ let locked=false,autoHold=false;
 // trigger the brake, A the handbrake; Start pauses, View/Back opens the map, Y changes camera, X is the prompt key
 const GP={on:false,steer:0,gas:0,brake:0,hb:false,rear:false,prev:[]};
 // screens opened from the pause menu, and how each closes
-const PAUSE_SUBS=[["passport",()=>passportClose()],["jobs",()=>jobsClose()],["cups",()=>cupsClose()]];
+const PAUSE_SUBS=[["repair",()=>closeRepair()],["passport",()=>passportClose()],["jobs",()=>jobsClose()],["cups",()=>cupsClose()]];
 function pollPad(){
   let g=null;try{const l=navigator.getGamepads?navigator.getGamepads():[];for(const x of l)if(x&&x.connected){g=x;break}}catch(e){}
   if(!g){GP.on=false;GP.steer=GP.gas=GP.brake=0;GP.hb=GP.rear=false;GO.stick[0]=GO.stick[1]=0;return}
@@ -3302,9 +3329,22 @@ function stepPlayer(dt){
 }
 // Glancing contact is harmless. A hard impact loses power, but the car always remains drivable.
 const damagePower=car=>1-(car.damage||0)*.0035;
+let repairWarnLevel=0;
+const damageWarnTier=n=>n>=100?4:n>=90?3:n>=60?2:n>=25?1:0;
+function damageAlert(amount){
+  const tier=damageWarnTier(amount);if(tier<=repairWarnLevel)return;
+  repairWarnLevel=tier;
+  const msgs=[null,
+    ["VEHICLE DAMAGED","Tap DAMAGE for repair options. Garage repairs are free."],
+    ["ENGINE POWER REDUCED","Repair at home for free, or use credits when stationary."],
+    ["CRITICAL DAMAGE","Tap DAMAGE to see repair options."],
+    ["MAXIMUM DAMAGE","The car can still drive. Tap DAMAGE to repair."]];
+  const m=msgs[tier];toast(m[0],m[1],tier>=3?"bad":undefined);
+}
 function damageVehicle(car,speed){
   if(speed<=4||(car.damageT||0)>0)return;
   car.damage=Math.min(100,(car.damage||0)+Math.min(30,(speed-4)*1.4));car.damageT=.25;
+  if(car===P)damageAlert(car.damage);
 }
 function tickDamage(car,dt){if(car.damageT>0)car.damageT-=dt}
 let smokeMaterial=null;
@@ -3686,7 +3726,7 @@ function rivalModel(cd,key){
   return m;
 }
 function startEvent(E,cup){
-  P.damage=P.damageT=0;
+  P.damage=P.damageT=0;repairWarnLevel=0;
   const R=E.route,me=curCar(),idx=CARS.indexOf(me);
   ev={E,R,t:-3,phase:"count",cp:0,hint:0,s:14,sNow:14,d:99,ai:[],done:false,wrongT:0,last:4,px:null,pz:null,gate:gateOf(R,E.cps[0]),reT:0,missT:0,diff:E.type==="race"?save.diff:1,obs:[],cup:cup||null,tg:cup&&E.type==="tt"?cupTimes(E,cup.cls):E,rec:E.type==="tt"?[]:null,ghost:E.type==="tt"&&save.ghost[E.id]?save.ghost[E.id]:null};
   const p=edgePos(R,14);
@@ -4853,7 +4893,7 @@ function hudOn(on){show("hud",on);show("chips",on);show("pads",on&&isTouch)}
 
 /* ---------- player car ---------- */
 function attachCar(id,temp){
-  if(id!==curId){if(pc)showDamageSmoke(pc,0);P.damage=P.damageT=0}
+  if(id!==curId){if(pc)showDamageSmoke(pc,0);P.damage=P.damageT=0;repairWarnLevel=0}
   curId=id;if(!temp)save.cur=id;
   pc=getCar(id);pc.G.visible=true;
   if(!headLight){headLight=new THREE.SpotLight(0xfff4dc,0,150,.62,.55,1);headLight.target=new THREE.Object3D();fillLight=new THREE.PointLight(0xdfe6ff,0,14,1.4)}
@@ -5176,7 +5216,7 @@ $("cuMin").onclick=()=>{const m=$("cust").classList.toggle("mini");$("cuMin").in
 function goGarage(fromFade){
   const doIt=()=>{
     endEvent();if(testDrive)finishTestDrive(false);
-    P.damage=P.damageT=0;if(pc)showDamageSmoke(pc,0);
+    P.damage=P.damageT=0;repairWarnLevel=0;if(pc)showDamageSmoke(pc,0);
     // going home ends a contract; the garage hides the HUD, so the message waits for the next drive
     if(job&&jobEnd("abandoned"))jobNotices.push(["CONTRACT ABANDONED","You went home, so it ended without a reward"]);
     setState("GARAGE");audioOn(false);
@@ -5297,7 +5337,7 @@ function finishTestDrive(backToDealer){
   show("tdPill",false);
   if(!save.owned.includes(td.id))getCar(td.id).G.visible=false;
   attachCar(td.prev);
-  P.damage=td.damage||0;showDamageSmoke(pc,P.damage);
+  P.damage=td.damage||0;repairWarnLevel=damageWarnTier(P.damage);showDamageSmoke(pc,P.damage);
   if(backToDealer)openDealer(td.id);
 }
 function endTestDrive(){
@@ -5324,9 +5364,71 @@ function updatePrompt(){
   promptAct=best?best.a:null;show("prompt",!!best);if(best)$("promptTxt").textContent=best.t;
 }
 $("prompt").onclick=()=>{if(state==="DRIVE"&&promptAct)promptAct()};
+// The repair screen uses PAUSE so the car stays still and the menu cannot charge credits while driving.
+// Damage is session-only. Credits are saved only after the player confirms a roadside repair.
+let repairConfirm=false,repairReturnPause=false;
+const damagePct=()=>Math.ceil(Math.max(0,P.damage||0));
+const repairPrice=()=>1000+20*damagePct();
+function repairBlocked(){
+  if(!damagePct())return "Your vehicle has no damage.";
+  if(testDrive)return "Repair your own car after the test drive ends.";
+  if(ev)return "Roadside repairs are unavailable during a race or time trial.";
+  if(Math.hypot(P.vx||0,P.vz||0)>.55)return "Stop the vehicle before requesting a roadside repair.";
+  if(save.cr<repairPrice())return "Not enough credits. Returning home repairs the car for free.";
+  return "";
+}
+function repairPanel(){
+  const damage=damagePct(),price=repairPrice(),blocked=repairBlocked();
+  $("repairTitle").textContent="DAMAGE "+damage+"%";
+  $("repairFill").style.width=damage+"%";
+  $("repairFill").style.background=damage>=90?"#e2483d":damage>=60?"#f2b33d":"#a4c8b0";
+  $("repairDetails").textContent=damage?"Engine power reduced by "+Math.round((1-damagePower(P))*100)+"%. The vehicle remains drivable.":"Your vehicle is fully repaired.";
+  $("repairHint").textContent=testDrive?"End this test drive to return to your own vehicle.":"Garage repairs are FREE. Roadside repairs cost 1,000 + 20 credits per damage percentage point.";
+  $("repairHome").disabled=!!testDrive;
+  $("repairHome").textContent=job?"RETURN HOME · END CONTRACT · REPAIR FREE":ev?"RETURN HOME · END RACE · REPAIR FREE":"RETURN HOME · REPAIR FREE";
+  if(blocked)repairConfirm=false;
+  $("repairNow").disabled=!!blocked;
+  $("repairNow").textContent=repairConfirm?"CONFIRM SPEND "+fmtCr(price)+" CR":"ROADSIDE REPAIR · "+fmtCr(price)+" CR";
+  $("repairRule").textContent=blocked||(repairConfirm?"Confirm to spend credits and repair now.":"Stay stopped to repair here. Credits are deducted only after confirmation.");
+  $("repairClose").textContent=repairReturnPause?"BACK TO PAUSE":"RESUME DRIVING";
+}
+function openRepair(){
+  if(tabIdle||state!=="DRIVE"&&state!=="PAUSE")return;
+  repairReturnPause=state==="PAUSE";repairConfirm=false;
+  if(!repairReturnPause)pauseOn();
+  show("pause",false);show("repair",true);repairPanel();
+  $("repairClose").focus({preventScroll:true});
+}
+function closeRepair(){
+  if($("repair").classList.contains("hide"))return;
+  repairConfirm=false;show("repair",false);
+  if(tabIdle)return;
+  if(repairReturnPause)show("pause",true);
+  else pauseOff();
+}
+$("damageHud").onclick=openRepair;$("pRepair").onclick=openRepair;$("repairClose").onclick=closeRepair;
+$("repairHome").onclick=()=>{
+  if(tabIdle||state!=="PAUSE"||$("repair").classList.contains("hide")||testDrive)return;
+  repairConfirm=false;show("repair",false);goGarage(false);
+};
+$("repairNow").onclick=()=>{
+  if(tabIdle||state!=="PAUSE"||$("repair").classList.contains("hide"))return;
+  if(repairBlocked()){repairPanel();return}
+  if(!repairConfirm){repairConfirm=true;repairPanel();return}
+  const price=repairPrice();
+  if(price>save.cr||repairBlocked()){repairPanel();return}
+  save.cr-=price;P.damage=P.damageT=0;repairWarnLevel=0;
+  if(pc)showDamageSmoke(pc,0);
+  persist();updateMoney();repairConfirm=false;
+  show("repair",false);
+  if(repairReturnPause)show("pause",true);else pauseOff();
+  show("damageHud",false);
+  toast("VEHICLE REPAIRED","Roadside repair: -"+fmtCr(price)+" CR","gold");
+};
 function pauseOn(){if(state!=="DRIVE")return;setState("PAUSE");clearInput();audioOn(false);
   $("pTitle").textContent=ev?ev.E.name:testDrive?"Test drive · "+carById(testDrive.id).md:job?"Contract · "+job.def.title:"Free ride";
-  $("pHome").textContent=job?"GO HOME · ENDS CONTRACT":"GO HOME";
+  $("pHome").textContent=job?"GO HOME · ENDS CONTRACT":"GO HOME · REPAIR FREE";
+  $("pRepair").textContent="VEHICLE CONDITION · "+damagePct()+"%";
   show("pQuit",!!(ev||testDrive));$("pQuit").textContent=testDrive?"END TEST DRIVE":ev&&ev.fin?"SEE RESULT":"QUIT EVENT";show("pHome",!testDrive);
   syncPause();$("pFb").classList.toggle("wide",[...document.querySelectorAll("#pause .mbtn")].filter(b=>b.id!=="pRes"&&!b.classList.contains("hide")).length%2===1);show("pause",true)}
 function pauseOff(){show("pause",false);if(state==="PAUSE"){setState("DRIVE");audioOn(true);TILT.zero=TILT.phi}}
@@ -5422,6 +5524,7 @@ function kbFocusedButton(){const el=document.activeElement;return !!el&&el===kbF
 addEventListener("keydown",e=>{
   const k=e.key.toLowerCase();
   if(tabIdle)return;
+  if(!$("repair").classList.contains("hide")){if((k==="escape"||k==="p")&&!e.repeat){e.preventDefault();closeRepair()}return}
   // typing in a text field (the number plate) isn't driving or a shortcut; Enter or Escape leaves the field. Sliders (photo
   // mode's zoom and distance) keep the shortcuts: they used to swallow Escape, V, R and Enter while they had focus
   const tg=e.target;if(tg&&tg.tagName==="INPUT"&&tg.type!=="range"){if(k==="enter"||k==="escape")tg.blur();return}
@@ -5753,8 +5856,10 @@ let hudT=0,waterT=0;
 // it reverses in a session, a message says so
 let padRevShown=false;
 function updateHUD(dt){
-  const damage=$("damageHud"),amount=Math.round(P.damage||0),label="DAMAGE "+amount+"%";
-  if(damage.textContent!==label){damage.textContent=label;show("damageHud",amount>0)}
+  const damage=$("damageHud"),amount=damagePct(),label="DAMAGE "+amount+"% · REPAIR";
+  if(damage.textContent!==label){damage.textContent=label;show("damageHud",amount>0);
+    damage.classList.toggle("high",amount>=60);damage.classList.toggle("critical",amount>=90);
+    damage.setAttribute("aria-label","Vehicle damage "+amount+" percent. Open repair options.");}
   const cd=curCar(),vF=speedF(),kph=Math.abs(vF)*3.6,gi=gearInfo(kph,cd.top,vF<-.5);
   const bB=$("bB"),rev=vF<=REVERSE_STOP&&!(P.brkHold&&kB()),lbl=rev?"REVERSE":"BRAKE";if(bB.textContent!==lbl){bB.textContent=lbl;bB.classList.toggle("rev",rev)}
   if(rev&&pad.B&&vF<-.5&&!padRevShown&&!ev){padRevShown=true;toast("REVERSING","Stopped, press REVERSE again to back up. While you're moving forward the same button brakes")}

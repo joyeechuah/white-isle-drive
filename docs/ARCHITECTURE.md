@@ -28,7 +28,7 @@ The page loads the three.js library from cdnjs with a Subresource Integrity hash
 ### Driving and traffic
 
 - `driveUpdate()` handles active driving; the input handlers combine keyboard, on-screen touch pads and standard gamepad state.
-- `collidePlayer()`, `damageVehicle()`, `damagePower()` and `showDamageSmoke()` model contact, damage penalties and smoke. Damage is **session-only**. `goGarage()` repairs the current car free of charge.
+- `collidePlayer()`, `damageVehicle()`, `damagePower()` and `showDamageSmoke()` model contact, damage penalties and smoke. Damage is **session-only**. `goGarage()` repairs the current car free of charge; `openRepair()`, `repairPanel()`, `repairBlocked()` and `repairPrice()` handle the condition dialog, roadside repair restrictions and credit pricing. Roadside repairs require a stopped car and explicit payment confirmation; no credit is deducted on cancellation.
 - `initTraffic()`, `spawnTraffic()` and `updateTraffic()` handle ambient vehicles and placement/retry behaviour.
 - `startEvent()` and `updateEvent()` handle races, rivals and their finishing behaviour.
 - `openMap()` / `fastTravel()`, `goGarage()` and `goDrive()` coordinate movement between gameplay screens.
@@ -62,11 +62,12 @@ npx playwright install --with-deps chromium
 npm run lint
 npm test
 npx playwright test tests/collision-rear-view.spec.js
+npx playwright test tests/damage-repairs.spec.js
 npx playwright test --project=webgl
 npm run test:report
 ```
 
-Automated mobile cases use emulated viewports and touch events, **not physical mobile browsers**. Firefox and Safari are not part of the automated suite.
+Automated mobile cases use emulated viewports and touch events, **not physical mobile browsers**. Firefox and Safari are not part of the automated suite. `tests/damage-repairs.spec.js` covers payment confirmation, full repair effects, free garage recovery, conditions that block roadside repairs and insufficient credits.
 
 ## Working safely on the project
 
