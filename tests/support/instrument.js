@@ -20,7 +20,7 @@ const NAMES = (
   "AC AU BOATS CARS DEALER DEALER_MARK EDGES EVENTS FR GARAGE_CAP H HOUSE JOBS JOB_R LANDMARKS LANDMARK_REWARD MV " +
   "NODES P PASSPORT_BONUS PH PHOTO_LOOKS PZ RADARS RES ROADS SAVE_KEY SHOW STARTERS TODS TRAFFIC VTL W " +
   "adaptRes applyDayNight attachCar camMode camera carById closeDealer closeMap curCar curId cycleCam dPick dSel " +
-  "discoverLandmark drawMap driveUpdate earn edgePos endTestDrive ev fastTravel finishEvent updateEvent endEvent fishT fitZoom " +
+  "discoverLandmark drawMap driveUpdate collidePlayer earn edgePos endTestDrive ev fastTravel finishEvent updateEvent endEvent fishT fitZoom " +
   "foam foundCount gPick gSel gW goDrive goGarage gps grassT groundH hudOn job jobEnd jobRestart jobStart " +
   "jobTarget jobsClose jobsOpen keys mapToWorld mapZoomAt nearestRoad nearestRoadGlobal openDealer openIntro " +
   "openMap openMapPopup pad passportClose passportOpen pauseOff pauseOn pc persist photoCapture photoEnter " +
