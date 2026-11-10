@@ -80,7 +80,7 @@ test("damage costs acceleration, shows a warning and clears at the garage", asyn
   const clean = await run(0), damaged = await run(75);
   expect(damaged).toBeGreaterThan(0);
   expect(damaged).toBeLessThan(clean * .85);
-  await expect(page.locator("#damageHud")).toHaveText("DAMAGE 75%");
+  await expect(page.locator("#damageHud")).toHaveText("DAMAGE 75% · REPAIR");
   expect(await game.eval(() => __T.pc.damageSmoke.visible)).toBe(true);
   await game.eval(() => __T.goGarage(true));
   await game.waitState("GARAGE");
