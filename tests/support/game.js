@@ -206,6 +206,9 @@ class Game {
         T.P.z = spot.z;
         T.resetToRoad(false);
         T.P.vx = T.P.vz = 0;
+        // Clear leftover input so the car cannot creep before a reverse test.
+        T.P.thr = 0;
+        T.P.brkHold = false;
         if (document.activeElement) document.activeElement.blur();
         return { x: T.P.x, z: T.P.z, h: T.P.h };
       },
