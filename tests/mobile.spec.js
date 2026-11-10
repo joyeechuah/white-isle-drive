@@ -78,7 +78,7 @@ test.describe("touch controls", () => {
 test.describe("no zooming on phones and tablets", () => {
   test.use({ viewport: { width: 1024, height: 768 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
 
-  test("a double tap or a pinch doesn't zoom the page, buttons still take quick taps, and a zoomed page says how to get back", async ({ game, page }) => {
+  test("a double tap or a pinch doesn't zoom the page, buttons still take quick taps, and a zoomed page can be zoomed back out", async ({ game, page }) => {
     await game.open();
     const set = await game.eval(() => ({
       meta: document.querySelector('meta[name="viewport"]').content,
@@ -123,15 +123,61 @@ test.describe("no zooming on phones and tablets", () => {
     await tap(512, 300);
     expect(await game.eval(() => window.__ends)).toEqual([false, true]);
     expect(await game.eval(() => window.visualViewport.scale)).toBe(1);
-    // if the page does end up zoomed in, a note says how to get back
+    // a two-finger move is held back too (an iPad zoomed in on one), and so are Safari's own pinch events
+    const held = () =>
+      game.eval(() => {
+        const out = {};
+        for (const t of ["gesturestart", "gesturechange"]) {
+          const e = new Event(t, { bubbles: true, cancelable: true });
+          document.body.dispatchEvent(e);
+          out[t] = e.defaultPrevented;
+        }
+        const pt = (id, x) => new Touch({ identifier: id, target: document.body, clientX: x, clientY: 300 });
+        const mv = (n) => {
+          const e = new TouchEvent("touchmove", { bubbles: true, cancelable: true, touches: [pt(1, 300), pt(2, 500)].slice(0, n) });
+          document.body.dispatchEvent(e);
+          return e.defaultPrevented;
+        };
+        out.two = mv(2);
+        out.one = mv(1);
+        return out;
+      });
+    expect(await held()).toEqual({ gesturestart: true, gesturechange: true, two: true, one: false });
+    // if the page does end up zoomed in: a button says so, and everything that stops zooming steps aside, so a pinch
+    // out works (it used to be stopped as well: an iPad stayed zoomed in whatever you did)
     const zoom = (s) =>
       game.eval((s) => {
         Object.defineProperty(visualViewport, "scale", { configurable: true, get: () => s });
         visualViewport.dispatchEvent(new Event("resize"));
         return !document.getElementById("zoomed").classList.contains("hide");
       }, s);
+    const meta0 = set.meta;
     expect(await zoom(2)).toBe(true);
+    expect(await held()).toEqual({ gesturestart: false, gesturechange: false, two: false, one: false });
+    const z = await game.eval(() => ({
+      canvas: getComputedStyle(document.getElementById("c")).touchAction,
+      body: getComputedStyle(document.body).touchAction,
+      pad: getComputedStyle(document.querySelector(".pb")).touchAction,
+      meta: document.querySelector('meta[name="viewport"]').content,
+    }));
+    expect([z.canvas, z.body, z.pad].every((t) => t === "manipulation"), JSON.stringify(z)).toBe(true);
+    // and the game asks the browser to go back to its normal size by itself (the viewport tag, fixed at 1, then restored)
+    expect(z.meta).toContain("minimum-scale=1");
+    await expect.poll(() => game.eval(() => document.querySelector('meta[name="viewport"]').content)).toBe(meta0);
+    // the button asks again
+    await game.eval(() => document.getElementById("zoomed").click());
+    expect(await game.eval(() => document.querySelector('meta[name="viewport"]').content)).toContain("minimum-scale=1");
+    await expect.poll(() => game.eval(() => document.querySelector('meta[name="viewport"]').content)).toBe(meta0);
+    // a double tap is the browser's again too (in Safari it zooms back out)
+    await game.eval(() => (window.__ends = []));
+    await tap(512, 300);
+    await page.waitForTimeout(30);
+    await tap(512, 300);
+    expect(await game.eval(() => window.__ends)).toEqual([false, false]);
+    // back at normal size, zooming is stopped again
     expect(await zoom(1)).toBe(false);
+    expect(await game.eval(() => getComputedStyle(document.body).touchAction)).toBe("none");
+    expect((await held()).two).toBe(true);
   });
 });
 
