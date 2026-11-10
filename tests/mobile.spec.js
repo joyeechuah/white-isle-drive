@@ -78,7 +78,7 @@ test.describe("touch controls", () => {
 test.describe("no zooming on phones and tablets", () => {
   test.use({ viewport: { width: 1024, height: 768 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
 
-  test("a double tap or a pinch doesn't zoom the page, buttons still take quick taps, and a zoomed page says how to get back", async ({ game, page }) => {
+  test("a double tap or a pinch doesn't zoom the page, buttons still take quick taps, and a zoomed page can be zoomed back out", async ({ game, page }) => {
     await game.open();
     const set = await game.eval(() => ({
       meta: document.querySelector('meta[name="viewport"]').content,
@@ -123,15 +123,103 @@ test.describe("no zooming on phones and tablets", () => {
     await tap(512, 300);
     expect(await game.eval(() => window.__ends)).toEqual([false, true]);
     expect(await game.eval(() => window.visualViewport.scale)).toBe(1);
-    // if the page does end up zoomed in, a note says how to get back
+    // a two-finger move is held back too (an iPad zoomed in on one), and so are Safari's own pinch events
+    const held = () =>
+      game.eval(() => {
+        const out = {};
+        for (const t of ["gesturestart", "gesturechange"]) {
+          const e = new Event(t, { bubbles: true, cancelable: true });
+          document.body.dispatchEvent(e);
+          out[t] = e.defaultPrevented;
+        }
+        const pt = (id, x) => new Touch({ identifier: id, target: document.body, clientX: x, clientY: 300 });
+        const mv = (n) => {
+          const e = new TouchEvent("touchmove", { bubbles: true, cancelable: true, touches: [pt(1, 300), pt(2, 500)].slice(0, n) });
+          document.body.dispatchEvent(e);
+          return e.defaultPrevented;
+        };
+        out.two = mv(2);
+        out.one = mv(1);
+        return out;
+      });
+    expect(await held()).toEqual({ gesturestart: true, gesturechange: true, two: true, one: false });
+    // if the page does end up zoomed in: a button says so, and everything that stops zooming steps aside, so a pinch
+    // out works (it used to be stopped as well: an iPad stayed zoomed in whatever you did)
     const zoom = (s) =>
       game.eval((s) => {
         Object.defineProperty(visualViewport, "scale", { configurable: true, get: () => s });
         visualViewport.dispatchEvent(new Event("resize"));
         return !document.getElementById("zoomed").classList.contains("hide");
       }, s);
+    const meta0 = set.meta;
     expect(await zoom(2)).toBe(true);
+    expect(await held()).toEqual({ gesturestart: false, gesturechange: false, two: false, one: false });
+    const z = await game.eval(() => ({
+      canvas: getComputedStyle(document.getElementById("c")).touchAction,
+      body: getComputedStyle(document.body).touchAction,
+      pad: getComputedStyle(document.querySelector(".pb")).touchAction,
+      meta: document.querySelector('meta[name="viewport"]').content,
+    }));
+    expect([z.canvas, z.body, z.pad].every((t) => t === "manipulation"), JSON.stringify(z)).toBe(true);
+    // and the game asks the browser to go back to its normal size by itself (the viewport tag, fixed at 1, then restored)
+    expect(z.meta).toContain("minimum-scale=1");
+    await expect.poll(() => game.eval(() => document.querySelector('meta[name="viewport"]').content)).toBe(meta0);
+    // the button asks again
+    await game.eval(() => document.getElementById("zoomed").click());
+    expect(await game.eval(() => document.querySelector('meta[name="viewport"]').content)).toContain("minimum-scale=1");
+    await expect.poll(() => game.eval(() => document.querySelector('meta[name="viewport"]').content)).toBe(meta0);
+    // a double tap is the browser's again too (in Safari it zooms back out)
+    await game.eval(() => (window.__ends = []));
+    await tap(512, 300);
+    await page.waitForTimeout(30);
+    await tap(512, 300);
+    expect(await game.eval(() => window.__ends)).toEqual([false, false]);
+    // back at normal size, zooming is stopped again
     expect(await zoom(1)).toBe(false);
+    expect(await game.eval(() => getComputedStyle(document.body).touchAction)).toBe("none");
+    expect((await held()).two).toBe(true);
+  });
+});
+
+test.describe("garage view on a phone held upright", () => {
+  test.use({ viewport: { width: 412, height: 800 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+
+  test("pinching out works with a finger on the car's name and figures, or on a button there, and presses nothing", async ({ game, page }) => {
+    await game.open();
+    const cdp = await page.context().newCDPSession(page);
+    // two fingers one above the other, d apart around the middle of the view: 420 apart, the lower one is on the bar
+    // at the bottom (on a paint colour), which is where a pinch out starts and a pinch in ends
+    const pts = (d) => [
+      { id: 1, x: 206, y: 420 - d / 2 },
+      { id: 2, x: 206, y: 420 + d / 2 },
+    ];
+    const pinch = async (d0, d1) => {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [pts(d0)[0]] });
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pts(d0) });
+      for (let i = 1; i <= 10; i++) {
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pts(d0 + ((d1 - d0) * i) / 10) });
+        await page.waitForTimeout(16);
+      }
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [pts(d1)[0]] });
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      await page.waitForTimeout(350);
+    };
+    const now = () => game.eval(() => ({ zoom: +__T.GO.zoom.toFixed(2), held: __T.GO.ptr.size, state: __T.state, cur: __T.save.cur, paint: JSON.stringify(__T.save.paint) }));
+    const under = await game.eval(() => !!document.elementFromPoint(206, 630).closest("#gbar button"));
+    expect(under, "the lower finger starts on a button in the bar").toBe(true);
+    const a = await now();
+    await pinch(80, 420);
+    expect((await now()).zoom).toBe(0.55);
+    // it used to stay at 0.55: the finger on the bar didn't count, so the view only turned
+    await pinch(420, 80);
+    const b = await now();
+    expect(b.zoom).toBe(1.6);
+    expect([b.held, b.state, b.cur, b.paint]).toEqual([0, "GARAGE", a.cur, a.paint]);
+    // one finger on a paint colour still picks it
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ id: 1, x: 206, y: 630 }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await expect.poll(() => now().then((n) => n.paint)).not.toBe(a.paint);
+    expect((await now()).state).toBe("GARAGE");
   });
 });
 
