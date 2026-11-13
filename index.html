@@ -4892,11 +4892,19 @@ function show(id,on){$(id).classList.toggle("hide",!on)}
 function hudOn(on){show("hud",on);show("chips",on);show("pads",on&&isTouch)}
 
 /* ---------- player car ---------- */
+// The headlight and the fill light exist, switched off, from the moment the world is built. Adding a light later
+// makes the graphics card rebuild the program for every lit surface in one go, and that used to happen on the
+// first frame after DRIVE: the picture froze there (about a second on a phone, far longer without a graphics card)
+function carLights(){
+  if(headLight)return;
+  headLight=new THREE.SpotLight(0xfff4dc,0,150,.62,.55,1);headLight.target=new THREE.Object3D();fillLight=new THREE.PointLight(0xdfe6ff,0,14,1.4);
+  scene.add(headLight);scene.add(headLight.target);scene.add(fillLight);
+}
 function attachCar(id,temp){
   if(id!==curId){if(pc)showDamageSmoke(pc,0);P.damage=P.damageT=0;repairWarnLevel=0}
   curId=id;if(!temp)save.cur=id;
   pc=getCar(id);pc.G.visible=true;
-  if(!headLight){headLight=new THREE.SpotLight(0xfff4dc,0,150,.62,.55,1);headLight.target=new THREE.Object3D();fillLight=new THREE.PointLight(0xdfe6ff,0,14,1.4)}
+  carLights();
   pc.G.add(headLight);pc.G.add(headLight.target);headLight.position.set(0,.7,pc.front_z+.35);headLight.target.position.set(0,-.6,30);
   // behind the car at about its own height, between it and the chase camera: keeps the car readable at
   // night without a glare off the rear window (a light from above lands its highlight right in view)
@@ -5953,8 +5961,17 @@ const STEPS=[
   ["Stocking the dealership",buildDealer],
   ["Setting up events",()=>{buildEvents();buildGates();buildRadars();buildLandmarks();buildJobs()}],
   ["Filling the roads",()=>{initTraffic();buildMapImage()}],
-  ["Parking your cars",()=>{parkAll(null)}],
+  ["Parking your cars",()=>{parkAll(null);carLights()}],
+  // The first time a surface is drawn, its picture is sent to the graphics card and its program is built. Left
+  // alone, that all lands on the frame the garage door opens. Done here, it is part of the loading bar instead
+  ["Warming up",warmUp],
 ];
+function warmUp(){
+  const seen=new Set();
+  scene.traverse(o=>{for(const m of [].concat(o.material||[]))for(const k in m){const t=m[k];if(t&&t.isTexture&&t.image&&!seen.has(t)){seen.add(t);try{renderer.initTexture(t)}catch(e){}}}});
+  try{renderer.compile(scene,camera)}catch(e){}
+  return seen.size;
+}
 let stepI=0;
 function boot(){
   if(stepI<STEPS.length){
