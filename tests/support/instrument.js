@@ -17,7 +17,7 @@ const ROOT = path.resolve(__dirname, "..", "..");
 // internal names the tests read; each is exposed as a getter, so the value is always the live one, and a name
 // that no longer exists fails only the tests that use it, with "<name> is not defined"
 const NAMES = (
-  "AC AU BOATS CARS DEALER DEALER_MARK EDGES EVENTS FR GARAGE_CAP H HOUSE JOBS JOB_R LANDMARKS LANDMARK_REWARD MV " +
+  "WARM AC AU BOATS CARS DEALER DEALER_MARK EDGES EVENTS FR GARAGE_CAP H HOUSE JOBS JOB_R LANDMARKS LANDMARK_REWARD MV " +
   "NODES P PASSPORT_BONUS PH PHOTO_LOOKS PZ RADARS RES ROADS SAVE_KEY SHOW STARTERS TODS TRAFFIC VTL W " +
   "adaptRes applyDayNight attachCar camMode camera carById closeDealer closeMap curCar curId cycleCam dPick dSel " +
   "discoverLandmark drawMap driveUpdate collidePlayer showDamageSmoke spawnTraffic earn edgePos endTestDrive ev fastTravel finishEvent updateEvent endEvent fishT fitZoom " +

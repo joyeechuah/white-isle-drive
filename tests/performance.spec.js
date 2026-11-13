@@ -160,6 +160,10 @@ test.describe("performance", () => {
     await game.frames(4);
     const count = () => game.eval(() => ({ programs: __T.renderer.info.programs.length, textures: __T.renderer.info.memory.textures }));
     const before = await count();
+    const warm = await game.eval(() => ({ ...__T.WARM }));
+    note("warm-up during loading", warm);
+    expect(warm.failed, "warm-up steps that failed").toBe(0);
+    expect(warm.textures).toBeGreaterThan(10);
     await game.eval(() => __T.goDrive());
     await game.frames(6);
     const after = await count();

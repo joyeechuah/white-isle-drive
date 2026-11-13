@@ -5966,11 +5966,15 @@ const STEPS=[
   // alone, that all lands on the frame the garage door opens. Done here, it is part of the loading bar instead
   ["Warming up",warmUp],
 ];
+// what the warm-up did, for the tests and for anyone checking a slow start: pictures sent, any that failed, and how long it took
+const WARM={textures:0,failed:0,ms:0};
 function warmUp(){
-  const seen=new Set();
-  scene.traverse(o=>{for(const m of [].concat(o.material||[]))for(const k in m){const t=m[k];if(t&&t.isTexture&&t.image&&!seen.has(t)){seen.add(t);try{renderer.initTexture(t)}catch(e){}}}});
-  try{renderer.compile(scene,camera)}catch(e){}
-  return seen.size;
+  const seen=new Set(),t0=performance.now();
+  scene.traverse(o=>{for(const m of [].concat(o.material||[]))for(const k in m){const t=m[k];if(t&&t.isTexture&&t.image&&!seen.has(t)){seen.add(t);try{renderer.initTexture(t)}catch(e){WARM.failed++}}}});
+  try{renderer.compile(scene,camera)}catch(e){WARM.failed++}
+  WARM.textures=seen.size;WARM.ms=Math.round(performance.now()-t0);
+  // a failure here is not fatal (the surface is prepared when first drawn instead) but it should not pass unseen
+  if(WARM.failed)console.warn("Warm-up: "+WARM.failed+" step(s) failed; the first drive may stutter");
 }
 let stepI=0;
 function boot(){
