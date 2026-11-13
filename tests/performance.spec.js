@@ -138,4 +138,37 @@ test.describe("performance", () => {
     expect(cap.ok).toBe(true);
     expect(h.usedSize, "bytes of JavaScript heap after loading").toBeLessThan(400 * 1048576);
   });
+  // Adding a light to the scene makes the graphics card rebuild the program of every lit surface on the next frame.
+  // The car's headlight used to be created on the first press of DRIVE, which froze that frame
+  test("pressing DRIVE adds no lights to the scene", async ({ game }) => {
+    await game.open();
+    const lights = () =>
+      game.eval(() => {
+        const n = {};
+        __T.scene.traverse((o) => { if (o.isLight) n[o.type] = (n[o.type] || 0) + 1; });
+        return n;
+      });
+    const before = await lights();
+    expect(before.SpotLight, "the headlight exists before the first drive").toBeGreaterThanOrEqual(2);
+    await game.driveOut();
+    expect(await lights()).toEqual(before);
+  });
+
+  test("leaving the garage builds no new programs and uploads no new pictures @webgl", async ({ game }) => {
+    test.setTimeout(600000);
+    await game.open({ render: true });
+    await game.frames(4);
+    const count = () => game.eval(() => ({ programs: __T.renderer.info.programs.length, textures: __T.renderer.info.memory.textures }));
+    const before = await count();
+    const warm = await game.eval(() => ({ ...__T.WARM }));
+    note("warm-up during loading", warm);
+    expect(warm.failed, "warm-up steps that failed").toBe(0);
+    expect(warm.textures).toBeGreaterThan(10);
+    await game.eval(() => __T.goDrive());
+    await game.frames(6);
+    const after = await count();
+    note("garage -> first frames outside", { before, after });
+    expect(after.programs, "programs built on the way out").toBe(before.programs);
+    expect(after.textures, "pictures uploaded on the way out").toBe(before.textures);
+  });
 });
