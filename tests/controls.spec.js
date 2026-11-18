@@ -343,3 +343,21 @@ test.describe("controller in menus", () => {
     expect(await game.eval(() => __T.save.mods[__T.save.owned[__T.gSel]].plate)).toBe("PAD 77");
   });
 });
+
+test("the first Start press after reconnecting a controller resumes the game", async ({ game, page }) => {
+  await page.addInitScript(FAKE_PAD);
+  await game.open();
+  await game.driveOut();
+  const states = await game.eval(() => {
+    __press(9);
+    __T.pollPad();
+    const paused = __T.state;
+    __pad.connected = false;
+    __T.pollPad();
+    __pad.connected = true;
+    __T.pollPad();
+    __press(9, 0);
+    return [paused, __T.state];
+  });
+  expect(states).toEqual(["PAUSE", "DRIVE"]);
+});

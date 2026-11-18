@@ -77,3 +77,15 @@ test("insufficient credits disables roadside repair; canceling confirmation neve
   await page.locator("#damageHud").click();
   await expect(page.locator("#repairNow")).toBeDisabled();
 });
+
+test("a paid repair updates the condition shown in Pause immediately", async ({ game, page }) => {
+  await damagedDrive(game, 67);
+  await game.eval(() => __T.pauseOn());
+  const condition = page.locator("#pRepair");
+  await expect(condition).toContainText("67%");
+  await condition.click();
+  await page.locator("#repairNow").click();
+  await page.locator("#repairNow").click();
+  await expect(condition).toBeVisible();
+  await expect(condition).toHaveText("VEHICLE CONDITION · 0%");
+});

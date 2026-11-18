@@ -26,7 +26,18 @@ test.describe("dealership", () => {
   test("buying a car charges its price once, even when BUY is pressed twice", async ({ game, page }) => {
     await toDealer(game, 200000);
     const { price } = await pick(game, "m3");
+    await game.eval(() => {
+      const write = Storage.prototype.setItem;
+      window.purchaseWrites = [];
+      Storage.prototype.setItem = function (key, value) {
+        if (key === __T.SAVE_KEY) window.purchaseWrites.push(JSON.parse(value));
+        return write.call(this, key, value);
+      };
+    });
     await page.locator("#dBuy").dblclick();
+    const charged = await game.eval(balance => window.purchaseWrites.filter(s => s.cr === balance), 200000 - price);
+    expect(charged.length).toBeGreaterThan(0);
+    for (const snapshot of charged) expect(snapshot.owned).toContain("m3");
     const r = await game.eval(() => ({ cr: __T.save.cr, owned: __T.save.owned.filter((id) => id === "m3").length }));
     expect(r).toEqual({ cr: 200000 - price, owned: 1 });
     await expect(page.locator("#dPrice")).toHaveText("In your garage");
