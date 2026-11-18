@@ -23,5 +23,11 @@ a:focus-visible{outline:2px solid #fff;outline-offset:3px}
 <p>This road doesn't lead anywhere. The game is one page, so head back to the start.</p>
 <a href="/white-isle-drive/">BACK TO THE GAME</a>
 </main>
+<script>
+  // The local development server serves the game at the site root.
+  if (["localhost", "127.0.0.1", "[::1]"].includes(location.hostname)) {
+    document.querySelector("main a").href = "/";
+  }
+</script>
 </body>
 </html>

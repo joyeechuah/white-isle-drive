@@ -67,10 +67,12 @@ test.describe("site files", () => {
     }
   });
 
-  test("the 404 page links back to the game", async ({ page }) => {
-    await page.goto("/no-such-page");
+  test("the 404 page links back to the game", async ({ page, request }) => {
+    await page.goto("/a/missing/road");
     await expect(page.locator("h1")).toBeVisible();
     const href = await page.locator("main a").first().getAttribute("href");
-    expect(href).toMatch(/white-isle-drive\/?$|^\.?\/?$/);
+    const home = await request.get(new URL(href, page.url()).href);
+    expect(home.status()).toBe(200);
+    expect(await home.text()).toContain('id="lstart"');
   });
 });
