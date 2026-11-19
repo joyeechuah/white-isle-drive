@@ -13,4 +13,4 @@ Reviewed main at `d829de6` on 19 November 2026. The six regression checks below 
 
 ## Verification
 
-All six focused Playwright checks failed on the starting revision and passed on the revised game using a local Chromium headless shell. ESLint reported zero errors and zero warnings. The repository's Tests workflow runs the full Chromium and WebGL suites on the pull request. The focused audio checks cover fallback selection and download recovery. They do not measure playback quality on a physical phone.
+All six focused Playwright checks failed on the starting revision and passed on the revised game using a local Chromium headless shell. ESLint reported zero errors and zero warnings. GitHub Actions ran the full Chromium and WebGL suites at `85c336d`. All 223 tests passed in 38.1 minutes, with zero failures, flaky tests or skips. [CI run 163](https://github.com/joyeechuah/white-isle-drive/actions/runs/44350662146). The focused audio checks cover fallback selection and download recovery. They do not measure playback quality on a physical phone.
