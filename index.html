@@ -885,7 +885,7 @@ const SKYK=[
  {e:.28, top:0x2c6cc0,hor:0xb9d2e4,sun:0xfff0d0,lc:0xfff1da,li:3.2,hi:.62,hs:0xc4d8ee,hg:0x5e4f38,fog:0xbcd2e2,sea:0xffffff,cl:0xffffff,cs:0xaab4c2},
  {e:1,   top:0x1f5fb6,hor:0xaac8e0,sun:0xfff6e0,lc:0xfff8ee,li:3.4,hi:.62,hs:0xc4d8ee,hg:0x5e4f38,fog:0xb4cde0,sea:0xffffff,cl:0xffffff,cs:0xa9b3c1}];
 SKYK.forEach(k=>{for(const f of ["top","hor","sun","lc","hs","hg","fog","sea","cl","cs"])k[f]=new THREE.Color(k[f])});
-const SUN=new V3(),MOON=new V3();let night=0;
+const SUN=new V3(),MOON=new V3();let night=0,worldNight=0;
 function mixKey(f,a,b,t,out){return out.copy(a[f]).lerp(b[f],t)}
 let water=null,lampMat=null,townMat=null,poolMat=null;
 // a photo-mode look: lights the scene as at its own hour, with a little exposure and colour of its own, without
@@ -907,6 +907,7 @@ function applyDayNight(){
   hemi.intensity=lerp(a.hi,b.hi,t);mixKey("hs",a,b,t,hemi.color);mixKey("hg",a,b,t,hemi.groundColor);
   mixKey("fog",a,b,t,scene.fog.color);
   night=smooth(.04,-.12,e);
+  if(!photoLook)worldNight=night; // Camera filters affect the photograph only.
   scene.fog.near=lerp(260,140,night);scene.fog.far=lerp(1700,900,night);
   if(water)mixKey("sea",a,b,t,water.material.color);
   stars.material.opacity=night*.9;
@@ -4361,7 +4362,7 @@ let MUSIC=null,songOut=null;
 function musicInit(){if(MUSIC||!AC)return;try{
   // mixed to sit just under the engine on the road; the garage music a little fuller, with no engine to compete with
   const g=AC.createGain();g.gain.value=.32;g.connect(AC.destination);MUSIC=makeMusic(AC,g);
-  songOut=AC.createGain();songOut.connect(AC.destination);songFetch("lounge")}catch(e){MUSIC=null}}
+  songOut=AC.createGain();songOut.connect(AC.destination)}catch(e){MUSIC=null}}
 function songFailed(S){
   S.st="failed";S.bytes=null;
   S.retryDelay=Math.min(30,(S.retryDelay||1)*3);
@@ -4396,13 +4397,14 @@ function songTick(n,now){const S=SONGS[n],P=S.p;if(!P)return;
     P.next+=P.period}
 }
 // which song for which screen: the lounge indoors, the road outside, the race track during events, quieter behind menus
+function cruiseSong(){return worldNight>=.5?"night":"coast"}
 function musicWant(){
   if(tabIdle||!save.music)return [null,0];   // SOUND FX covers engine, tyres and beeps; music has its own switch
   if(state==="LOAD")return ["title",1];
   if(state==="GARAGE"&&!cuOpen()&&performance.now()<titleUntil)return ["title",1];
   titleUntil=0;
   if(state==="GARAGE"||state==="DEALER")return ["lounge",1];
-  const cruise=night>=.5?"night":"coast";
+  const cruise=cruiseSong();
   if(state==="EXIT")return [cruise,.8];
   const road=ev?"race":cruise;
   if(state==="PAUSE"||state==="MAP"||state==="INTRO"||state==="RESULT")return [road,.5];
@@ -4411,15 +4413,18 @@ function musicWant(){
 function musicTick(){
   if(!MUSIC||!AC||AC.state!=="running")return;
   const now=AC.currentTime,[want,lv]=musicWant();
-  // load ahead: the road song while you're in the garage, the race song when an event is offered
-  if(want){songFetch(want);if(want==="lounge")songFetch("coast");if(state==="INTRO")songFetch("race")}
-  for(const n in SONGS){const S=SONGS[n];if(S.st==="fetched"&&(n===want||(n==="coast"&&want==="lounge")||(n==="race"&&state==="INTRO")))songDecode(n)}
+  let preload=null;
+  if(want==="title")preload="lounge";
+  else if(want==="lounge")preload=cruiseSong();
+  else if(want&&state==="INTRO")preload="race";
+  if(want){songFetch(want);songDecode(want)}
+  if(preload){songFetch(preload);songDecode(preload)}
   // the recorded song if it's ready; otherwise keep whichever recorded song is already playing, or fall back
   // to the composed track
   let file=null,comp=null;
   if(want){
     if(SONGS[want].st==="ready")file=want;
-    else{const W=SONGS[want],cur=Object.keys(SONGS).find(n=>SONGS[n].p&&!SONGS[n].p.end);
+    else{const W=SONGS[want],cur=Object.keys(SONGS).find(n=>!SONGS[n].once&&SONGS[n].p&&!SONGS[n].p.end);
       if(W.askT==null)W.askT=now;
       if(cur&&W.st!=="failed")file=cur;
       // give a first load up to 4 s of silence rather than starting the composed track only to swap it out
@@ -4431,12 +4436,12 @@ function musicTick(){
     else if(S.p)songStop(n,now);
     songTick(n,now);if(S.p)S.idle=now;
     // free the decoded audio of a song that hasn't played for half a minute
-    if(!S.p&&S.buf&&n!==file&&!(n==="coast"&&want==="lounge")&&!(n==="race"&&state==="INTRO")&&now-(S.idle||0)>30){S.buf=null;S.st="fetched"}
-    if(S.p&&n!=="lounge"&&n!=="title")S.p.tone.frequency.setTargetAtTime(lerp(18000,2600,night),now,1.5);
+    if(!S.p&&S.buf&&n!==file&&n!==preload&&now-(S.idle||0)>30){S.buf=null;S.st="fetched"}
+    if(S.p&&n!=="lounge"&&n!=="title")S.p.tone.frequency.setTargetAtTime(lerp(18000,2600,worldNight),now,1.5);
   }
   MUSIC.set(comp,lv,now);
   // softer and darker after sunset
-  MUSIC.tone("coast",lerp(18000,2600,night),now);
+  MUSIC.tone("coast",lerp(18000,2600,worldNight),now);
   MUSIC.tick(now,.2);
 }
 setInterval(musicTick,50);
@@ -4453,8 +4458,7 @@ function firstGesture(){
 }
 GESTURES.forEach(g=>addEventListener(g,firstGesture,true));
 // the garage song downloads while the island is being built, so it can start the moment the player taps START
-songFetch("lounge");
-songFetch("title");
+if(save.music){songFetch("lounge");songFetch("title")}
 // nothing plays while the tab is hidden; picks up again when it comes back
 document.addEventListener("visibilitychange",()=>{if(!AC)return;if(document.hidden){try{const p=AC.suspend();if(p&&p.catch)p.catch(()=>{})}catch(e){}}else acResume()});
 
@@ -5477,7 +5481,7 @@ $("pTilt").onclick=()=>{
   else on()};
 $("pGhost").onclick=()=>{save.ghostOn=!save.ghostOn;syncPause();persist();if(!save.ghostOn)ghostHide()};
 $("pSnd").onclick=()=>{save.sound=!save.sound;if(save.sound)audioInit();syncPause();persist()};
-$("pMus").onclick=$("gMus").onclick=()=>{save.music=!save.music;audioInit();musicInit();syncPause();persist()};
+$("pMus").onclick=$("gMus").onclick=()=>{save.music=!save.music;if(!save.music)titleUntil=0;audioInit();musicInit();syncPause();persist()};
 function openMap(){if(state!=="DRIVE")return;setState("MAP");clearInput();audioOn(false);show("map",true);show("mapPop",false);MV.z=1;MV.cx=0;MV.cz=0}
 function closeMap(){if(state!=="MAP")return;
   // A release after reopening belongs to the old visit and must not set a waypoint.

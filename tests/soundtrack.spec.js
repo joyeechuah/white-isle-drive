@@ -36,3 +36,40 @@ test("a transient soundtrack failure retries only after its deadline and recover
   await expect.poll(() => game.eval(() => __T.SONGS.lounge.st)).toBe("fetched");
   expect(await game.eval(() => window.loungeRequests)).toBe(2);
 });
+
+test("photo lighting presets preserve the driving soundtrack", async ({ game }) => {
+  await game.open();
+  await game.driveOut();
+  const tracks = await game.eval(() => {
+    const T = __T, tracks = [];
+    for (const [hour, look] of [[13, 2], [22.5, 1]]) {
+      T.save.tod = hour;
+      T.applyDayNight();
+      T.photoEnter();
+      T.photoLookSet(look);
+      tracks.push(T.musicWant()[0]);
+      T.photoExit();
+      tracks.push(T.musicWant()[0]);
+    }
+    return tracks;
+  });
+  expect(tracks).toEqual(["coast", "coast", "night", "night"]);
+});
+
+test("a title cue fades out even when the next recording is still loading", async ({ game, page }) => {
+  await page.addInitScript(() => {
+    const fetchFile = window.fetch;
+    window.fetch = (url, ...args) => String(url).endsWith("showroom.mp3")
+      ? new Promise(() => {}) : fetchFile(url, ...args);
+  });
+  await game.open();
+  await page.mouse.click(2, 2);
+  await game.eval(() => __T.setState("LOAD"));
+  await expect.poll(() => game.eval(() => !!__T.SONGS.title.p), { timeout: 15000 }).toBe(true);
+  const fading = await game.eval(() => {
+    __T.setState("GARAGE");
+    __T.musicTick();
+    return !!__T.SONGS.title.p.end;
+  });
+  expect(fading).toBe(true);
+});
