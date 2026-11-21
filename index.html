@@ -1426,10 +1426,25 @@ function resample(path,step){
 /* ---------- road meshes ---------- */
 function asphaltTex(){
   const c=document.createElement("canvas");c.width=c.height=256;const x=c.getContext("2d");
-  x.fillStyle="#4a4b4e";x.fillRect(0,0,256,256);
-  for(let i=0;i<16000;i++){const v=38+Math.random()*70|0;x.fillStyle=`rgba(${v},${v},${v+4},${.25+Math.random()*.5})`;x.fillRect(Math.random()*256,Math.random()*256,1+Math.random()*1.4,1+Math.random()*1.4)}
-  for(let i=0;i<7;i++){x.fillStyle=`rgba(18,18,20,${.06+Math.random()*.09})`;x.beginPath();x.ellipse(Math.random()*256,Math.random()*256,20+Math.random()*50,8+Math.random()*30,Math.random()*3,0,TAU);x.fill()}
-  x.fillStyle="rgba(14,14,16,.14)";[52,88,164,200].forEach(u=>x.fillRect(u,0,18,256));
+  // One tile spans 3.75 m across the carriageway. Feather the two wheel paths
+  // into the aggregate and keep the broad colour variation continuous across tile edges.
+  const pixels=x.createImageData(256,256),wear=new Float32Array(256);
+  for(let u=0;u<256;u++){
+    const d=Math.min(Math.abs(u-70),Math.abs(u-186))/18;
+    wear[u]=Math.exp(-d*d)*8;
+  }
+  let seed=7349;
+  for(let v=0;v<256;v++){
+    const drift=Math.round(2*Math.sin(TAU*v/256));
+    for(let u=0;u<256;u++){
+      seed=(Math.imul(seed,1664525)+1013904223)>>>0;
+      const grain=(seed/4294967296-.5)*21;
+      const stone=72+grain+2.5*Math.sin(TAU*(u+v)/256)+2*Math.cos(TAU*(2*u-v)/256)-wear[(u+drift+256)%256];
+      const i=(v*256+u)*4;
+      pixels.data[i]=stone;pixels.data[i+1]=stone+1;pixels.data[i+2]=stone+3;pixels.data[i+3]=255;
+    }
+  }
+  x.putImageData(pixels,0,0);
   const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=renderer.capabilities.getMaxAnisotropy();return t;
 }
 const ROAD_PATHS={};
@@ -2101,8 +2116,15 @@ function buildSea(){
   g.setAttribute("color",new THREE.BufferAttribute(col,3));
   const m=new THREE.MeshPhongMaterial({vertexColors:true,transparent:true,opacity:.86,shininess:240,specular:0xdfeef5,normalMap:waveNormalTex(),normalScale:new THREE.Vector2(.42,.42)});
   m.onBeforeCompile=s=>{Object.assign(s.uniforms,seaU);
-    s.fragmentShader="uniform vec2 wO1,wO2;\n"+s.fragmentShader.replace("vec3 mapN = texture2D( normalMap, vUv ).xyz * 2.0 - 1.0;",
-      "vec3 mapN = normalize( ( texture2D( normalMap, vUv*"+(SZ/46).toFixed(1)+"+wO1 ).xyz*2.-1. ) + ( texture2D( normalMap, vUv*"+(SZ/17).toFixed(1)+"+wO2 ).xyz*2.-1. )*.8 );")};
+    // Three r128 expands shader includes after onBeforeCompile. Edit the normal-map
+    // chunk itself so both scrolling samples reach the compiled fragment shader.
+    const waveChunk=THREE.ShaderChunk.normal_fragment_maps.replace(
+      "vec3 mapN = texture2D( normalMap, vUv ).xyz * 2.0 - 1.0;",
+      `vec3 swell = texture2D(normalMap, vUv * ${(SZ/46).toFixed(1)} + wO1).xyz * 2.0 - 1.0;
+       vec3 ripple = texture2D(normalMap, vUv * ${(SZ/17).toFixed(1)} + wO2).xyz * 2.0 - 1.0;
+       vec3 mapN = normalize(swell + 0.55 * ripple);`);
+    s.fragmentShader="uniform vec2 wO1,wO2;\n"+s.fragmentShader.replace("#include <normal_fragment_maps>",waveChunk);
+  };
   water=new THREE.Mesh(g,m);water.receiveShadow=true;scene.add(water);
   buildFoam();buildVedra();buildBoats();
 }
@@ -2124,7 +2146,7 @@ function buildFoam(){
     const cx=Math.cos(a),cz=Math.sin(a),x=cx*r,z=cz*r;
     if(prev)cum+=Math.hypot(x-prev[0],z-prev[1]);
     const base=P.length/3;
-    P.push(cx*(r-2.5),.07,cz*(r-2.5),cx*(r+7),.07,cz*(r+7));U.push(cum/14,0,cum/14,1);
+    P.push(cx*(r-2.5),.07,cz*(r-2.5),cx*(r+7),.07,cz*(r+7));U.push(cum/14,1,cum/14,0);
     if(prev)I.push(base-2,base,base-1,base-1,base,base+1);
     prev=[x,z];
   }
