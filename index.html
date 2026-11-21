@@ -224,13 +224,16 @@ a.mbtn{color:inherit;text-decoration:none;box-sizing:border-box}
 #dNote{font-size:11px;color:var(--mute);margin-top:2px}
 #fade{position:fixed;inset:0;background:#000;z-index:90;pointer-events:none;opacity:0;transition:opacity .45s}
 
-body.touch #minWrap{bottom:auto;top:calc(150px + var(--st));left:calc(14px + var(--sl))}
+body.touch #minWrap{bottom:auto;top:calc(150px + var(--st) + var(--tlx,0px));left:calc(14px + var(--sl))}
 body.touch #speedo{bottom:auto;top:calc(60px + var(--st))}
 body.touch #toasts{top:calc(196px + var(--st))}
 /* short landscape phones: the touch pads fill the lower right, so toasts sit in the clear band under the top bar */
 @media (max-height:520px){body.touch #toasts{top:calc(130px + var(--st));right:auto;left:50%;transform:translateX(-50%);align-items:center;width:min(300px,40vw)}}
 /* and on the shortest (360 px tall), the smaller minimap and its GPS line sit higher, clear of the steering buttons */
-@media (max-height:400px){body.touch #minWrap{top:calc(124px + var(--st))}}
+@media (max-height:400px){body.touch #minWrap{top:calc(124px + var(--st) + var(--tlx,0px))}}
+/* landscape phones: the damage pill sits beside the money, level and place instead of under them, so the column
+   keeps its height and the minimap stays where it is (stacked, it ran down over the minimap) */
+@media (max-height:520px) and (min-width:561px){body.touch #tl>#damageHud{position:absolute;left:calc(100% + 8px);top:0}}
 body.touch #prompt{bottom:calc(150px + var(--sb))}
 body.touch #keys,body.touch #prompt kbd,body.touch #mapClose kbd{display:none}
 @media (max-width:980px){#evhud{top:calc(60px + var(--st))}#streak{top:calc(60px + var(--st))}}
@@ -247,8 +250,8 @@ body.touch #keys,body.touch #prompt kbd,body.touch #mapClose kbd{display:none}
 @media (max-width:560px){
   #tl{top:calc(56px + var(--st))}
   body.touch #speedo{top:calc(56px + var(--st))}
-  body.touch #minWrap{top:calc(164px + var(--st))}
-  #streak,#hud #tdPill{top:calc(318px + var(--st))}
+  body.touch #minWrap{top:calc(164px + var(--st) + var(--tlx,0px))}
+  #streak,#hud #tdPill{top:calc(318px + var(--st) + var(--tlx,0px))}
   /* the race panel (position, time, checkpoint) goes in a small column under the speedometer, so it no longer
      sits over the road just ahead of the car */
   #evhud{top:calc(192px + var(--st));left:auto;right:calc(14px + var(--sr));transform:none;flex-direction:column;gap:3px;width:136px}
@@ -1426,10 +1429,25 @@ function resample(path,step){
 /* ---------- road meshes ---------- */
 function asphaltTex(){
   const c=document.createElement("canvas");c.width=c.height=256;const x=c.getContext("2d");
-  x.fillStyle="#4a4b4e";x.fillRect(0,0,256,256);
-  for(let i=0;i<16000;i++){const v=38+Math.random()*70|0;x.fillStyle=`rgba(${v},${v},${v+4},${.25+Math.random()*.5})`;x.fillRect(Math.random()*256,Math.random()*256,1+Math.random()*1.4,1+Math.random()*1.4)}
-  for(let i=0;i<7;i++){x.fillStyle=`rgba(18,18,20,${.06+Math.random()*.09})`;x.beginPath();x.ellipse(Math.random()*256,Math.random()*256,20+Math.random()*50,8+Math.random()*30,Math.random()*3,0,TAU);x.fill()}
-  x.fillStyle="rgba(14,14,16,.14)";[52,88,164,200].forEach(u=>x.fillRect(u,0,18,256));
+  // One tile spans 3.75 m across the carriageway. Feather the two wheel paths
+  // into the aggregate and keep the broad colour variation continuous across tile edges.
+  const pixels=x.createImageData(256,256),wear=new Float32Array(256);
+  for(let u=0;u<256;u++){
+    const d=Math.min(Math.abs(u-70),Math.abs(u-186))/18;
+    wear[u]=Math.exp(-d*d)*8;
+  }
+  let seed=7349;
+  for(let v=0;v<256;v++){
+    const drift=Math.round(2*Math.sin(TAU*v/256));
+    for(let u=0;u<256;u++){
+      seed=(Math.imul(seed,1664525)+1013904223)>>>0;
+      const grain=(seed/4294967296-.5)*21;
+      const stone=72+grain+2.5*Math.sin(TAU*(u+v)/256)+2*Math.cos(TAU*(2*u-v)/256)-wear[(u+drift+256)%256];
+      const i=(v*256+u)*4;
+      pixels.data[i]=stone;pixels.data[i+1]=stone+1;pixels.data[i+2]=stone+3;pixels.data[i+3]=255;
+    }
+  }
+  x.putImageData(pixels,0,0);
   const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=renderer.capabilities.getMaxAnisotropy();return t;
 }
 const ROAD_PATHS={};
@@ -1590,6 +1608,13 @@ function tileOf(x,z){const k=Math.floor(x/TILE)+","+Math.floor(z/TILE);let t=til
 const GEO={box:new THREE.BoxGeometry(1,1,1),trunk:new THREE.CylinderGeometry(.5,.7,1,6),cone:new THREE.ConeGeometry(1,1,7),
   ico:new THREE.IcosahedronGeometry(1,0),palmSeg:new THREE.CylinderGeometry(.18,.24,1,6),pole:new THREE.CylinderGeometry(.09,.13,1,6),
   ball:new THREE.SphereGeometry(1,8,6),rock:new THREE.DodecahedronGeometry(1,0)};
+// A closed, folded frond: the ridge catches the sun while the tip hangs below the crown.
+const palmFrond=new THREE.BufferGeometry();
+palmFrond.setAttribute("position",new THREE.Float32BufferAttribute([
+  0,0,0, -.38,.17,1.35, 0,.38,1.42, .38,.17,1.35, 0,.10,1.38, 0,-.65,3.2
+],3));
+palmFrond.setIndex([0,1,2,0,2,3,0,3,4,0,4,1,5,2,1,5,3,2,5,4,3,5,1,4]);
+palmFrond.computeVertexNormals();
 const inTown=(x,z)=>x>548&&x<772&&z>-132&&z<202;
 function pine(x,z,y,s){vegPine(x,z,y,s)}
 function olive(x,z,y,s){vegOlive(x,z,y,s)}
@@ -1597,7 +1622,7 @@ function palm(x,z,y,s){const t=tileOf(x,z).solid,a=rnd(x,z)*TAU,dx=Math.sin(a),d
   let px=x,pz=z,py=y;
   for(let k=0;k<5;k++){const lean=.05+k*.06,L=1.9*s;const cx=px+dx*Math.sin(lean)*L/2,cz=pz+dz*Math.sin(lean)*L/2,cy=py+Math.cos(lean)*L/2;
     t.push({g:GEO.palmSeg,m:mat(cx,cy,cz,a,s,L,s,lean),c:0x8a6c4a});px+=dx*Math.sin(lean)*L;pz+=dz*Math.sin(lean)*L;py+=Math.cos(lean)*L}
-  for(let f=0;f<8;f++){const fa=f/8*TAU+a;t.push({g:GEO.box,m:mat(px+Math.sin(fa)*1.5*s,py-.25*s,pz+Math.cos(fa)*1.5*s,fa,.8*s,.06,3.4*s,.42),c:f%2?0x3f6b2a:0x4f7d32})}
+  for(let f=0;f<8;f++){const fa=f/8*TAU+a;t.push({g:palmFrond,m:mat(px,py,pz,fa,s,s,s),c:f%2?0x3f6b2a:0x4f7d32})}
   addCircle(x,z,.45*s);}
 // street lamps; their heads are kept for the light pools on the road and the lamp lights near the car
 const LAMPS=[];
@@ -1633,9 +1658,13 @@ function ibizaHouse(x,z,h,yaw){
   for(const [ox,oz] of [[-pw/2,.3],[pw/2,.3],[-pw/2,3.2],[pw/2,3.2]])B(px+ox,1.45,D/2+oz,.2,2.9,.2,WOOD);
   for(let k=0;k<6;k++)B(px-pw/2+k*pw/5,2.95,D/2+1.75,.12,.12,3.4,WOOD);
   B(px,2.85,D/2+3.2,pw+.3,.16,.16,WOOD);
-  const BG=[0xc2185b,0xd63384,0xb0205a];
-  for(let k=0;k<3;k++)t.push({g:GEO.ico,m:mat(x+(px-pw/2+.3+k*.5)*cs+(D/2+.35+k*.1)*sn,h+1.6+k*.55,z-(px-pw/2+.3+k*.5)*sn+(D/2+.35+k*.1)*cs,r(13+k)*3,.75,.95,.55),c:BG[k]});
-  t.push({g:GEO.ico,m:mat(x+(px+pw/2-.2)*cs+(D/2+1.2)*sn,h+3.05,z-(px+pw/2-.2)*sn+(D/2+1.2)*cs,r(17),1.2,.35,1.5),c:0xc81d63});
+  // the bougainvillea: leafy masses climb the post and spread along the beams, with magenta bracts on their outer
+  // side (it was three faceted pink lumps and a pink slab, which read as rocks from the road)
+  const BG=[0xc2185b,0xd63384,0xb0205a],LEAF=[0x3d6833,0x4b7838],V=(lx,ly,lz,w,hh,dd,c,ry)=>t.push({g:VGEO.shrub,m:mat(x+lx*cs+lz*sn,h+ly,z-lx*sn+lz*cs,yaw+ry,w,hh,dd),c});
+  for(let k=0;k<3;k++){const lx=px-pw/2+.3+k*.5,lz=D/2+.35+k*.1,ly=1.6+k*.55;
+    V(lx,ly-.08,lz,.52,.6,.42,LEAF[k%2],r(13+k)*3);V(lx+.16,ly+.1,lz+.2,.34,.3,.26,BG[k],r(16+k)*3)}
+  for(let k=0;k<4;k++){const lx=px+pw/2-.2-k*.62,lz=D/2+.7+r(20+k)*1.2;
+    V(lx,2.98,lz,.56,.24,.62,LEAF[k%2],r(24+k)*3);V(lx+.08,3.14,lz+.12,.42,.2,.44,BG[(k+1)%3],r(28+k)*3)}
   for(const ox of [-1.1,1.1])B(ox*(r(18)<.5?1:-1)+ (door/(n-1||1)-.5)*(W-2.8),.35,D/2+.7,.5,.7,.5,0xb5562e,GEO.trunk);
   if(r(19)>.45)palm(x+(-W/2-2.2)*cs+(D/2+2.6)*sn,z-(-W/2-2.2)*sn+(D/2+2.6)*cs,h,1);
   addBox(x,z,W/2,D/2,yaw);if(x3!==null)addBox(x+x3*cs,z-x3*sn,1.8,2,yaw);
@@ -1783,11 +1812,34 @@ const gW=(x,z,y=0)=>new V3(HOUSE.x-gDir.x*x+gOut.x*z,gY+y,HOUSE.z-gDir.z*x+gOut.
 const HOUSE_MESHES=[];
 const SPOTS=[[-16,12.5,.55],[-10,10,.42],[-3.6,8.6,.18],[3.6,8.6,-.18],[10,10,-.42],[16,12.5,-.55],[-17,21.5,.35],[-10.5,22,.2],[-4.8,22,.05],[4.8,22,-.05],[10.8,22,-.2],[17,21.5,-.35]];
 let doorMesh,aquaLight,selRing,selSpot;const fishes=[],pickers=[];
+// polished concrete: one 4 m bay of faintly mottled grey with fine aggregate and a saw-cut joint along two edges, so
+// tiling it lays a joint grid across the floor (the floor was one flat teal)
+function garageFloorTex(){
+  const c=document.createElement("canvas");c.width=c.height=512;const x=c.getContext("2d");
+  let seed=91;const R=()=>(seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296;
+  x.fillStyle="#5a6a73";x.fillRect(0,0,512,512);
+  for(let i=0;i<120;i++){const px=R()*512,py=R()*512,r=30+R()*90,l=R()<.5?255:0,g=x.createRadialGradient(px,py,0,px,py,r);
+    g.addColorStop(0,`rgba(${l},${l},${l},${.012+R()*.022})`);g.addColorStop(1,`rgba(${l},${l},${l},0)`);x.fillStyle=g;x.fillRect(px-r,py-r,r*2,r*2)}
+  for(let i=0;i<9000;i++){const l=R()<.5?235:20;x.fillStyle=`rgba(${l},${l},${l},${.04+R()*.1})`;x.fillRect(R()*512,R()*512,1,1)}
+  x.fillStyle="rgba(26,32,36,.6)";x.fillRect(0,0,512,3);x.fillRect(0,0,3,512);
+  x.fillStyle="rgba(255,255,255,.08)";x.fillRect(0,3,512,1);x.fillRect(3,0,1,512);
+  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(46/4,30/4);
+  t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());return t;
+}
+// a turntable pad under each parking spot: graphite with a fine lathe finish and a bright rim
+function garagePadTex(){
+  const c=document.createElement("canvas");c.width=c.height=256;const x=c.getContext("2d");
+  x.fillStyle="#525c62";x.fillRect(0,0,256,256);
+  for(let r=3;r<118;r+=2){const l=r%4?255:0;x.strokeStyle=`rgba(${l},${l},${l},.05)`;x.beginPath();x.arc(128,128,r,0,TAU);x.stroke()}
+  x.lineWidth=2.5;x.strokeStyle="rgba(24,28,32,.7)";x.beginPath();x.arc(128,128,118.5,0,TAU);x.stroke();
+  x.lineWidth=6;x.strokeStyle="#c4ccd1";x.beginPath();x.arc(128,128,123,0,TAU);x.stroke();
+  return new THREE.CanvasTexture(c);
+}
 function buildHouse(){
   gY=PADS[0].h+YO;
   const wallM=new THREE.MeshPhongMaterial({color:0x86a9c0,shininess:14});
   const darkM=new THREE.MeshPhongMaterial({color:0x22282f,shininess:20});
-  const floorM=new THREE.MeshPhongMaterial({color:0x557d93,shininess:90,specular:0x33454f});
+  const floorM=new THREE.MeshPhongMaterial({map:garageFloorTex(),shininess:70,specular:0x3c484f});
   const shellM=new THREE.MeshLambertMaterial({color:0xf4f2ec});
   const put=(g,m,x,y,z,cast,yaw)=>{const q=new THREE.Mesh(g,m);q.position.copy(gW(x,z,y));q.rotation.y=yaw===undefined?gYaw:yaw;q.castShadow=!!cast;q.receiveShadow=true;scene.add(q);HOUSE_MESHES.push(q);return q};
   const B=(w,h,d)=>new THREE.BoxGeometry(w,h,d);
@@ -1835,6 +1887,21 @@ function buildHouse(){
   // lights
   [[-12,9],[3,12],[15,9]].forEach(([x,z])=>{const l=new THREE.PointLight(0xffeec8,.6,44);l.position.copy(gW(x,z,8.6));scene.add(l);put(new THREE.CylinderGeometry(.5,.62,.22,10),new THREE.MeshBasicMaterial({color:0xfff6dd}),x,9.9,z)});
   [-16,-8,0,8,16].forEach((x,k)=>{const q=put(new THREE.CylinderGeometry(.2,.28,.6,10),darkM,x,8.75,4+k%2*14);q.rotation.order="YXZ";q.rotation.x=.7});
+  // the finish: the pads, a dark skirting and panel joints on the walls, light bars between the ceiling beams and a
+  // light strip along the top of the walls. Three meshes in all (the room was flat colour)
+  {const pads=[],trim=[],glow=[],box=(L,w,h,d,x,y,z,c)=>L.push({g:GEO.box,m:mat(x,y,z,0,w,h,d),c});
+   const pg=new THREE.CircleGeometry(2.85,48).rotateX(-Math.PI/2);
+   for(const [x,z] of SPOTS)pads.push({g:pg,m:new THREE.Matrix4().makeTranslation(x,.012,z),c:0xffffff});
+   const SK=0x2a3036,JN=0x6e8fa3;
+   for(const s of [-1,1]){box(trim,.05,.2,29.5,s*22.725,.1,15,SK);box(trim,15.75,.2,.05,s*14.875,.1,.275,SK);
+     for(let z=3;z<29;z+=3)box(trim,.02,9.8,.04,s*22.74,5.1,z,JN);
+     box(glow,.05,.05,29.5,s*22.72,9.9,15,0xffffff)}
+   box(trim,45.5,.2,.05,0,.1,29.725,SK);for(let x=-21;x<=21;x+=3)box(trim,.04,9.8,.02,x,5.1,29.74,JN);
+   box(glow,45.5,.05,.05,0,9.9,29.72,0xffffff);
+   for(const x of [-11,-4,4,11])box(glow,.3,.04,26,x,9.96,15,0xffffff);
+   put(merge(pads),new THREE.MeshPhongMaterial({map:garagePadTex(),shininess:90,specular:0x46525a}),0,0,0);pg.dispose();
+   put(merge(trim),new THREE.MeshLambertMaterial({vertexColors:true}),0,0,0);
+   put(merge(glow),new THREE.MeshBasicMaterial({color:0xfff3df}),0,0,0)}
   selRing=new THREE.Mesh(new THREE.RingGeometry(2.7,3.0,48),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.85,side:THREE.DoubleSide}));
   selRing.rotation.x=-Math.PI/2;scene.add(selRing);
   selSpot=new THREE.SpotLight(0xfff1d6,1.1,22,.5,.6);scene.add(selSpot);scene.add(selSpot.target);
@@ -1851,9 +1918,28 @@ const SHOW=new V3(0,-300,0);
 let podium;
 function buildDealer(){
   const y=meshH(DEALER.x,DEALER.z);
-  const wallM=new THREE.MeshLambertMaterial({color:0xf2f0ea});
+  // Bake recessed display bays into one facade map for the three street-facing blank walls.
+  const facade=document.createElement("canvas");facade.width=512;facade.height=128;
+  const ctx=facade.getContext("2d");
+  ctx.fillStyle="#e4dfd4";ctx.fillRect(0,0,512,128);
+  ctx.fillStyle="#b5afa4";ctx.fillRect(0,14,512,2);ctx.fillRect(0,110,512,18);
+  const glazing=ctx.createLinearGradient(0,34,0,89);
+  glazing.addColorStop(0,"#819698");glazing.addColorStop(.56,"#566d70");glazing.addColorStop(1,"#384f53");
+  for(let bay=0;bay<6;bay++){
+    const left=12+bay*82;
+    ctx.fillStyle="#b5afa4";ctx.fillRect(left-2,32,72,61);
+    ctx.fillStyle="#303e3f";ctx.fillRect(left,34,68,55);
+    ctx.fillStyle=glazing;ctx.fillRect(left+3,37,30,49);ctx.fillRect(left+35,37,30,49);
+    ctx.fillStyle="#c9c3b8";ctx.fillRect(left-3,89,74,3);
+  }
+  const facadeMap=new THREE.CanvasTexture(facade);facadeMap.encoding=THREE.sRGBEncoding;
+  facadeMap.anisotropy=4;
+  const wallM=new THREE.MeshLambertMaterial({map:facadeMap});
+  const walls=new THREE.BoxGeometry(40,11,40),uv=walls.attributes.uv,normals=walls.attributes.normal;
+  // The roof, underside and signed entrance sample a plain patch of plaster.
+  for(let i=0;i<uv.count;i++)if(Math.abs(normals.getY(i))>.5||normals.getZ(i)<-.5)uv.setXY(i,.5,.95);
   const add=(g,m,x,yy,z)=>{const q=new THREE.Mesh(g,m);q.position.set(x,yy,z);q.castShadow=true;q.receiveShadow=true;scene.add(q);return q};
-  add(new THREE.BoxGeometry(40,11,40),wallM,DEALER.x,y+5.5,DEALER.z);
+  add(walls,wallM,DEALER.x,y+5.5,DEALER.z);
   add(new THREE.BoxGeometry(34,7.5,.4),new THREE.MeshPhongMaterial({color:0x1b252d,shininess:160,specular:0xbfd3e0}),DEALER.x,y+4,DEALER.z-20.1);
   add(new THREE.BoxGeometry(46,.16,16),new THREE.MeshLambertMaterial({color:0xc9c5bb}),DEALER.x,y+.2,DEALER.z-28);
   const c=document.createElement("canvas");c.width=512;c.height=96;const x=c.getContext("2d");
@@ -2075,8 +2161,15 @@ function buildSea(){
   g.setAttribute("color",new THREE.BufferAttribute(col,3));
   const m=new THREE.MeshPhongMaterial({vertexColors:true,transparent:true,opacity:.86,shininess:240,specular:0xdfeef5,normalMap:waveNormalTex(),normalScale:new THREE.Vector2(.42,.42)});
   m.onBeforeCompile=s=>{Object.assign(s.uniforms,seaU);
-    s.fragmentShader="uniform vec2 wO1,wO2;\n"+s.fragmentShader.replace("vec3 mapN = texture2D( normalMap, vUv ).xyz * 2.0 - 1.0;",
-      "vec3 mapN = normalize( ( texture2D( normalMap, vUv*"+(SZ/46).toFixed(1)+"+wO1 ).xyz*2.-1. ) + ( texture2D( normalMap, vUv*"+(SZ/17).toFixed(1)+"+wO2 ).xyz*2.-1. )*.8 );")};
+    // Three r128 expands shader includes after onBeforeCompile. Edit the normal-map
+    // chunk itself so both scrolling samples reach the compiled fragment shader.
+    const waveChunk=THREE.ShaderChunk.normal_fragment_maps.replace(
+      "vec3 mapN = texture2D( normalMap, vUv ).xyz * 2.0 - 1.0;",
+      `vec3 swell = texture2D(normalMap, vUv * ${(SZ/46).toFixed(1)} + wO1).xyz * 2.0 - 1.0;
+       vec3 ripple = texture2D(normalMap, vUv * ${(SZ/17).toFixed(1)} + wO2).xyz * 2.0 - 1.0;
+       vec3 mapN = normalize(swell + 0.55 * ripple);`);
+    s.fragmentShader="uniform vec2 wO1,wO2;\n"+s.fragmentShader.replace("#include <normal_fragment_maps>",waveChunk);
+  };
   water=new THREE.Mesh(g,m);water.receiveShadow=true;scene.add(water);
   buildFoam();buildVedra();buildBoats();
 }
@@ -2098,7 +2191,7 @@ function buildFoam(){
     const cx=Math.cos(a),cz=Math.sin(a),x=cx*r,z=cz*r;
     if(prev)cum+=Math.hypot(x-prev[0],z-prev[1]);
     const base=P.length/3;
-    P.push(cx*(r-2.5),.07,cz*(r-2.5),cx*(r+7),.07,cz*(r+7));U.push(cum/14,0,cum/14,1);
+    P.push(cx*(r-2.5),.07,cz*(r-2.5),cx*(r+7),.07,cz*(r+7));U.push(cum/14,1,cum/14,0);
     if(prev)I.push(base-2,base,base-1,base-1,base,base+1);
     prev=[x,z];
   }
@@ -2445,7 +2538,7 @@ function carEnvScene(){
   const s=new THREE.Scene(),m=new THREE.Mesh(new THREE.SphereGeometry(90,32,16),sky.material);m.frustumCulled=false;s.add(m);
   const g=new THREE.Mesh(new THREE.CircleGeometry(85,32),new THREE.MeshBasicMaterial({color:0x55524c,fog:false}));g.rotation.x=-Math.PI/2;g.position.y=-3;s.add(g);
   CAR_ENV.ground=g;return s}
-function carEnvTex(){if(!CAR_ENV.tex)updateCarEnv(true);return CAR_ENV.tex}
+function carEnvTex(){if(!CAR_ENV.tex)updateCarEnv(true);return curCarEnv()}
 function updateCarEnv(force){
   const k=[skyU.top.value,skyU.hor.value,skyU.sunCol.value].map(c=>c.r+c.g+c.b).concat([skyU.sunDir.value.x,skyU.sunDir.value.y]);
   const old=CAR_ENV.key,now=performance.now();
@@ -2457,10 +2550,35 @@ function updateCarEnv(force){
   if(!CAR_ENV.pm){CAR_ENV.pm=new THREE.PMREMGenerator(renderer);CAR_ENV.scene=carEnvScene()}
   CAR_ENV.ground.material.color.copy(hemi.groundColor).lerp(scene.fog.color,.35).multiplyScalar(.55);
   const rt=CAR_ENV.pm.fromScene(CAR_ENV.scene,.02,.1,200),old2=CAR_ENV.rt;CAR_ENV.rt=rt;CAR_ENV.tex=rt.texture;
-  for(const m of CAR_ENV.mats){m.envMap=rt.texture;m.needsUpdate=true}
+  if(!STUDIO_ENV.on)for(const m of CAR_ENV.mats){m.envMap=rt.texture;m.needsUpdate=true}
   if(old2)old2.dispose();CAR_ENV.key=k;CAR_ENV.t=now;
 }
 const envMat=m=>{CAR_ENV.mats.add(m);return m};
+// Indoors (the garage and the showroom) the cars reflect a studio, a grey room with long light panels overhead and
+// soft ones round the sides, instead of the open sky: the sky's blue and its bright horizon used to wash over a car
+// standing in the garage
+const STUDIO_ENV={tex:null,on:false};
+function studioEnvTex(){
+  if(STUDIO_ENV.tex)return STUDIO_ENV.tex;
+  const s=new THREE.Scene(),basic=(c,side)=>new THREE.MeshBasicMaterial({color:c,side,fog:false});
+  const room=new THREE.Mesh(new THREE.BoxGeometry(44,16,44),basic(0x3c4349,THREE.BackSide));room.position.y=5;s.add(room);
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(44,44),basic(0x5a6268,THREE.FrontSide));floor.rotation.x=-Math.PI/2;floor.position.y=-1.5;s.add(floor);
+  const panel=(w,h,k,x,y,z,rx,ry)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),basic(new THREE.Color(k,k,k*.96),THREE.DoubleSide));m.position.set(x,y,z);m.rotation.set(rx,ry,0);s.add(m)};
+  for(const x of [-7.5,-2.5,2.5,7.5])panel(1.2,30,5,x,12,0,Math.PI/2,0);
+  for(const sd of [-1,1])panel(16,4.5,2.2,sd*21.5,4.5,0,0,sd*Math.PI/2);
+  panel(20,4,1.6,0,4.5,21.5,0,Math.PI);panel(20,4,1.6,0,4.5,-21.5,0,0);
+  if(!CAR_ENV.pm){CAR_ENV.pm=new THREE.PMREMGenerator(renderer);CAR_ENV.scene=carEnvScene()}
+  STUDIO_ENV.tex=CAR_ENV.pm.fromScene(s,0,.1,100).texture;
+  s.traverse(o=>{if(o.isMesh){o.geometry.dispose();o.material.dispose()}});
+  return STUDIO_ENV.tex;
+}
+// the reflections a car shows now: the studio indoors, the sky outside
+const curCarEnv=()=>STUDIO_ENV.on?studioEnvTex():CAR_ENV.tex;
+function carIndoors(on){
+  if(STUDIO_ENV.on===on)return;STUDIO_ENV.on=on;
+  const tex=curCarEnv();if(!tex)return;
+  for(const m of CAR_ENV.mats){m.envMap=tex;m.needsUpdate=true}
+}
 /* ================================================================ CAR LOOKS
    A body is a smooth loft: cross-sections along the car whose top and bottom follow the side profile (PROF), whose
    width narrows towards the nose and tail like a car seen from above, with the sides cut up round the wheels and
@@ -2520,6 +2638,10 @@ function carShape(pr,shape,openCockpit){
     const Ts=a>0?Math.max(T,a+.075):T,yb=Bo+H*S.belt;
     const c=[0,Bo, hw*.72,Bo, hw-.07*k,Bo+.015, hw-.012*k,Bo+Math.min(.09,H*.25), hw,yb, hw-.025*k,Bo+(Ts-Bo)*.82,
       hw-.07*k,Ts-.03*k, hw-S.tuck*1.7*k,Ts, hw*.45,(Ts+T)/2+S.crown*.8, 0,T+S.crown];
+    // Raised bonnet shoulders taper into the nose and disappear before the windscreen.
+    const bonnet=smooth01(pr.ws[0],pr.ws[0]+.28,z)*(1-smooth01(z1-.42,z1-.12,z));
+    c[16]+=hw*.12*bonnet;
+    c[17]+=(shape==="muscle"?.048:.024)*bonnet;
     if(a>0)for(const i of [1,2,3]){const y=c[i*2+1];if(y<a){c[i*2+1]=a;if(i===1)c[2]=Math.min(c[2],pr.tr-.24)}}
     // up the side the points only ever climb (the lifted arch used to fold the side over itself)
     for(let i=2;i<=7;i++)c[i*2+1]=Math.max(c[i*2+1],c[i*2-1]+.012);
@@ -2618,7 +2740,11 @@ function bodyPaint(K){
       else if(S.head==="box"){inL=band(ax,xc-lw*1.2,xc+lw*1.15,aa)*band(y,hy-.065,hy+.06,aa);drl=line(y-(hy+.05),.007,aa)*band(ax,xc-lw*1.1,xc+lw*1.05,aa);
         for(const c of [xc-lw*.45,xc+lw*.35])proj=Math.max(proj,1-smooth01(.028,.034,Math.hypot(ax-c,y-hy+.005)))}
       else{inL=1-smooth01(.07,.07+aa,Math.hypot(ax-xc,y-hy));drl=line(Math.hypot(ax-xc,y-hy)-.058,.005,aa);proj=1-smooth01(.03,.036,Math.hypot(ax-xc,y-hy))}
-      if(inL>.5){o.c=.02;o.r=.04;o.m=0;o.l=Math.max(drl,proj*.35,.04);o.lr=1;o.lg=.97;o.lb=.9;return}
+      if(inL>.5){
+        // The reflector cup remains visible behind the running light even with the lamps off.
+        const lensHeight=S.head==="swept"?hy+(ax-xc)*.3:S.head==="blade"?hy+.02+(ax-xc)*.22:hy;
+        const reflector=1-smooth01(0,.052,Math.abs(y-lensHeight));
+        o.c=.036+reflector*.20+proj*.18;o.r=.10+.12*(1-reflector);o.m=.4;o.l=Math.max(drl,proj*.35,.04);o.lr=1;o.lg=.97;o.lb=.9;return}
     }
     // tail lights
     if(nz<-.05&&z<R+.55){
@@ -2627,6 +2753,17 @@ function bodyPaint(K){
         if(!inL&&ax<xc-lw&&Math.abs(y-(yt-.005))<.006){o.c=.02;o.r=.05;o.m=0;o.l=.55;o.lr=1;o.lg=.12;o.lb=.05;return}}
       else{inL=band(ax,xc-lw*.85,xc+lw*1.1,aa)*band(y,yt-.07,yt+.035,aa);led=Math.max(.3,(line(y-(yt-.02),.01,aa)+line(ax-(xc+lw*.6),.008,aa))*inL)}
       if(inL>.5){o.c=.03;o.r=.05;o.m=0;o.l=led;o.lr=1;o.lg=.1;o.lb=.04;return}
+    }
+    // A recessed pocket and a painted pull sit just forward of each door's trailing seam.
+    if(side&&y>T-.22&&y<T-.055){
+      for(const door of dA){
+        const dz=z-(door[1]+.17),dy=y-(T-.135);
+        if(Math.abs(dz)>.105||Math.abs(dy)>.045)continue;
+        const pocket=1-smooth01(.75,1,(dz/.105)**2+(dy/.044)**2);
+        const pull=band(dz,-.08,.08,aa)*band(dy,-.004,.018,aa);
+        o.c=1-pocket*.72+pull*.5;o.r=.43-pull*.19;
+        if(pocket>.01)return;
+      }
     }
     // side intake behind the doors (mid-engined cars)
     if(S.intake&&side&&z<dA[0][1]-.06&&z>dA[0][1]-.62){const yt=T-.1-(dA[0][1]-.06-z)*.25;if(y>Bo+.16&&y<yt){o.c=.012;o.r=.6;o.m=0;return}}
@@ -2878,8 +3015,14 @@ function buildLook(cd,color,env,q,mods){
   // mirrors on the doors, just behind the windscreen base
   const mz=pr.ws[0]-.18,my=pr.ws[1]+.07;
   // the mirror sits on the door top, just outside the glass, on a short black arm
+  // The cap uses the same paint and finish as the body. Sample bare bonnet paint
+  // at its centreline; wrapping the whole body atlas around a cap put grille and lamp marks on it.
+  const capGeo=new THREE.SphereGeometry(.1,16,10),capUv=capGeo.attributes.uv;
+  const bonnetZ=(pr.ws[0]+K.z1)/2;
+  const paintU=Math.acos(1-2*(bonnetZ-K.z0)/(K.z1-K.z0))/Math.PI;
+  for(let i=0;i<capUv.count;i++)capUv.setXY(i,paintU,1);
   for(const s of [-1,1]){const hw=K.halfW(mz),xs=hw-S.tuck*1.7;
-    const cap=add(new THREE.SphereGeometry(.1,16,10),bodyM,s*(hw+.02),my+.07,mz);cap.scale.set(.8,.55,1.1);
+    const cap=add(capGeo,bodyM,s*(hw+.02),my+.07,mz);cap.scale.set(.8,.55,1.1);
     const gl=add(new THREE.CircleGeometry(.075,16),Mt.chrome,s*(hw+.02),my+.07,mz-.105);gl.rotation.y=Math.PI;gl.scale.set(1.05,.68,1);
     add(new THREE.BoxGeometry(hw+.02-xs,.03,.07),Mt.black,s*(xs+hw+.02)/2,my+.03,mz+.02)}
   // number plates
@@ -3028,7 +3171,14 @@ function buildTrafficCar(color,shape){
     for(const [x,z] of [[-tw,pr.wb],[tw,pr.wb],[-tw,-pr.wb],[tw,-pr.wb]]){
       const m=new THREE.Matrix4().makeTranslation(x,pr.wr,z).multiply(new THREE.Matrix4().makeScale(x<0?-sc:sc,sc,sc));
       items.push({g:W.tire,m,c:0x101112},{g:trafficDisc,m,c:0x7d8288},{g:W.cap,m,c:0x2a2c2f})}
-    tGeoCache[key]=merge(items)}
+    // Batch the two satin door mirrors with the wheels so distant traffic keeps three draws.
+    const mirrorZ=pr.ws[0]-.18,mirrorY=pr.ws[1]+.12,shoulder=parts.K.halfW(mirrorZ);
+    const housing=new THREE.SphereGeometry(1,8,5),stem=new THREE.BoxGeometry(1,1,1);
+    for(const side of [-1,1]){
+      items.push({g:stem,m:mat(side*(shoulder-.035),mirrorY-.04,mirrorZ,0,.18,.035,.055),c:0x292c2e},
+        {g:housing,m:mat(side*(shoulder+.065),mirrorY,mirrorZ,0,.095,.057,.11),c:0x383c40});
+    }
+    tGeoCache[key]=merge(items);housing.dispose();stem.dispose()}
   const G=new THREE.Group();
   const bodyM=envMat(new THREE.MeshStandardMaterial({color,map:parts.bt.col,roughnessMap:parts.bt.rm,metalnessMap:parts.bt.rm,roughness:1,metalness:1,
     envMap:env,envMapIntensity:.7,emissive:0xffffff,emissiveMap:parts.bt.lit,emissiveIntensity:.35}));
@@ -3632,7 +3782,7 @@ function ghostModel(id){
     o.material=(Array.isArray(o.material)?o.material:[o.material]).map(x=>{if(!own.has(x)){const c=x.clone();c.transparent=true;c.opacity=.36;c.depthWrite=false;own.set(x,c)}return own.get(x)});
     if(o.material.length===1)o.material=o.material[0]});
   for(const o of drop)o.parent.remove(o);
-  for(const [x,c] of own){if(CAR_ENV.mats.has(x)){envMat(c);if(CAR_ENV.tex)c.envMap=CAR_ENV.tex}if(!sh.M.has(x)){CAR_ENV.mats.delete(x);x.dispose()}}
+  for(const [x,c] of own){if(CAR_ENV.mats.has(x)){envMat(c);if(CAR_ENV.tex)c.envMap=curCarEnv()}if(!sh.M.has(x)){CAR_ENV.mats.delete(x);x.dispose()}}
   m.bodyM=own.get(m.bodyM)||m.bodyM;m.tailM=own.get(m.tailM)||m.tailM;
   if(m.inside)m.inside.visible=false;
   m.G.visible=false;scene.add(m.G);GH.m=m;GH.id=id;GH.o={};return m;
@@ -4009,6 +4159,15 @@ function fitCanvas(cv,css){const d=Math.min(devicePixelRatio,2);cv.width=css*d;c
 let spD=1,mmD=1;
 // very short touch screens (a phone held sideways, 360 px tall on many Androids) get a smaller dial and minimap,
 // so neither runs into the pedals and steering buttons below them
+// On a phone the minimap sits under the money, level and place. When that column grows (the damage pill) the
+// minimap, and the messages below it, move down by as much: it used to cover the place and the clock
+function hudStack(){
+  const r=document.documentElement;r.style.setProperty("--tlx","0px");
+  if(!isTouch)return;
+  const tl=$("tl").getBoundingClientRect(),mw=$("minWrap").getBoundingClientRect();if(!tl.height||!mw.height)return;
+  r.style.setProperty("--tlx",Math.max(0,Math.ceil(tl.bottom+6-mw.top))+"px");
+}
+if(window.ResizeObserver)new ResizeObserver(hudStack).observe($("tl"));addEventListener("resize",hudStack);
 function layoutHUD(){const small=isTouch||W<700,short=isTouch&&H<=400;SPS=small?(short?104:128):220;MMS=small?(short?100:118):184;spD=fitCanvas(spc,SPS);mmD=fitCanvas(mm,MMS)}
 const RATIOS=[0,.2,.36,.52,.68,.84,1.05];
 function gearInfo(kph,top,rev){
@@ -4578,9 +4737,15 @@ function photoCapture(){
   return new Promise(res=>{
     const fail=err=>{PH.busy=false;phMsg("Couldn't save the photo: "+((err&&err.message)||err||"the browser blocked it"),"bad");res(false)};
     try{
-      applyDayNight();updateLampLights();photoFrame(0);syncRenderView();renderer.render(scene,camera);
-      const src=renderer.domElement,c=document.createElement("canvas");c.width=src.width;c.height=src.height;
-      const x=c.getContext("2d");if(!x)throw new Error("no 2D canvas");x.drawImage(src,0,0);
+      // a photo is a still, so it is drawn at the quality setting's full resolution even while Auto has lowered the
+      // live picture for speed (photos then came out at three-quarter size); the live picture is put back as it was
+      const live=prNow,raise=PR_MAX>live;let c;
+      if(raise){renderer.setPixelRatio(PR_MAX);renderer.setSize(W,H,false)}
+      try{
+        applyDayNight();updateLampLights();photoFrame(0);syncRenderView();renderer.render(scene,camera);
+        const src=renderer.domElement;c=document.createElement("canvas");c.width=src.width;c.height=src.height;
+        const x=c.getContext("2d");if(!x)throw new Error("no 2D canvas");x.drawImage(src,0,0);
+      }finally{if(raise){renderer.setPixelRatio(live);renderer.setSize(W,H,false);renderer.render(scene,camera)}}
       c.toBlob(b=>{if(PH.busy!==capture){res(false);return}if(!b){fail(new Error("the browser returned no image"));return}PH.busy=false;photoShotShow(b);res(true)},"image/png");
     }catch(err){fail(err)}
   });
@@ -4918,7 +5083,7 @@ let headLight=null,fillLight=null,curId=save.cur,testDrive=null;
 // the two street lamps nearest the car shine for real, so the car (not just the road) lights up as it passes under them
 const LAMP_LIGHTS=[0,1].map(()=>{const l=new THREE.PointLight(0xffc68a,0,26,1.3);scene.add(l);return l});
 const curCar=()=>carById(curId);
-function setState(s){state=s;$("c").style.cursor="default";if(s!=="DRIVE"){promptAct=null;const p=document.getElementById("prompt");if(p)p.classList.add("hide")}}
+function setState(s){state=s;carIndoors(s==="GARAGE"||s==="DEALER"||s==="LOAD");$("c").style.cursor="default";if(s!=="DRIVE"){promptAct=null;const p=document.getElementById("prompt");if(p)p.classList.add("hide")}}
 function show(id,on){$(id).classList.toggle("hide",!on)}
 function hudOn(on){show("hud",on);show("chips",on);show("pads",on&&isTouch)}
 

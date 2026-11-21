@@ -346,7 +346,7 @@ test.describe("photo mode", () => {
 });
 
 test.describe("photo mode capture (real WebGL rendering)", () => {
-  test("captures a non-blank PNG the size of the 3D view, with nothing from the page on top @webgl", async ({ game, page }) => {
+  test("captures a non-blank PNG of the 3D view at full resolution, with nothing from the page on top @webgl", async ({ game, page }) => {
     await driving(game, { render: true });
     await game.key("v");
     await game.waitState("PHOTO");
@@ -379,12 +379,15 @@ test.describe("photo mode capture (real WebGL rendering)", () => {
         n++;
         if (d[i] > 240 && d[i + 1] < 20 && d[i + 2] > 240) magenta++;
       }
-      const src = __T.renderer.domElement;
-      return { type: blob.type, w: bmp.width, h: bmp.height, cw: src.width, ch: src.height, mean: sum / n, sd: Math.sqrt(sum2 / n - (sum / n) ** 2), magenta, bytes: blob.size };
+      // the photo is the 3D view at the quality setting's full resolution, even if Auto has lowered the live picture,
+      // and the live picture is back at its own resolution
+      const src = __T.renderer.domElement, at = (pr) => [Math.floor(__T.W * pr), Math.floor(__T.H * pr)];
+      return { type: blob.type, w: bmp.width, h: bmp.height, cw: at(__T.PR_MAX)[0], ch: at(__T.PR_MAX)[1], live: [src.width, src.height], liveWant: at(__T.prNow), mean: sum / n, sd: Math.sqrt(sum2 / n - (sum / n) ** 2), magenta, bytes: blob.size };
     });
     await game.eval(() => document.getElementById("__overlay").remove());
     expect(stats.type).toBe("image/png");
     expect([stats.w, stats.h]).toEqual([stats.cw, stats.ch]);
+    expect(stats.live, "the live picture is back at its own resolution").toEqual(stats.liveWant);
     expect(stats.sd, "brightness variation (a blank frame has none)").toBeGreaterThan(8);
     expect(stats.mean).toBeGreaterThan(10);
     expect(stats.magenta).toBe(0);
