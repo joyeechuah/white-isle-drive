@@ -4348,16 +4348,15 @@ function makeMusic(ctx,out){
   };
 }
 
-// ---- recorded tracks: three songs made with Google Flow Music, in the audio folder. Each file plays its
-// opening once, then loops a section that starts at `offset` and lasts L seconds; every repeat fades in over
-// the X-second tail of the one before, scheduled on the audio clock so the beat never drifts.
-// The composed tracks above stand in while a file loads, and for good if files can't be fetched (a page
-// opened straight from disk can't). Only the songs in use are kept decoded, to spare memory on phones.
+// Recorded scene music. Loop timing comes from the actual decoded file duration.
 const SONGS={
-  lounge:{url:"audio/showroom.mp3",offset:5.9122,L:120.0001,X:1.5,gain:.41},   // Mediterranean Showroom
-  coast:{url:"audio/cruise.mp3",offset:20.1286,L:99.9555,X:1.5,gain:.28},      // Coastal Cruise Loop
-  race:{url:"audio/highway.mp3",offset:22.09,L:107.9999,X:1.5,gain:.3}         // Island Highway Run
+  lounge:{url:"audio/showroom.mp3",gain:.41},
+  coast:{url:"audio/cruise.mp3",gain:.28},
+  race:{url:"audio/highway.mp3",gain:.30},
+  night:{url:"audio/island-night-drive.mp3",gain:.28},
+  title:{url:"audio/white-isle-drive-title.mp3",gain:.36,once:true}
 };
+let titleUntil=0;
 let MUSIC=null,songOut=null;
 function musicInit(){if(MUSIC||!AC)return;try{
   // mixed to sit just under the engine on the road; the garage music a little fuller, with no engine to compete with
@@ -4381,26 +4380,31 @@ function songStart(n,now){const S=SONGS[n],P={bus:AC.createGain(),tone:AC.create
   P.tone.type="lowpass";P.tone.frequency.value=18000;P.bus.gain.value=0;P.bus.connect(P.tone);P.tone.connect(songOut);
   // first pass from the very beginning, so the opening is heard once
   const t0=now+.05,src=AC.createBufferSource(),g=AC.createGain();src.buffer=S.buf;src.connect(g);g.connect(P.bus);src.start(t0);
-  P.srcs.push({src,g});P.next=t0+S.offset+S.L;S.p=P;return P}
+  P.srcs.push({src,g});P.fade=Math.min(1.5,S.buf.duration/4);P.period=S.buf.duration-P.fade;
+  P.next=S.once?Infinity:t0+P.period;S.p=P;return P}
 function songStop(n,now){const S=SONGS[n],P=S.p;if(!P||P.end)return;P.want=0;P.bus.gain.setTargetAtTime(0,now,.45);P.end=now+2.5}
 function songTick(n,now){const S=SONGS[n],P=S.p;if(!P)return;
   if(P.end&&now>P.end){P.srcs.forEach(o=>{try{o.src.stop()}catch(e){}o.g.disconnect()});P.bus.disconnect();P.tone.disconnect();S.p=null;S.idle=now;return}
   // the next repeat, a second before it is due
-  if(P.next<now+1){
+  if(!P.end&&P.next<now+1){
     if(P.next<now){P.next=now+.05}   // came back from a suspended tab: just carry on
     const src=AC.createBufferSource(),g=AC.createGain(),prev=P.srcs[P.srcs.length-1];src.buffer=S.buf;src.connect(g);g.connect(P.bus);
     // each piece plays to the end of the file, which is exactly where the next fade-in finishes, so nothing is stopped
-    g.gain.value=0;g.gain.setValueCurveAtTime(FADE_IN,P.next,S.X);src.start(P.next,S.offset);
-    prev.g.gain.setValueCurveAtTime(FADE_OUT,P.next,S.X);
+    g.gain.value=0;g.gain.setValueCurveAtTime(FADE_IN,P.next,P.fade);src.start(P.next);
+    prev.g.gain.setValueCurveAtTime(FADE_OUT,P.next,P.fade);
     P.srcs.push({src,g});if(P.srcs.length>2)P.srcs.shift().g.disconnect();
-    P.next+=S.L}
+    P.next+=P.period}
 }
 // which song for which screen: the lounge indoors, the road outside, the race track during events, quieter behind menus
 function musicWant(){
   if(tabIdle||!save.music)return [null,0];   // SOUND FX covers engine, tyres and beeps; music has its own switch
-  if(state==="GARAGE"||state==="LOAD"||state==="DEALER")return ["lounge",1];
-  if(state==="EXIT")return ["coast",.8];
-  const road=ev?"race":"coast";
+  if(state==="LOAD")return ["title",1];
+  if(state==="GARAGE"&&!cuOpen()&&performance.now()<titleUntil)return ["title",1];
+  titleUntil=0;
+  if(state==="GARAGE"||state==="DEALER")return ["lounge",1];
+  const cruise=night>=.5?"night":"coast";
+  if(state==="EXIT")return [cruise,.8];
+  const road=ev?"race":cruise;
   if(state==="PAUSE"||state==="MAP"||state==="INTRO"||state==="RESULT")return [road,.5];
   return [road,1];
 }
@@ -4419,7 +4423,7 @@ function musicTick(){
       if(W.askT==null)W.askT=now;
       if(cur&&W.st!=="failed")file=cur;
       // give a first load up to 4 s of silence rather than starting the composed track only to swap it out
-      else if(W.retryAt!=null||W.st==="failed"||now-W.askT>4)comp=want==="race"?"coast":want}
+      else if(W.retryAt!=null||W.st==="failed"||now-W.askT>4)comp=(want==="lounge"||want==="title")?"lounge":"coast"}
   }
   for(const n in SONGS){const S=SONGS[n];
     if(n===file){if(!S.p||S.p.end){if(S.p)songTick(n,now+99);songStart(n,now)}
@@ -4428,7 +4432,7 @@ function musicTick(){
     songTick(n,now);if(S.p)S.idle=now;
     // free the decoded audio of a song that hasn't played for half a minute
     if(!S.p&&S.buf&&n!==file&&!(n==="coast"&&want==="lounge")&&!(n==="race"&&state==="INTRO")&&now-(S.idle||0)>30){S.buf=null;S.st="fetched"}
-    if(S.p&&n!=="lounge")S.p.tone.frequency.setTargetAtTime(lerp(18000,2600,night),now,1.5);
+    if(S.p&&n!=="lounge"&&n!=="title")S.p.tone.frequency.setTargetAtTime(lerp(18000,2600,night),now,1.5);
   }
   MUSIC.set(comp,lv,now);
   // softer and darker after sunset
@@ -4450,6 +4454,7 @@ function firstGesture(){
 GESTURES.forEach(g=>addEventListener(g,firstGesture,true));
 // the garage song downloads while the island is being built, so it can start the moment the player taps START
 songFetch("lounge");
+songFetch("title");
 // nothing plays while the tab is hidden; picks up again when it comes back
 document.addEventListener("visibilitychange",()=>{if(!AC)return;if(document.hidden){try{const p=AC.suspend();if(p&&p.catch)p.catch(()=>{})}catch(e){}}else acResume()});
 
@@ -5998,7 +6003,7 @@ function boot(){
   // browsers only allow sound after a tap or key press, so the garage opens on one: the music starts with it
   let entered=false;
   const enter=()=>{if(entered)return;entered=true;removeEventListener("keydown",onKey,true);
-    if(!window.__autostart)firstGesture();
+    if(!window.__autostart){firstGesture();if(save.music)titleUntil=performance.now()+6000;}
     $("load").style.opacity=0;setTimeout(()=>{show("load",false);show("gui",true);setState("GARAGE")},600)};
   const onKey=e=>{if(e.key!=="Tab"&&e.key!=="Shift"&&e.key!=="Control"&&e.key!=="Alt"&&e.key!=="Meta")enter()};
   clBoot();
