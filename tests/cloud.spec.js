@@ -382,12 +382,15 @@ test.describe("cloud save", () => {
       await expect.poll(() => status(game).then((s) => s.st)).toBe("synced");
       await page.locator("#clOut").click();
       await expect.poll(() => status(game).then((s) => s.uid)).toBe(null);
+      // signed out, the device keeps only the account's id (to ask before its progress goes elsewhere): no name, no email
+      const kept = await game.eval(() => JSON.parse(localStorage.getItem(__T.CLOUD_KEY)));
+      expect(kept).toMatchObject({ uid: null, name: "", email: "", owner: "u1", ownerName: "" });
       // someone else signs in here, with an account that has nothing saved
       await setCloud(game, `s.acct={uid:"u2",name:"Sam",email:"sam@example.com"};`);
       await page.locator("#clIn").click();
       await expect(page.locator("#cloudPick")).toBeVisible();
       await expect(page.locator("#cpkTitle")).toHaveText("Use this device's progress for this account?");
-      await expect(page.locator("#cpkP")).toContainText("Jo's Google account");
+      await expect(page.locator("#cpkP")).toContainText("last backed up to another Google account");
       await expect(page.locator("#cpkAcc")).toContainText("No progress saved yet");
       await expect(page.locator("#cpkKeepAcc")).toHaveText("START NEW");
       // nothing went to the new account before the choice
