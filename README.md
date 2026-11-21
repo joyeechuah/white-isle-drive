@@ -59,14 +59,14 @@ The pause menu opens photo mode, the Island Passport, the Contracts board and th
 - Collision damage with impact-based momentum transfer, engine-power penalties and smoke; rear-view control on keyboard, touch and gamepad; **free garage repairs or optional credit-paid roadside repairs** via an interactive condition panel
 - Improved driving session lifecycle: finished AI rivals coast to a stop, inactive tabs stop simulation/audio, and traffic vehicles recover from failed placements
 - Garage touch controls that support pinch-zoom from the lower information panel, plus stable three-finger pinch handoffs; controller actions don't accidentally activate a second screen
-- A three-track soundtrack: a Mediterranean lounge groove in the garage and dealership, Balearic house for free driving and a faster track for races, looping without a gap, quieter behind menus and softer after dark
+- Five recorded tracks cover the title reveal, garage and customization, daytime cruising, late-night driving and races. Music plays more quietly behind driving menus.
 - Engine, tyre, surface and impact sound synthesised live with the Web Audio API
 - Responsive HUD for desktop and touch screens in landscape or portrait
 - Optional cloud save: play as a guest, or choose SAVE MY PROGRESS to sign in with Google and back up your credits, cars, customisations and achievements, then carry on from another device. A copy always stays in the browser for offline play, the game shows when it last backed up, and if this device and your account have different progress it asks which to keep (see [CLOUD_SETUP.md](CLOUD_SETUP.md))
 
 ## How it works
 
-The playable game lives in `index.html`: HTML and CSS for the interface, vanilla JavaScript for simulation and game state, and [three.js](https://threejs.org/) r128 (MIT licence) for WebGL graphics. Terrain, roads, buildings, vegetation, vehicle models, many textures and sound effects are generated in code. Three soundtrack files in `audio/` load on demand. A slow initial load falls back to synthesized music after four seconds if no recording is playing. Over HTTP, failed downloads and decodes retry after 3, 9, 27 and then 30 seconds while the track is needed or preloading. A Content Security Policy restricts network connections and embedded resources.
+The playable game lives in `index.html`: HTML and CSS for the interface, vanilla JavaScript for simulation and game state, and [three.js](https://threejs.org/) r128 (MIT licence) for WebGL graphics. Terrain, roads, buildings, vegetation, vehicle models, many textures and sound effects are generated in code. Five soundtrack files in `audio/` load on demand. A slow initial load falls back to synthesized music after four seconds if no recording is playing. An HTTP download has two minutes to finish, including its response body. Failed HTTP downloads and decodes retry after 3, 9, 27 and then 30 seconds while the track is needed or preloading. A Content Security Policy restricts network connections and embedded resources.
 
 Optional cloud backup uses Firebase Authentication and Firestore, with the Firebase scripts loaded only when cloud save is used. Hosting is static through GitHub Pages. Node.js, Playwright and ESLint are **development and test tools**, not runtime requirements.
 
@@ -144,7 +144,7 @@ When Google Fonts load, Google can receive the visitor's IP address as part of t
 
 ## Music
 
-The soundtrack was generated with Google Flow Music under a Google AI Plus plan: *Mediterranean Showroom* (garage and dealership), *Coastal Cruise Loop* (free driving) and *Island Highway Run* (races and time trials). The backup tracks used when the files can't load are composed in the game's code.
+Jo Yee generated the soundtrack with Google Flow Music under a Google AI Plus plan. It features *White Isle Drive (Title Cue)* on entry, *Showroom Finish* in the garage and dealership, *Coastal Drive Loop* during daytime free driving, *Island Night Drive* after dark and *Coastal Checkpoint Run* during races and time trials. The backup tracks used when the files can't load are composed in the game's code.
 
 ## Project development and contributions
 
