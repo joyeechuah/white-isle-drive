@@ -165,7 +165,7 @@ test.describe("car models", () => {
       }
   });
 
-  test("ghost cars: changing model many times keeps the reflection list bounded, frees nothing shared, and the ghost reflects the current sky", async ({ game }) => {
+  test("ghost cars: changing model many times keeps the reflection list bounded, frees nothing shared, and the ghost reflects what cars reflect now: the studio in the garage, the sky outside", async ({ game }) => {
     await game.open();
     const r = await game.eval(() => {
       const T = __T,
@@ -183,18 +183,28 @@ test.describe("car models", () => {
         sizes.push(T.CAR_ENV.mats.size);
       }
       T.updateCarEnv(true);
-      let reflects = 0, stale = 0;
-      T.GH.m.G.traverse((o) => {
-        if (!o.isMesh || !o.visible) return;
-        for (const m of [].concat(o.material)) if (m.envMap) m.envMap === T.CAR_ENV.tex ? reflects++ : stale++;
-      });
-      return { sizes, sharedFreed, reflects, stale };
+      const count = (want) => {
+        let reflects = 0, stale = 0;
+        T.GH.m.G.traverse((o) => {
+          if (!o.isMesh || !o.visible) return;
+          for (const m of [].concat(o.material)) if (m.envMap) m.envMap === want ? reflects++ : stale++;
+        });
+        return { reflects, stale };
+      };
+      // the game opens in the garage, where cars reflect the studio; outside they reflect the sky drawn just now
+      const inside = { studio: T.curCarEnv() !== T.CAR_ENV.tex, ...count(T.curCarEnv()) };
+      T.carIndoors(false);
+      const outside = count(T.CAR_ENV.tex);
+      return { sizes, sharedFreed, inside, outside };
     });
     // after the first change the list stays the same size (it used to grow by three materials every change)
     expect(new Set(r.sizes.slice(2)).size, JSON.stringify(r.sizes)).toBe(1);
     expect(r.sharedFreed).toBe(0);
-    expect(r.reflects).toBeGreaterThan(0);
-    expect(r.stale).toBe(0);
+    expect(r.inside.studio, "the garage reflects the studio, not the sky").toBe(true);
+    expect(r.inside.reflects).toBeGreaterThan(0);
+    expect(r.inside.stale).toBe(0);
+    expect(r.outside.reflects).toBeGreaterThan(0);
+    expect(r.outside.stale).toBe(0);
   });
 
   test("choosing a photo look or a time of day redraws the reflections at once", async ({ game }) => {
