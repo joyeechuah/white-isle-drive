@@ -144,7 +144,7 @@ When Google Fonts load, Google can receive the visitor's IP address as part of t
 
 ## Music
 
-The Google Flow Music soundtrack features *White Isle Drive (Title Cue)* on entry, *Showroom Finish* in the garage and dealership, *Coastal Drive Loop* during daytime free driving, *Island Night Drive* after dark and *Coastal Checkpoint Run* during races and time trials. The backup tracks used when the files can't load are composed in the game's code.
+Jo Yee generated the soundtrack with Google Flow Music under a Google AI Plus plan. It features *White Isle Drive (Title Cue)* on entry, *Showroom Finish* in the garage and dealership, *Coastal Drive Loop* during daytime free driving, *Island Night Drive* after dark and *Coastal Checkpoint Run* during races and time trials. The backup tracks used when the files can't load are composed in the game's code.
 
 ## Project development and contributions
 

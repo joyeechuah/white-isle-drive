@@ -4349,12 +4349,12 @@ function makeMusic(ctx,out){
   };
 }
 
-// Recorded scene music. Loop timing comes from the actual decoded file duration.
+// First pass starts at zero. Repeats crossfade between matching beat positions before the recorded outro.
 const SONGS={
-  lounge:{url:"audio/showroom.mp3",gain:.41},
-  coast:{url:"audio/cruise.mp3",gain:.28},
-  race:{url:"audio/highway.mp3",gain:.30},
-  night:{url:"audio/island-night-drive.mp3",gain:.28},
+  lounge:{url:"audio/showroom.mp3",gain:.41,offset:25.5,L:120.0023,X:1.5},
+  coast:{url:"audio/cruise.mp3",gain:.28,offset:21.5,L:73.8472,X:1.5},
+  race:{url:"audio/highway.mp3",gain:.30,offset:35,L:78.9057,X:1.5},
+  night:{url:"audio/island-night-drive.mp3",gain:.28,offset:25.5,L:117.3333,X:1.5},
   title:{url:"audio/white-isle-drive-title.mp3",gain:.36,once:true}
 };
 let titleUntil=0;
@@ -4387,8 +4387,8 @@ function songStart(n,now){const S=SONGS[n],P={bus:AC.createGain(),tone:AC.create
   P.tone.type="lowpass";P.tone.frequency.value=18000;P.bus.gain.value=0;P.bus.connect(P.tone);P.tone.connect(songOut);
   // first pass from the very beginning, so the opening is heard once
   const t0=now+.05,src=AC.createBufferSource(),g=AC.createGain();src.buffer=S.buf;src.connect(g);g.connect(P.bus);src.start(t0);
-  P.srcs.push({src,g});P.fade=Math.min(1.5,S.buf.duration/4);P.period=S.buf.duration-P.fade;
-  P.next=S.once?Infinity:t0+P.period;S.p=P;return P}
+  P.srcs.push({src,g});
+  P.next=S.once?Infinity:t0+S.offset+S.L;S.p=P;return P}
 function songStop(n,now){const S=SONGS[n],P=S.p;if(!P||P.end)return;P.want=0;P.bus.gain.setTargetAtTime(0,now,.45);P.end=now+2.5}
 function songTick(n,now){const S=SONGS[n],P=S.p;if(!P)return;
   if(P.end&&now>P.end){P.srcs.forEach(o=>{try{o.src.stop()}catch(e){}o.g.disconnect()});P.bus.disconnect();P.tone.disconnect();S.p=null;S.idle=now;return}
@@ -4396,11 +4396,10 @@ function songTick(n,now){const S=SONGS[n],P=S.p;if(!P)return;
   if(!P.end&&P.next<now+1){
     if(P.next<now){P.next=now+.05}   // came back from a suspended tab: just carry on
     const src=AC.createBufferSource(),g=AC.createGain(),prev=P.srcs[P.srcs.length-1];src.buffer=S.buf;src.connect(g);g.connect(P.bus);
-    // each piece plays to the end of the file, which is exactly where the next fade-in finishes, so nothing is stopped
-    g.gain.value=0;g.gain.setValueCurveAtTime(FADE_IN,P.next,P.fade);src.start(P.next);
-    prev.g.gain.setValueCurveAtTime(FADE_OUT,P.next,P.fade);
+    g.gain.value=0;g.gain.setValueCurveAtTime(FADE_IN,P.next,S.X);src.start(P.next,S.offset);
+    prev.g.gain.setValueCurveAtTime(FADE_OUT,P.next,S.X);prev.src.stop(P.next+S.X);
     P.srcs.push({src,g});if(P.srcs.length>2)P.srcs.shift().g.disconnect();
-    P.next+=P.period}
+    P.next+=S.L}
 }
 // which song for which screen: the lounge indoors, the road outside, the race track during events, quieter behind menus
 function cruiseSong(){return worldNight>=.5?"night":"coast"}

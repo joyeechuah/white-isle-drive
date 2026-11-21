@@ -102,3 +102,46 @@ test("a stalled soundtrack response body times out and can be retried", async ({
   await expect.poll(() => game.eval(() => __T.SONGS.race.st)).toBe("fetched");
   expect(await game.eval(() => window.raceRequests)).toBe(2);
 });
+
+async function checkRecordedLoops(songs) {
+  const ctx = new OfflineAudioContext(1, 1, 22050);
+  const results = {};
+  for (const [key, song] of Object.entries(songs)) {
+    if (song.once) continue;
+    const response = await fetch(song.url);
+    const buffer = await ctx.decodeAudioData(await response.arrayBuffer());
+    const samples = buffer.getChannelData(0), rate = buffer.sampleRate;
+    // Compare 100 ms RMS windows with the median level of the whole recording.
+    function rms(time) {
+      const start = Math.round(time * rate), end = Math.min(samples.length, start + Math.round(rate / 10));
+      let energy = 0;
+      for (let i = start; i < end; i++) energy += samples[i] ** 2;
+      return Math.sqrt(energy / (end - start));
+    }
+    const levels = [];
+    for (let t = 0; t < buffer.duration - .1; t += .1) levels.push(rms(t));
+    levels.sort((a, b) => a - b);
+    const median = levels[Math.floor(levels.length / 2)];
+    const outgoing = song.offset + song.L;
+    const seam = [];
+    for (let t = 0; t < song.X; t += .1) seam.push(rms(song.offset + t), rms(outgoing + t));
+    results[key] = {
+      tail: buffer.duration - outgoing - song.X,
+      minDb: 20 * Math.log10(Math.min(...seam) / median),
+    };
+  }
+  return results;
+}
+
+test("every recorded repeat starts in audible music and finishes its overlap before the outro", async ({ game, page }) => {
+  await game.open();
+  const songs = await game.eval(() => Object.fromEntries(Object.entries(__T.SONGS).map(
+    ([key, { url, offset, L, X, once }]) => [key, { url, offset, L, X, once }]
+  )));
+  const results = await page.evaluate(checkRecordedLoops, songs);
+  expect(Object.keys(results).sort()).toEqual(["coast", "lounge", "night", "race"]);
+  for (const [key, result] of Object.entries(results)) {
+    expect(result.tail, key).toBeGreaterThan(10);
+    expect(result.minDb, key).toBeGreaterThan(-20);
+  }
+});
