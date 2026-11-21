@@ -12,7 +12,14 @@ for (const density of [1, 2]) {
         for (let i = 0; i < hz * seconds; i++) T.adaptRes(1 / hz);
         return ratio();
       };
-      const initial = ratio(), slow = advance(24, 18), recovered = advance(60, 18);
+      const initial = ratio();
+      // Model a GPU-bound scene: the frame time improves at each lower resolution.
+      for (let seconds = 0; seconds < 20;) {
+        const dt = .04 * ratio();
+        T.adaptRes(dt);
+        seconds += dt;
+      }
+      const slow = ratio(), recovered = advance(60, 22);
       const settings = document.getElementById("pGfx");
       settings.click();
       const sharp = advance(24, 18);
@@ -84,4 +91,21 @@ test("a photo taken immediately after orbiting uses the new camera's sky positio
     return matches;
   });
   expect(centred).toBe(true);
+});
+
+// A phone held back by its processor (or by battery saving) runs no faster at a lower scale: the trial is undone,
+// so the picture stays sharp instead of sliding to the lowest scale (a phone video showed 20 fps throughout, blurry)
+test("Auto restores sharpness after an ineffective trial and ignores isolated stalls", async ({ game, page }) => {
+  await page.addInitScript(() => Object.defineProperty(window, "devicePixelRatio", { configurable: true, value: 2 }));
+  await game.open({ save: { v: 3, gfx: 0 } });
+  const result = await game.eval(() => {
+    const T = __T, ratio = () => T.renderer.getPixelRatio(), sampled = new Set();
+    for (let i = 0; i < 1500; i++) { T.adaptRes(i % 11 === 10 ? .1 : .022); sampled.add(ratio()); }
+    const trial = new Set();
+    for (let i = 0; i < 600; i++) { T.adaptRes(1 / 24); trial.add(ratio()); }
+    return { spikes: [...sampled], trial: [...trial], end: ratio() };
+  });
+  expect(result.spikes).toEqual([2]);
+  expect(result.trial).toContain(1.75);
+  expect(result.end).toBe(2);
 });

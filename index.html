@@ -832,6 +832,8 @@ addEventListener("resize",()=>{
   W=innerWidth;H=innerHeight;
   // Browser zoom and moving the window between screens can change the pixel density during play.
   const density=Math.min(devicePixelRatio||1,2);
+  if(RES.baseline){prNow=RES.previous;renderer.setPixelRatio(prNow)}
+  resetResolutionSample();
   if(density!==PR_DEV){const atMax=prNow===PR_MAX;PR_DEV=density;gfxLimits();
     prNow=atMax?PR_MAX:clamp(prNow,PR_MIN,PR_MAX);renderer.setPixelRatio(prNow)}
   renderer.setSize(W,H,false);camera.aspect=W/H;fitZoom();camera.updateProjectionMatrix();layoutHUD()
@@ -5477,7 +5479,7 @@ $("pHome").onclick=()=>{show("pause",false);goGarage(false)};
 $("pTime").onclick=()=>{save.todMode=(save.todMode+1)%TODS.length;CAR_ENV.dirty=true;if(TODS[save.todMode][1]!==null)save.tod=TODS[save.todMode][1];syncPause();persist()};
 $("pAuto").onclick=()=>{save.auto=!save.auto;syncPause();persist()};
 const GFX=["AUTO","SHARP","SMOOTH"];
-function applyGfx(){gfxLimits();const p=clamp(save.gfx===0?Math.max(prNow,PR_MIN):PR_MAX,PR_MIN,PR_MAX);RES.bad=99;RES.wait=3;RES.t=0;
+function applyGfx(){gfxLimits();const p=clamp(save.gfx===0?Math.max(prNow,PR_MIN):PR_MAX,PR_MIN,PR_MAX);resetResolutionSample();
   if(p!==prNow){prNow=p;renderer.setPixelRatio(p);renderer.setSize(W,H,false)}}
 $("pGfx").onclick=()=>{save.gfx=(save.gfx+1)%3;applyGfx();rebuildCarModels();syncPause();persist();toast("GRAPHICS: "+GFX[save.gfx],["Sharp, eases off a little if frames slow down","Always full sharpness","Lighter on weak phones and battery"][save.gfx])};
 $("pAssist").onclick=()=>{save.assist=!save.assist;syncPause();persist()};
@@ -5937,15 +5939,34 @@ let prevTs=0,fishT=0,doorOpen=1;
 // again, step back up. Steps are small and spaced out so the picture never pumps.
 // A level that turned out too slow right after stepping up to it is not retried for 30 s, so a phone on the
 // edge doesn't flip back and forth.
-const RES={avg:1/60,t:0,wait:3,bad:99,badT:0,upT:99};
+const RES={frames:[],elapsed:0,baseline:0,previous:0,retry:0,raiseWait:0,sinceRaise:Infinity};
+function resetResolutionSample(){
+  RES.frames.length=0;RES.elapsed=0;RES.baseline=0;RES.retry=0;RES.raiseWait=0;RES.sinceRaise=Infinity;
+}
 function adaptRes(dt){
-  if(document.hidden)return;dt=Math.min(dt,.25);RES.avg+=(Math.min(dt,.1)-RES.avg)*.05;RES.t+=dt;RES.badT+=dt;RES.upT+=dt;if(RES.t<RES.wait)return;
-  if(RES.badT>30)RES.bad=99;
-  if(PR_MIN>=PR_MAX)return;
-  let p=prNow;if(RES.avg>1/36){p=Math.max(PR_MIN,p-.25);if(p!==prNow&&RES.upT<8){RES.bad=prNow;RES.badT=0}}
-  else if(RES.avg<1/50){const next=Math.min(PR_MAX,p+.25);if(next>p&&next<RES.bad){p=next;RES.upT=0}}
-  RES.t=0;RES.wait=.5;
-  if(p!==prNow){prNow=p;renderer.setPixelRatio(p);renderer.setSize(W,H,false);RES.wait=3}
+  if(document.hidden||PR_MIN>=PR_MAX||!(dt>0))return;
+  RES.retry=Math.max(0,RES.retry-dt);RES.raiseWait=Math.max(0,RES.raiseWait-dt);RES.sinceRaise+=dt;
+  RES.frames.push(dt);RES.elapsed+=Math.min(dt,.25);
+  if(RES.elapsed<3||RES.frames.length<8)return;
+  RES.frames.sort((a,b)=>a-b);
+  const median=RES.frames[Math.floor(RES.frames.length/2)];
+  RES.frames.length=0;RES.elapsed=0;
+  let next=prNow;
+  if(RES.baseline){
+    // A cheaper picture should earn its loss of detail. Roll back a fruitless trial: a phone held back by its
+    // processor, or by battery saving, runs no faster at a lower scale, only blurrier. Not tried again for a minute.
+    if(median>RES.baseline*.95){next=RES.previous;RES.retry=60}
+    RES.baseline=0;
+  }
+  if(next===prNow){
+    if(median>1/36&&prNow>PR_MIN&&RES.retry===0){
+      RES.previous=prNow;RES.baseline=median;next=Math.max(PR_MIN,prNow-.25);
+      RES.raiseWait=RES.sinceRaise<8?30:6;
+    }else if(median<1/50&&prNow<PR_MAX&&RES.raiseWait===0){
+      next=Math.min(PR_MAX,prNow+.25);RES.sinceRaise=0;
+    }
+  }
+  if(next!==prNow){prNow=next;renderer.setPixelRatio(next);renderer.setSize(W,H,false)}
 }
 // An immediate Photo Mode capture needs the same sky and shadow placement as a frame from the main loop.
 function syncRenderView(){
