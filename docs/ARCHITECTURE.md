@@ -59,7 +59,7 @@ Production `index.html` is loaded fresh for browser tests. `tests/support/instru
 ```sh
 npm ci
 npx playwright install --with-deps chromium
-npm run lint
+npm run lint        # ESLint, then TypeScript's type check (tests/support/typecheck.js)
 npm test
 npx playwright test tests/collision-rear-view.spec.js
 npx playwright test tests/damage-repairs.spec.js

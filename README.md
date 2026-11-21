@@ -93,7 +93,7 @@ npm test                                # runs every test (serves this folder on
 npx playwright test tests/contracts.spec.js   # one file
 npx playwright test -g "photo"          # tests whose name matches
 npm run test:report                     # opens the HTML report of the last run
-npm run lint                            # static checks (ESLint) on the game's script
+npm run lint                            # ESLint and TypeScript's type check on the game's script
 ```
 
 `npm start` serves the folder on the same address for playing locally with the full soundtrack.

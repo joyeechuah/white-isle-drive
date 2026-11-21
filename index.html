@@ -648,6 +648,9 @@ if(location.hostname==="joyeechuah.github.io"&&!navigator.globalPrivacyControl&&
 (function(){
 "use strict";
 /* ================================================================ UTIL */
+// an element by its id. Typed loosely for the type check (npm run typecheck): the game uses it for every kind of
+// element, from inputs to canvases, without casting each one
+/** @type {(id: string) => any} */
 const $=id=>document.getElementById(id);
 const TAU=Math.PI*2;
 const clamp=(v,a,b)=>v<a?a:v>b?b:v;
@@ -786,7 +789,7 @@ try{
   if(typeof save.passBonus!=="boolean")save.passBonus=false;
   // Contracts: completed runs by type and by contract id, failed and abandoned runs, credits earned; and a note
   // that one was under way (so a reload can say it was cancelled)
-  {const j=save.jobs&&typeof save.jobs==="object"&&!Array.isArray(save.jobs)?save.jobs:{},n=v=>Math.round(num(v,0,0,1e9));
+  {const j=/** @type {any} */ (save.jobs&&typeof save.jobs==="object"&&!Array.isArray(save.jobs)?save.jobs:{}),n=v=>Math.round(num(v,0,0,1e9));
    save.jobs={parcel:n(j.parcel),courier:n(j.courier),tour:n(j.tour),failed:n(j.failed),abandoned:n(j.abandoned),earned:n(j.earned),runs:dict(j.runs,v=>Number.isInteger(v)&&v>0)}}
   save.jobActive=save.jobActive&&typeof save.jobActive==="object"&&typeof save.jobActive.id==="string"?{id:save.jobActive.id}:null;
   if(!Array.isArray(save.owned))save.owned=[];
@@ -1286,7 +1289,7 @@ function nearestRoad(x,z,maxD){
       const e=it.e,p=e.pts[it.i],q=e.pts[it.i+1],sx=q.x-p.x,sz=q.z-p.z,L2=sx*sx+sz*sz;
       const t=L2>0?clamp(((x-p.x)*sx+(z-p.z)*sz)/L2,0,1):0;
       const px=p.x+sx*t,pz=p.z+sz*t,d=Math.hypot(x-px,z-pz);
-      if(d-e.half*.02<bd){bd=d-e.half*.02;const l=Math.sqrt(L2)||1;best={e,i:it.i,d,x:px,z:pz,dx:sx/l,dz:sz/l,s:e.cum[it.i]+t*l}}
+      if(d-e.half*.02<bd){bd=d-e.half*.02;const l=Math.sqrt(L2)||1;best={e,i:it.i,d,x:px,z:pz,dx:sx/l,dz:sz/l,s:e.cum[it.i]+t*l,side:0}}
     }
   }
   if(best)best.side=(x-best.x)*(-best.dz)+(z-best.z)*best.dx;
@@ -1297,7 +1300,7 @@ function nearestRoadGlobal(x,z,skipDrive){
   for(const e of EDGES){if(skipDrive&&e.type==="drive")continue;for(let i=0;i<e.pts.length-1;i++){
     const p=e.pts[i],q=e.pts[i+1],sx=q.x-p.x,sz=q.z-p.z,L2=sx*sx+sz*sz;
     const t=L2>0?clamp(((x-p.x)*sx+(z-p.z)*sz)/L2,0,1):0,px=p.x+sx*t,pz=p.z+sz*t,d=Math.hypot(x-px,z-pz);
-    if(d<bd){bd=d;const l=Math.sqrt(L2)||1;best={e,i,d,x:px,z:pz,dx:sx/l,dz:sz/l,s:e.cum[i]+t*l}}
+    if(d<bd){bd=d;const l=Math.sqrt(L2)||1;best={e,i,d,x:px,z:pz,dx:sx/l,dz:sz/l,s:e.cum[i]+t*l,side:0}}
   }}
   if(best)best.side=(x-best.x)*(-best.dz)+(z-best.z)*best.dx;
   return best;
@@ -2222,7 +2225,7 @@ function signAtlas(){
   slot(0,()=>{x.fillStyle="#c8102e";x.fillRect(8,8,240,240);x.fillStyle="#fff";
     for(const o of [-56,30]){x.beginPath();x.moveTo(70+o,40);x.lineTo(150+o,128);x.lineTo(70+o,216);x.lineTo(110+o,216);x.lineTo(190+o,128);x.lineTo(110+o,40);x.closePath();x.fill()}
     x.strokeStyle="#fff";x.lineWidth=8;x.strokeRect(12,12,232,232)});
-  for(const [i,n] of [[1,"60"],[2,"90"],[3,"120"]])slot(i,()=>{x.fillStyle="#fff";x.beginPath();x.arc(128,128,118,0,TAU);x.fill();
+  for(const [i,n] of /** @type {[number, string][]} */ ([[1,"60"],[2,"90"],[3,"120"]]))slot(i,()=>{x.fillStyle="#fff";x.beginPath();x.arc(128,128,118,0,TAU);x.fill();
     x.strokeStyle="#d0102c";x.lineWidth=30;x.beginPath();x.arc(128,128,100,0,TAU);x.stroke();
     x.fillStyle="#111";x.font="bold "+(n.length>2?86:104)+"px Arial,Helvetica,sans-serif";x.textAlign="center";x.textBaseline="middle";x.fillText(n,128,134)});
   slot(4,()=>{x.fillStyle="#8b9096";x.beginPath();x.arc(128,128,118,0,TAU);x.fill()});
@@ -2405,7 +2408,7 @@ function drawGauges(kph,rpm,gear){
     const a=Math.PI*.8+Math.PI*1.4*clamp(v/max,0,1);x.strokeStyle="#f2b33d";x.lineWidth=2.5;x.beginPath();x.moveTo(cx,58);x.lineTo(cx+Math.cos(a)*38,58+Math.sin(a)*38);x.stroke();
     x.fillStyle="#9aa1a8";x.font="700 10px Arial";x.textAlign="center";x.fillText(lab,cx,100)};
   dial(64,kph,360,"KM/H");dial(192,rpm,8,"RPM x1000");
-  x.fillStyle="#fff";x.font="700 20px Arial";x.textAlign="center";x.fillText(Math.round(kph),64,66);x.fillText(gear,192,66);
+  x.fillStyle="#fff";x.font="700 20px Arial";x.textAlign="center";x.fillText(String(Math.round(kph)),64,66);x.fillText(String(gear),192,66);
   gaugeTex.needsUpdate=true;
 }
 const darkInM=new THREE.MeshPhongMaterial({color:0x2a2c30,shininess:30});
@@ -2776,7 +2779,7 @@ function liveryMasks(parts,type,num){
   const paint=mirror=>paintSurface(K.z0,K.z1,K.sec,tw,th,true,fn(mirror),parts.body,type===3?[zc-R-.03,zc+R+.03]:null).lit;
   let cab=null;
   if(type===1){const cp=cabinPaint(K);cab=paintSurface(K.cz0,K.cz1,K.csec,parts.q>0?512:256,parts.q>0?256:128,true,(x,y,z,nx,ny,nz,o)=>{
-    const t={c:1,r:.36,m:.35,l:0,lr:1,lg:1,lb:1};cp(x,y,z,nx,ny,nz,t,.004);const ax=Math.abs(x);
+    const t={c:1,r:.36,m:.35,l:0,lr:1,lg:1,lb:1};cp(x,y,z,nx,ny,nz,t);const ax=Math.abs(x);
     if(t.c>.99&&t.l===0&&ny>.3&&((ax>.05&&ax<.17)||(ax>.21&&ax<.33)))o.l=1},parts.cabin).lit}
   const made=parts.liv[key]=type===3?{R:paint(false),L:paint(true),cab:null,t:performance.now()}:{R:paint(false),L:null,cab,t:0};
   if(type===3){const nums={},used=new Set([key]);for(const k in parts.liv)if(k[0]==="n")nums[k]=parts.liv[k];
@@ -3062,6 +3065,7 @@ let locked=false,autoHold=false;
 // trigger the brake, A the handbrake; Start pauses, View/Back opens the map, Y changes camera, X is the prompt key
 const GP={on:false,steer:0,gas:0,brake:0,hb:false,rear:false,prev:[]};
 // screens opened from the pause menu, and how each closes
+/** @type {[string, () => void][]} */
 const PAUSE_SUBS=[["repair",()=>closeRepair()],["passport",()=>passportClose()],["jobs",()=>jobsClose()],["cups",()=>cupsClose()]];
 function pollPad(){
   let g=null;try{const l=navigator.getGamepads?navigator.getGamepads():[];for(const x of l)if(x&&x.connected){g=x;break}}catch(e){}
@@ -3729,7 +3733,7 @@ function rivalModel(cd,key){
 function startEvent(E,cup){
   P.damage=P.damageT=0;repairWarnLevel=0;
   const R=E.route,me=curCar(),idx=CARS.indexOf(me);
-  ev={E,R,t:-3,phase:"count",cp:0,hint:0,s:14,sNow:14,d:99,ai:[],done:false,wrongT:0,last:4,px:null,pz:null,gate:gateOf(R,E.cps[0]),reT:0,missT:0,diff:E.type==="race"?save.diff:1,obs:[],cup:cup||null,tg:cup&&E.type==="tt"?cupTimes(E,cup.cls):E,rec:E.type==="tt"?[]:null,ghost:E.type==="tt"&&save.ghost[E.id]?save.ghost[E.id]:null};
+  ev={E,R,lanes:null,t:-3,phase:"count",cp:0,hint:0,s:14,sNow:14,d:99,ai:[],done:false,wrongT:0,last:4,px:null,pz:null,gate:gateOf(R,E.cps[0]),reT:0,missT:0,diff:E.type==="race"?save.diff:1,obs:[],cup:cup||null,tg:cup&&E.type==="tt"?cupTimes(E,cup.cls):E,rec:E.type==="tt"?[]:null,ghost:E.type==="tt"&&save.ghost[E.id]?save.ghost[E.id]:null};
   const p=edgePos(R,14);
   // the grid: you on the outer side of the road, rivals beside and behind (mirrored when driving on the left)
   const S=SIDE(),L1=1.9*S,L2=-1.7*S;
@@ -4117,6 +4121,7 @@ function mapZoomAt(f,sx,sy){const before=mapToWorld(sx,sy);MV.z=clamp(MV.z*f,1,1
 function clampMap(){const lim=MAPX*.95;MV.cx=clamp(MV.cx,-lim,lim);MV.cz=clamp(MV.cz,-lim,lim)}
 function mapMarkers(){
   const hm=gW(0,-8);
+  /** @type {any[]} */
   const list=[{x:hm.x,z:hm.z,name:"Your house",desc:"Change car, paint it, or pick another",kind:"home",act:"home"},{x:DEALER_MARK.x,z:DEALER_MARK.z,name:"Auto Gallery",desc:"Buy, sell and test drive cars",kind:"dealer",act:"dealer"}];
   for(const E of EVENTS)list.push({x:E.x,z:E.z,name:E.name,desc:(E.type==="tt"?"Time trial":"Race")+" · "+(E.route.len/1000).toFixed(1)+" km"+(save.rec[E.id]?" · best "+fmtT(save.rec[E.id]):""),kind:"event",act:"event",E});
   for(const r of RADARS)list.push({x:r.x,z:r.z,name:"Speed radar",desc:save.radar[r.id]?"Record "+save.radar[r.id]+" km/h":"No record yet",kind:"radar"});
@@ -4289,7 +4294,7 @@ function makeMusic(ctx,out){
   const TRACKS={
     lounge:{bpm:92,level:1.25,
       // ii-V-I-vi in C: Dm9, G13, Cmaj9, Am9
-      ch:[[38,[53,57,60,64]],[43,[53,59,64,69]],[36,[52,55,59,62]],[45,[55,60,64,71]]],
+      ch:/** @type {[number, number[]][]} */ ([[38,[53,57,60,64]],[43,[53,59,64,69]],[36,[52,55,59,62]],[45,[55,60,64,71]]]),
       step(B,bar,s,t,q){const c=bar%16,[root,v]=this.ch[bar%4],next=this.ch[(bar+1)%4][0],late=c>=8;
         if(s===0)kick(B,t,.42);if(s===10)kick(B,t,.26);if(bar%4===3&&s===14)kick(B,t,.18);
         if(s===4||s===12)hit(B,t,.11,"bandpass",1800,2.5,.08,.3);
@@ -4302,7 +4307,7 @@ function makeMusic(ctx,out){
         if(late&&s%2===0){const pat=[0,1,2,3,2,1,3,1];pluck(B,t,v[pat[(s/2)%8]]+12,.022)}}},
     coast:{bpm:118,level:.8,
       // i-VI-III-VII in A minor: Am9, Fmaj7, Cmaj7, Gadd9
-      ch:[[33,[55,60,64,71]],[29,[53,57,60,64]],[36,[52,55,59,64]],[31,[55,59,62,69]]],
+      ch:/** @type {[number, number[]][]} */ ([[33,[55,60,64,71]],[29,[53,57,60,64]],[36,[52,55,59,64]],[31,[55,59,62,69]]]),
       step(B,bar,s,t,q){const c=bar%32,[root,v]=this.ch[bar%4];
         const sec=c<8?"A":c<16?"B":c<20?"brk":c<24?"build":"C",full=sec==="A"||sec==="B"||sec==="C";
         // drums: four on the floor, claps on 2 and 4, open hats on the off-beats; the break drops the beat
@@ -4375,7 +4380,7 @@ function songFetch(n){const S=SONGS[n];
   const controller=new AbortController();
   const timeout=setTimeout(()=>controller.abort(),120000);
   fetch(S.url,{signal:controller.signal})
-    .then(r=>{if(!r.ok)throw new Error(r.status);return r.arrayBuffer()})
+    .then(r=>{if(!r.ok)throw new Error(String(r.status));return r.arrayBuffer()})
     .then(b=>{S.bytes=b;S.st="fetched"})
     .catch(()=>songFailed(S))
     .finally(()=>clearTimeout(timeout))}
@@ -4403,6 +4408,7 @@ function songTick(n,now){const S=SONGS[n],P=S.p;if(!P)return;
 }
 // which song for which screen: the lounge indoors, the road outside, the race track during events, quieter behind menus
 function cruiseSong(){return worldNight>=.5?"night":"coast"}
+/** @returns {[string|null, number]} */
 function musicWant(){
   if(tabIdle||!save.music)return [null,0];   // SOUND FX covers engine, tyres and beeps; music has its own switch
   if(state==="LOAD")return ["title",1];
@@ -4482,11 +4488,12 @@ const PHOTO_LOOKS=[
   {name:"NIGHT DRIVE",tod:22.6,exp:1.1,tint:0x4a6aaa,k:.18},
   {name:"COASTAL SUNSET",tod:18.08,exp:.98,tint:0xff7f8a,k:.24}];
 PHOTO_LOOKS.forEach(L=>{if(L.tint!==undefined)L.col=new THREE.Color(L.tint)});
-const PH={on:false,prev:null,look:0,yaw:0,pitch:.25,dist:7,fov:50,saved:null,ptr:new Map(),pinch:null,last:null,busy:false,shot:null};
+const PH={on:false,prev:null,look:0,yaw:0,pitch:.25,dist:7,fov:50,saved:null,ptr:new Map(),pinch:null,last:null,busy:/** @type {any} */ (false),shot:null};
 const PH_D=[3,16],PH_P=[.03,1.3],PH_F=[20,80];
 const phTarget=()=>{const p=pc.G.position;return new V3(p.x,p.y+(pc.shape==="suv"?1.05:.85),p.z)};
 function phSync(){$("phZoom").value=String(Math.round(PH_F[1]-PH.fov));$("phDist").value=String(Math.round(PH.dist*10))}
-function phMsg(t,kind){const m=$("phMsg");m.textContent=t;m.className=kind||"";clearTimeout(phMsg.tm);phMsg.tm=setTimeout(()=>m.classList.add("hide"),3600)}
+let phMsgT=0;
+function phMsg(t,kind){const m=$("phMsg");m.textContent=t;m.className=kind||"";clearTimeout(phMsgT);phMsgT=setTimeout(()=>m.classList.add("hide"),3600)}
 function photoLookSet(i){
   PH.look=clamp(i|0,0,PHOTO_LOOKS.length-1);photoLook=PH.on&&PH.look>0?PHOTO_LOOKS[PH.look]:null;CAR_ENV.dirty=true;
   [...$("phLooks").children].forEach((b,k)=>{b.classList.toggle("on",k===PH.look);b.setAttribute("aria-pressed",k===PH.look?"true":"false")});
@@ -5459,6 +5466,7 @@ function pauseOn(){if(state!=="DRIVE")return;setState("PAUSE");clearInput();audi
   show("pQuit",!!(ev||testDrive));$("pQuit").textContent=testDrive?"END TEST DRIVE":ev&&ev.fin?"SEE RESULT":"QUIT EVENT";show("pHome",!testDrive);
   syncPause();$("pFb").classList.toggle("wide",[...document.querySelectorAll("#pause .mbtn")].filter(b=>b.id!=="pRes"&&!b.classList.contains("hide")).length%2===1);show("pause",true)}
 function pauseOff(){show("pause",false);if(state==="PAUSE"){setState("DRIVE");audioOn(true);TILT.zero=TILT.phi}}
+/** @type {[string, number|null][]} */
 const TODS=[["AUTO",null],["MORNING",8.5],["NOON",13],["SUNSET",17.75],["NIGHT",22.5]];
 function syncPause(){$("pRepair").textContent="VEHICLE CONDITION · "+damagePct()+"%";
   $("pAssist").textContent="DRIVING ASSIST: "+(save.assist?"ON":"OFF");$("pTime").textContent="TIME OF DAY: "+TODS[save.todMode][0];$("pAuto").textContent="AUTO GAS: "+(save.auto?"ON":"OFF");$("pSnd").textContent="SOUND FX: "+(save.sound?"ON":"OFF");$("pMus").textContent=$("gMus").textContent="MUSIC: "+(save.music?"ON":"OFF");$("pGfx").textContent="GRAPHICS: "+["AUTO","SHARP","SMOOTH"][save.gfx];$("pGhost").textContent="GHOST CAR: "+(save.ghostOn?"ON":"OFF");$("pSteer").textContent="STEERING: "+["LOW","NORMAL","HIGH"][save.steer];$("pTilt").textContent="TILT STEERING: "+(save.tilt?"ON":"OFF");show("pTilt",isTouch);$("pSide").textContent="DRIVE ON: "+(save.side==="R"?"RIGHT":"LEFT")}
@@ -5481,7 +5489,8 @@ $("pSteer").onclick=()=>{save.steer=(save.steer+1)%3;syncPause();persist()};
 $("pTilt").onclick=()=>{
   if(save.tilt){save.tilt=false;syncPause();persist();return}
   const on=()=>{save.tilt=true;TILT.zero=TILT.phi;syncPause();persist();toast("TILT STEERING","Hold the phone the way you want to drive straight, then resume")};
-  const D=window.DeviceOrientationEvent;
+  // requestPermission only exists in Safari on iPhones and iPads
+  const D=/** @type {any} */ (window.DeviceOrientationEvent);
   if(D&&typeof D.requestPermission==="function")D.requestPermission().then(r=>{if(r==="granted")on();else toast("TILT NOT ALLOWED","Allow motion and orientation access to steer by tilting","bad")}).catch(()=>toast("TILT NOT ALLOWED","Allow motion and orientation access to steer by tilting","bad"));
   else on()};
 $("pGhost").onclick=()=>{save.ghostOn=!save.ghostOn;syncPause();persist();if(!save.ghostOn)ghostHide()};
@@ -5735,7 +5744,7 @@ function clLoadMeta(){let m=null;try{m=JSON.parse(localStorage.getItem(CLOUD_KEY
   const o=Object.assign({uid:null,name:"",email:"",rev:0,prog:"",full:"",at:0,rehash:false,owner:null,ownerName:""},m&&typeof m==="object"?m:{});
   if(o.uid&&!o.owner)o.owner=o.uid;o.ownerName="";return o}
 function clSaveMeta(){try{localStorage.setItem(CLOUD_KEY,JSON.stringify(CL.meta))}catch(e){}}
-CL={meta:clLoadMeta(),ad:null,user:null,st:"guest",msg:"",busy:false,timer:0,pick:null,lastPut:0,other:false,signingOut:null};
+CL=/** @type {any} */ ({meta:clLoadMeta(),ad:null,user:null,st:"guest",msg:"",busy:false,timer:0,pick:null,lastPut:0,other:false,signingOut:null});
 const clOwn=()=>{CL.meta.owner=CL.user.uid;CL.other=false};
 // state: guest | connecting | synced | pending | offline | signedout (session ended) | conflict | error
 // a backup a few seconds after a change, and at most every 30 s (the free Firebase plan allows 20,000 writes a day)
@@ -5971,6 +5980,7 @@ function frame(ts){
 }
 
 /* ================================================================ BOOT (built in steps so the loader can update) */
+/** @type {[string, () => void][]} */
 const STEPS=[
   ["Laying the roads",()=>{buildNetwork();buildRoadGrid();buildGroundGrid()}],
   ["Shaping the island",buildTerrain],
@@ -6019,7 +6029,7 @@ function boot(){
   clBoot();
   if(window.__autostart){setTimeout(enter,200);return}
   $("lmsg").textContent="Ready";$("lf").parentNode.classList.add("hide");
-  show("lstart",true);show("lhint",true);$("lstart").onclick=enter;addEventListener("keydown",onKey,true);
+  show("lstart",true);show("lhint",true);$("lstart").onclick=()=>enter();addEventListener("keydown",onKey,true);
   // signed in: PLAY carries on (the backup runs by itself); a guest can choose SAVE MY PROGRESS, which plays and opens it
   clStartScreen(()=>{enter();setTimeout(clOpen,650)});
   try{$("lstart").focus({preventScroll:true})}catch(e){}
