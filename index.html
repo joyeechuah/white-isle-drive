@@ -1655,9 +1655,13 @@ function ibizaHouse(x,z,h,yaw){
   for(const [ox,oz] of [[-pw/2,.3],[pw/2,.3],[-pw/2,3.2],[pw/2,3.2]])B(px+ox,1.45,D/2+oz,.2,2.9,.2,WOOD);
   for(let k=0;k<6;k++)B(px-pw/2+k*pw/5,2.95,D/2+1.75,.12,.12,3.4,WOOD);
   B(px,2.85,D/2+3.2,pw+.3,.16,.16,WOOD);
-  const BG=[0xc2185b,0xd63384,0xb0205a];
-  for(let k=0;k<3;k++)t.push({g:GEO.ico,m:mat(x+(px-pw/2+.3+k*.5)*cs+(D/2+.35+k*.1)*sn,h+1.6+k*.55,z-(px-pw/2+.3+k*.5)*sn+(D/2+.35+k*.1)*cs,r(13+k)*3,.75,.95,.55),c:BG[k]});
-  t.push({g:GEO.ico,m:mat(x+(px+pw/2-.2)*cs+(D/2+1.2)*sn,h+3.05,z-(px+pw/2-.2)*sn+(D/2+1.2)*cs,r(17),1.2,.35,1.5),c:0xc81d63});
+  // the bougainvillea: leafy masses climb the post and spread along the beams, with magenta bracts on their outer
+  // side (it was three faceted pink lumps and a pink slab, which read as rocks from the road)
+  const BG=[0xc2185b,0xd63384,0xb0205a],LEAF=[0x3d6833,0x4b7838],V=(lx,ly,lz,w,hh,dd,c,ry)=>t.push({g:VGEO.shrub,m:mat(x+lx*cs+lz*sn,h+ly,z-lx*sn+lz*cs,yaw+ry,w,hh,dd),c});
+  for(let k=0;k<3;k++){const lx=px-pw/2+.3+k*.5,lz=D/2+.35+k*.1,ly=1.6+k*.55;
+    V(lx,ly-.08,lz,.52,.6,.42,LEAF[k%2],r(13+k)*3);V(lx+.16,ly+.1,lz+.2,.34,.3,.26,BG[k],r(16+k)*3)}
+  for(let k=0;k<4;k++){const lx=px+pw/2-.2-k*.62,lz=D/2+.7+r(20+k)*1.2;
+    V(lx,2.98,lz,.56,.24,.62,LEAF[k%2],r(24+k)*3);V(lx+.08,3.14,lz+.12,.42,.2,.44,BG[(k+1)%3],r(28+k)*3)}
   for(const ox of [-1.1,1.1])B(ox*(r(18)<.5?1:-1)+ (door/(n-1||1)-.5)*(W-2.8),.35,D/2+.7,.5,.7,.5,0xb5562e,GEO.trunk);
   if(r(19)>.45)palm(x+(-W/2-2.2)*cs+(D/2+2.6)*sn,z-(-W/2-2.2)*sn+(D/2+2.6)*cs,h,1);
   addBox(x,z,W/2,D/2,yaw);if(x3!==null)addBox(x+x3*cs,z-x3*sn,1.8,2,yaw);
