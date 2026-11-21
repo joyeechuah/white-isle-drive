@@ -5715,13 +5715,14 @@ const clAt=d=>d&&d.at?(typeof d.at==="number"?d.at:d.at.toMillis?d.at.toMillis()
 function clAgo(t){if(!t)return "never";const s=(Date.now()-t)/1000;if(s<60)return "just now";if(s<3600)return Math.floor(s/60)+" min ago";if(s<86400)return Math.floor(s/3600)+" h ago";
   return new Date(t).toLocaleDateString()}
 function clLoadMeta(){let m=null;try{m=JSON.parse(localStorage.getItem(CLOUD_KEY)||"null")}catch(e){}
-  // owner: the account this device's progress last went to or came from. It stays after signing out, so another
-  // account signing in here is asked before that progress goes to it
+  // owner: the id of the account this device's progress last went to or came from. It stays after signing out, so
+  // another account signing in here is asked before that progress goes to it. Only the id: no name or email of a
+  // signed-out account is kept on the device (older saves stored the name; it's dropped here)
   const o=Object.assign({uid:null,name:"",email:"",rev:0,prog:"",full:"",at:0,rehash:false,owner:null,ownerName:""},m&&typeof m==="object"?m:{});
-  if(o.uid&&!o.owner){o.owner=o.uid;o.ownerName=o.name}return o}
+  if(o.uid&&!o.owner)o.owner=o.uid;o.ownerName="";return o}
 function clSaveMeta(){try{localStorage.setItem(CLOUD_KEY,JSON.stringify(CL.meta))}catch(e){}}
 CL={meta:clLoadMeta(),ad:null,user:null,st:"guest",msg:"",busy:false,timer:0,pick:null,lastPut:0,other:false,signingOut:null};
-const clOwn=()=>{CL.meta.owner=CL.user.uid;CL.meta.ownerName=CL.user.name;CL.other=false};
+const clOwn=()=>{CL.meta.owner=CL.user.uid;CL.other=false};
 // state: guest | connecting | synced | pending | offline | signedout (session ended) | conflict | error
 // a backup a few seconds after a change, and at most every 30 s (the free Firebase plan allows 20,000 writes a day)
 // Later changes don't push a backup already waiting further back (steady progress would otherwise postpone it for good)
@@ -5804,9 +5805,9 @@ function clSignIn(){if(CL.busy||CL.signingOut)return;
 function clSignOut(){if(!CL.ad||CL.signingOut||CL.applying)return;
   CL.signingOut=CL.ad.signOut().then(()=>{
     // An already submitted first backup may succeed even if its reply arrives after sign-out.
-    const owner=CL.meta.owner?{uid:CL.meta.owner,name:CL.meta.ownerName}:CL.busy?CL.user:null;
+    const owner=CL.meta.owner||(CL.busy&&CL.user?CL.user.uid:null);
     clearTimeout(CL.timer);CL.timer=0;CL.user=null;CL.pick=null;CL.busy=false;CL.other=false;CL.signingOut=null;
-    CL.meta={uid:null,name:"",email:"",rev:0,prog:"",full:"",at:0,rehash:false,owner:owner?.uid??null,ownerName:owner?.name??""};
+    CL.meta={uid:null,name:"",email:"",rev:0,prog:"",full:"",at:0,rehash:false,owner:owner||null,ownerName:""};
     clSaveMeta();clSet("guest");toast("SIGNED OUT","Your progress stays on this device; it isn't backed up now");
   },()=>{
     CL.signingOut=null;clSet(CL.st,"Couldn't sign out. Try again.");clChanged();
@@ -5819,9 +5820,9 @@ function clPickShow(){if(!CL.pick)return;
   // not over a race or a drive: it waits for the pause menu or the garage, and a message says so
   if(state!=="GARAGE"&&state!=="PAUSE"&&state!=="LOAD"){toast("CLOUD SAVE","Your account has different progress. Pause to choose which to keep");return}
   // another account's progress on this device, and nothing in this account yet: use it here too, or start new
-  const ot=!CL.pick.cloud,nm=CL.meta.ownerName;
+  const ot=!CL.pick.cloud;
   $("cpkTitle").textContent=ot?"Use this device's progress for this account?":"Which progress do you want to keep?";
-  $("cpkP").textContent=ot?"This device's progress was last backed up to "+(nm?nm+"'s":"another")+" Google account. Use it for this account too, or start new here. Starting new doesn't touch the other account's backup.":
+  $("cpkP").textContent=ot?"This device's progress was last backed up to another Google account. Use it for this account too, or start new here. Starting new doesn't touch the other account's backup.":
     "This device and your Google account have different progress. The one you don't keep is replaced. Credits aren't added together.";
   $("cpkKeepDev").textContent=ot?"USE THIS DEVICE'S":"KEEP THIS DEVICE'S";$("cpkKeepAcc").textContent=ot?"START NEW":"KEEP THE ACCOUNT'S";
   $("cpkDev").innerHTML=clRow(save,0);$("cpkAcc").innerHTML=ot?"<li>No progress saved yet</li>":clRow(CL.pick.cloud,clAt(CL.pick.doc));show("cloud",false);show("cloudPick",true)}
