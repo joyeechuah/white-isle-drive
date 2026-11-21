@@ -66,7 +66,7 @@ The pause menu opens photo mode, the Island Passport, the Contracts board and th
 
 ## How it works
 
-The playable game lives in `index.html`: HTML and CSS for the interface, vanilla JavaScript for simulation and game state, and [three.js](https://threejs.org/) r128 (MIT licence) for WebGL graphics. Terrain, roads, buildings, vegetation, vehicle models, many textures and sound effects are generated in code. Five soundtrack files in `audio/` load on demand. A slow initial load falls back to synthesized music after four seconds if no recording is playing. Over HTTP, failed downloads and decodes retry after 3, 9, 27 and then 30 seconds while the track is needed or preloading. A Content Security Policy restricts network connections and embedded resources.
+The playable game lives in `index.html`: HTML and CSS for the interface, vanilla JavaScript for simulation and game state, and [three.js](https://threejs.org/) r128 (MIT licence) for WebGL graphics. Terrain, roads, buildings, vegetation, vehicle models, many textures and sound effects are generated in code. Five soundtrack files in `audio/` load on demand. A slow initial load falls back to synthesized music after four seconds if no recording is playing. An HTTP download has two minutes to finish, including its response body. Failed HTTP downloads and decodes retry after 3, 9, 27 and then 30 seconds while the track is needed or preloading. A Content Security Policy restricts network connections and embedded resources.
 
 Optional cloud backup uses Firebase Authentication and Firestore, with the Firebase scripts loaded only when cloud save is used. Hosting is static through GitHub Pages. Node.js, Playwright and ESLint are **development and test tools**, not runtime requirements.
 

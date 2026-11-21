@@ -73,3 +73,32 @@ test("a title cue fades out even when the next recording is still loading", asyn
   });
   expect(fading).toBe(true);
 });
+
+test("a stalled soundtrack response body times out and can be retried", async ({ game, page }) => {
+  await game.open();
+  await page.clock.install();
+  await game.eval(() => {
+    const fetchFile = window.fetch;
+    window.raceRequests = 0;
+    window.fetch = (url, options) => {
+      if (String(url).endsWith("highway.mp3") && ++window.raceRequests === 1) {
+        return Promise.resolve({
+          ok: true,
+          arrayBuffer: () => new Promise((resolve, reject) => {
+            options?.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+          }),
+        });
+      }
+      return fetchFile(url, options);
+    };
+    __T.songFetch("race");
+  });
+  await page.clock.fastForward(120001);
+  expect(await game.eval(() => __T.SONGS.race.st)).toBe("failed");
+  await game.eval(() => __T.songFetch("race"));
+  expect(await game.eval(() => window.raceRequests)).toBe(1);
+  await page.clock.fastForward(3001);
+  await game.eval(() => __T.songFetch("race"));
+  await expect.poll(() => game.eval(() => __T.SONGS.race.st)).toBe("fetched");
+  expect(await game.eval(() => window.raceRequests)).toBe(2);
+});

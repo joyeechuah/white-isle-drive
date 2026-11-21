@@ -4372,7 +4372,13 @@ function songFetch(n){const S=SONGS[n];
   if(S.st&&!(S.st==="failed"&&S.retryAt!=null&&performance.now()>=S.retryAt))return;
   if(location.protocol==="file:"){S.st="failed";return}   // opened from disk: browsers won't fetch files, use the backup music
   S.st="loading";S.askT=AC?AC.currentTime:null;
-  fetch(S.url).then(r=>{if(!r.ok)throw new Error(r.status);return r.arrayBuffer()}).then(b=>{S.bytes=b;S.st="fetched"}).catch(()=>songFailed(S))}
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),120000);
+  fetch(S.url,{signal:controller.signal})
+    .then(r=>{if(!r.ok)throw new Error(r.status);return r.arrayBuffer()})
+    .then(b=>{S.bytes=b;S.st="fetched"})
+    .catch(()=>songFailed(S))
+    .finally(()=>clearTimeout(timeout))}
 function songDecode(n){const S=SONGS[n];if(S.st!=="fetched")return;S.st="decoding";
   AC.decodeAudioData(S.bytes.slice(0),buf=>{S.buf=buf;S.st="ready";S.retryDelay=0;S.retryAt=null;S.idle=AC.currentTime},()=>songFailed(S))}
 const equalPower=(up)=>{const c=new Float32Array(64);for(let i=0;i<64;i++){const t=i/63;c[i]=up?Math.sin(t*Math.PI/2):Math.cos(t*Math.PI/2)}return c};
