@@ -1095,7 +1095,9 @@ function defineRoads(){
   addRoad("town",[[560,-120],[760,-120]]);
   addRoad("town",[[560,190],[760,190]]);
   for(const x of [560,620,690,760])addRoad("town",[[x,-120],[x,190]]);
-  addRoad("drive",[[HOUSE.x-1,HOUSE.z],[372,-436],[312,-440]]);
+  // the drive starts at the garage floor's edge (the door), so the car rolls straight from the floor onto it; it
+// used to start a metre out, leaving a strip of sand to cross every time the car left the garage
+addRoad("drive",[[HOUSE.x,HOUSE.z],[372,-436],[312,-440]]);
 }
 const segCount=R=>R.closed?R.pts.length:R.pts.length-1;
 function projOnRoad(R,x,z){
