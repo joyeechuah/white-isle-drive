@@ -4737,9 +4737,15 @@ function photoCapture(){
   return new Promise(res=>{
     const fail=err=>{PH.busy=false;phMsg("Couldn't save the photo: "+((err&&err.message)||err||"the browser blocked it"),"bad");res(false)};
     try{
-      applyDayNight();updateLampLights();photoFrame(0);syncRenderView();renderer.render(scene,camera);
-      const src=renderer.domElement,c=document.createElement("canvas");c.width=src.width;c.height=src.height;
-      const x=c.getContext("2d");if(!x)throw new Error("no 2D canvas");x.drawImage(src,0,0);
+      // a photo is a still, so it is drawn at the quality setting's full resolution even while Auto has lowered the
+      // live picture for speed (photos then came out at three-quarter size); the live picture is put back as it was
+      const live=prNow,raise=PR_MAX>live;let c;
+      if(raise){renderer.setPixelRatio(PR_MAX);renderer.setSize(W,H,false)}
+      try{
+        applyDayNight();updateLampLights();photoFrame(0);syncRenderView();renderer.render(scene,camera);
+        const src=renderer.domElement;c=document.createElement("canvas");c.width=src.width;c.height=src.height;
+        const x=c.getContext("2d");if(!x)throw new Error("no 2D canvas");x.drawImage(src,0,0);
+      }finally{if(raise){renderer.setPixelRatio(live);renderer.setSize(W,H,false);renderer.render(scene,camera)}}
       c.toBlob(b=>{if(PH.busy!==capture){res(false);return}if(!b){fail(new Error("the browser returned no image"));return}PH.busy=false;photoShotShow(b);res(true)},"image/png");
     }catch(err){fail(err)}
   });
