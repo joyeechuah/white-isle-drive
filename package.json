@@ -4,16 +4,18 @@
   "description": "Development and test tooling only. The game itself is index.html and needs no build or install.",
   "scripts": {
     "start": "node tests/support/server.js",
-    "lint": "node tests/support/lint.js",
+    "lint": "node tests/support/lint.js && node tests/support/typecheck.js",
     "test": "playwright test",
-    "test:report": "playwright show-report"
+    "test:report": "playwright show-report",
+    "typecheck": "node tests/support/typecheck.js"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
     "eslint": "9.39.4",
     "firebase": "10.12.2",
     "globals": "15.15.0",
-    "three": "0.128.0"
+    "three": "0.128.0",
+    "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=18"
