@@ -41,13 +41,20 @@ const ROUTE_BOT = ([n, stopWhen]) => {const T=__T,P=T.P;let i=0;const w=a=>a-Mat
 
 // an autopilot for races and time trials: follows the event's route a little ahead of the car, full throttle
 // (driving assist keeps it on the road). Returns once the event ends, after n steps, or once checkpoint untilCp is reached.
+// Wedged while the race runs (a bump from a rival at the start can leave the car pinned off the road) it backs away,
+// steering the other way, and carries on, as a player would: it used to hold full throttle against the obstacle until
+// its steps ran out, and the race never finished
 const EVENT_BOT = ([n, untilCp]) => {const T=__T,P=T.P;let i=0,off=0;
+  const B=window.__ebot||(window.__ebot={ev:null,stuck:0,rev:0});if(B.ev!==T.ev){B.ev=T.ev;B.stuck=0;B.rev=0}
   for(;i<n;i++){if(T.state!=="DRIVE"||!T.ev||(untilCp!=null&&T.ev.cp>=untilCp))break;
     const R=T.ev.R,look=Math.min(R.len,T.ev.s+18+Math.hypot(P.vx,P.vz)*.5);let lo=0,hi=R.cum.length-1;
     while(hi-lo>1){const m=(lo+hi)>>1;if(R.cum[m]<=look)lo=m;else hi=m}
     const p=R.pts[hi],err=((Math.atan2(p.x-P.x,p.z-P.z)-P.h+Math.PI*3)%(Math.PI*2))-Math.PI;
-    T.keys.a=err>.03;T.keys.d=err<-.03;T.keys.w=true;T.driveUpdate(1/60);if(!P.onRoad)off++}
-  T.keys.a=T.keys.d=T.keys.w=false;return {steps:i,offRoad:off,state:T.state,cp:T.ev?T.ev.cp:null}};
+    if(B.rev>0){B.rev--;T.keys.w=false;T.keys.s=B.rev<69;T.keys.a=err<0;T.keys.d=err>0;T.driveUpdate(1/60);if(!P.onRoad)off++;continue}
+    T.keys.a=err>.03;T.keys.d=err<-.03;T.keys.w=true;T.keys.s=false;
+    B.stuck=T.ev.phase==="run"&&Math.hypot(P.vx,P.vz)<.7?B.stuck+1:0;if(B.stuck>90){B.stuck=0;B.rev=70}
+    T.driveUpdate(1/60);if(!P.onRoad)off++}
+  T.keys.a=T.keys.d=T.keys.w=T.keys.s=false;return {steps:i,offRoad:off,state:T.state,cp:T.ev?T.ev.cp:null}};
 
 class Game {
   constructor(page) {
