@@ -21,7 +21,7 @@ The sizeable `index.html` contains the production game, not a framework applicat
 
 ## Boot and the main loop
 
-The page loads the three.js library from cdnjs with a Subresource Integrity hash. Startup checks for WebGL support, restores and sanitises saved progress, then `boot()` executes the staged `STEPS` initialisation. These stages construct road networks, terrain, scenery, landmarks, events, traffic and parked vehicles. The `requestAnimationFrame(frame)` loop drives the simulation.
+The page loads three.js r128 from `vendor/three.min.js` (the same file cdnjs serves, checked against the same Subresource Integrity hash) and the Barlow fonts from `fonts/`; only Firebase still comes from cdnjs, and only for cloud saves. Startup checks for WebGL support, restores and sanitises saved progress, then `boot()` executes the staged `STEPS` initialisation. These stages construct road networks, terrain, scenery, landmarks, events, traffic and parked vehicles. The `requestAnimationFrame(frame)` loop drives the simulation.
 
 `frame(ts)` clamps the elapsed time, applies day/night and environment updates, delegates based on the current game state, and renders. Representative states are `LOAD`, `GARAGE`, `EXIT`, `DRIVE`, `DEALER`, `MAP`, `PHOTO`, `PAUSE` and `FADE`. `setState()` coordinates state transitions and interaction availability. Photo mode pauses world clocks; a tab that is no longer the active session skips its frame work.
 

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="description" content="Free-roam open-world driving game on a Mediterranean island, built with three.js. Runs in the browser, no install.">
 <meta name="theme-color" content="#07090c">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://apis.google.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://cloudflareinsights.com; frame-src https://white-isle-drive-03.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://apis.google.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://cloudflareinsights.com; frame-src https://white-isle-drive-03.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'none'">
 <link rel="canonical" href="https://joyeechuah.github.io/white-isle-drive/">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2307090c'/%3E%3Cpath d='M12 58 27 10h10l15 48z' fill='%23f2b33d'/%3E%3Cpath d='M31 14h2v7h-2zM30.5 27h3v9h-3zM30 43h4v11h-4z' fill='%2307090c'/%3E%3C/svg%3E">
 <meta property="og:type" content="website">
@@ -19,9 +19,8 @@
 <meta property="og:image:alt" content="A red hatchback on a coastal highway in the late-afternoon sun, under the title White Isle Drive">
 <meta name="twitter:card" content="summary_large_image">
 <title>White Isle Drive</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Barlow+Condensed:wght@600;700;800&display=swap">
+<!-- the fonts and three.js come with the game (fonts/, vendor/): nothing it needs to start is fetched from another site -->
+<link rel="stylesheet" href="fonts/fonts.css">
 <style>
 /* Full-bleed 3D canvas. HUD in the four screen corners: money/level top-left,
    menu chips top-right, GPS minimap bottom-left, dial speedometer bottom-right. */
@@ -652,7 +651,7 @@ if(location.hostname==="joyeechuah.github.io"&&!navigator.globalPrivacyControl&&
 
 <div id="fade"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha512-dLxUelApnYxpLt6K2iomGngnHO83iUvZytA3YjDUCjT0HDOHKXnVYdf3hU4JjM8uEhxf9nD1/ey98U3t2vZ0qQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="vendor/three.min.js" integrity="sha512-dLxUelApnYxpLt6K2iomGngnHO83iUvZytA3YjDUCjT0HDOHKXnVYdf3hU4JjM8uEhxf9nD1/ey98U3t2vZ0qQ=="></script>
 <script>
 (function(){
 "use strict";
@@ -5905,8 +5904,8 @@ function clAdapter(){if(window.__cloudAdapter)return window.__cloudAdapter;
 // Firebase (Google sign-in and Firestore), loaded only when cloud save is used: guests never download it
 function fbAdapter(){
   let auth=null,db=null,ready=null;
-  // pinned version, each file checked against its hash (as three.js is): about 510 KB, fetched on first use. From cdnjs,
-  // like three.js. The page's security policy (the meta tag at the top) must allow every host Firebase uses: cdnjs and
+  // pinned version, each file checked against its hash (as three.js is): about 510 KB, fetched on first use, from cdnjs
+  // (three.js and the fonts come with the game). The page's security policy (the meta tag at the top) must allow every host Firebase uses: cdnjs and
   // apis.google.com (scripts), the sign-in frame on the authDomain, and the Auth and Firestore addresses (connect-src).
   // Google's own sign-in page opens in its own window, under its own policy, so it needs nothing here.
   // It once allowed none of them, and sign-in said "Couldn't reach the sign-in service" on every device.
