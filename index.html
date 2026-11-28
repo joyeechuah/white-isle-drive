@@ -26,8 +26,8 @@
 /* Full-bleed 3D canvas. HUD in the four screen corners: money/level top-left,
    menu chips top-right, GPS minimap bottom-left, dial speedometer bottom-right. */
 :root{
-  --bg:#07090c; --ink:#f4f5f6; --mute:#9aa1a8; --dim:#5f666e;
-  --panel:rgba(12,14,17,.72); --panel2:rgba(12,14,17,.94); --line:rgba(255,255,255,.14);
+  --bg:#07090c; --ink:#f4f5f6; --mute:#b2b9c2; --dim:#7b838d;
+  --panel:rgba(12,14,17,.80); --panel2:rgba(12,14,17,.94); --line:rgba(255,255,255,.14);
   --acc:#f2b33d; --acc-hi:#ffd27a; --bad:#e2483d;
   --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-num:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
@@ -129,7 +129,7 @@ body.touch #lhint{display:none}
 #streak .bar i{display:block;height:100%;background:var(--acc)}
 #evhud{position:absolute;top:calc(14px + var(--st));left:50%;transform:translateX(-50%);display:flex;gap:4px;filter:drop-shadow(0 3px 10px rgba(0,0,0,.5))}
 #evhud>div{background:var(--panel2);padding:6px 12px;text-align:center;min-width:76px}
-#evhud span{display:block;font-size:9px;letter-spacing:.25em;color:var(--mute);font-weight:700}
+#evhud span{display:block;font-size:10.5px;letter-spacing:.22em;color:var(--mute);font-weight:700}
 #evhud b{font-family:var(--f-num);font-size:22px;font-variant-numeric:tabular-nums}
 #evGap.ahead{color:#7be08f}#evGap.behind{color:#ff8a7a}
 #wrong{position:absolute;top:30%;left:50%;transform:translateX(-50%);background:var(--bad);color:#fff;font-weight:800;letter-spacing:.4em;padding:10px 26px;font-size:14px}
@@ -176,6 +176,7 @@ body.touch #lhint{display:none}
 
 /* overlays */
 .ov{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(5,6,8,.62);backdrop-filter:blur(10px);padding:16px}
+#cloud,#cloudPick{z-index:220}
 .card{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:26px 28px;width:min(420px,100%);max-height:100%;overflow:auto}
 .card h3{margin:0 0 4px;font-size:10px;letter-spacing:.5em;color:var(--mute)}
 .card h2{margin:0 0 14px;font-family:var(--f-num);font-size:30px;font-weight:800;letter-spacing:.03em}
@@ -256,7 +257,7 @@ body.touch #keys,body.touch #prompt kbd,body.touch #mapClose kbd{display:none}
      sits over the road just ahead of the car */
   #evhud{top:calc(192px + var(--st));left:auto;right:calc(14px + var(--sr));transform:none;flex-direction:column;gap:3px;width:136px}
   #evhud>div{min-width:0;padding:4px 9px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-  #evhud span{font-size:8px;letter-spacing:.16em}
+  #evhud span{font-size:10px;letter-spacing:.14em}
   #evhud b{font-size:17px}
   #toasts,body.touch #toasts{top:calc(394px + var(--st));right:auto;left:50%;transform:translateX(-50%);align-items:center;width:min(300px,calc(100% - 32px))}
   #count{top:58%;font-size:96px}
@@ -275,7 +276,7 @@ body.touch #keys,body.touch #prompt kbd,body.touch #mapClose kbd{display:none}
   display:flex;flex-direction:column;padding:16px 18px;backdrop-filter:blur(10px)}
 #cust h3{margin:0 0 2px;font-size:10px;letter-spacing:.5em;color:var(--mute)}#cust h2{margin:0;font-family:var(--f-num);font-size:24px;font-weight:800}
 #cuCar{font-size:11px;letter-spacing:.16em;color:var(--mute);margin-top:2px}#cuHint{font-size:11px;color:var(--mute);margin-top:4px}
-#cuViews{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}#cuViews .co{background:transparent;border:1px solid var(--line);padding:6px 8px;font-size:9px;letter-spacing:.14em;border-radius:3px;cursor:pointer;font-weight:700;color:inherit}
+#cuViews{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}#cuViews .co{background:transparent;border:1px solid var(--line);padding:6px 9px;font-size:10.5px;letter-spacing:.12em;border-radius:3px;cursor:pointer;font-weight:700;color:inherit}
 #cuViews .co.on{background:#fff;color:#0b0c0e;border-color:#fff}
 #cuMin{position:absolute;right:12px;top:10px;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:transparent;color:inherit;font-size:14px;cursor:pointer;display:none}
 #cust.mini #cuList,#cust.mini #cuHint{display:none}#cust.mini{height:auto}
@@ -292,6 +293,7 @@ body.touch #keys,body.touch #prompt kbd,body.touch #mapClose kbd{display:none}
 @media (max-width:640px){#cust{left:8px;right:8px;width:auto;top:auto;bottom:8px;height:48%;padding:12px 14px}#cust h2{font-size:20px}#cuMin{display:block}#cust.mini{height:auto}}
 @media (max-height:520px) and (min-width:641px){#cust{top:8px;bottom:8px;width:min(340px,48%)}}
 .swb{width:19px;height:19px;border-radius:50%;border:2px solid rgba(255,255,255,.28);cursor:pointer;padding:0;flex:none}
+@media (pointer:coarse){.sw{gap:8px}.swb{width:30px;height:30px}.co,#cuViews .co{min-height:36px;padding:8px 11px}}
 .swb:hover{border-color:rgba(255,255,255,.7)}
 .swb.on{border-color:#fff;box-shadow:0 0 0 2px rgba(0,0,0,.55),0 0 0 4px rgba(255,255,255,.9)}
 #mapZoom{position:absolute;right:calc(16px + var(--sr));bottom:calc(16px + var(--sb));display:flex;flex-direction:column;gap:6px}
@@ -372,13 +374,13 @@ body.touch #keys,body.touch #prompt kbd,body.touch #mapClose kbd{display:none}
 #cpList{overflow:auto;margin-top:10px;flex:1;min-height:80px}#cpStats{font-size:12px;color:var(--mute)}#cpNote{font-size:12px;color:var(--acc);margin-top:6px}#cpNote:empty{display:none}#gcups{color:var(--acc)}
 .jbr{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--line)}
 .jbr>div{flex:1;min-width:0}
-.jbr i{display:block;font-style:normal;font-size:9px;letter-spacing:.3em;color:var(--acc);font-weight:700}
+.jbr i{display:block;font-style:normal;font-size:10.5px;letter-spacing:.24em;color:var(--acc);font-weight:700}
 .jbr b{display:block;font-size:13px;margin-top:2px}
 .jbr span{display:block;font-size:12px;color:var(--mute);margin-top:2px}
 .jbr .mbtn{width:auto;margin:0;padding:8px 14px;flex:none}
 .mbtn:disabled{opacity:.4;cursor:not-allowed}
 #jobhud{position:absolute;top:calc(14px + var(--st));left:50%;transform:translateX(-50%);background:var(--panel2);padding:8px 16px;text-align:center;min-width:240px;max-width:min(440px,calc(100% - 32px));filter:drop-shadow(0 3px 10px rgba(0,0,0,.5))}
-#jbType{font-size:9px;letter-spacing:.3em;color:var(--acc);font-weight:700}
+#jbType{font-size:10.5px;letter-spacing:.24em;color:var(--acc);font-weight:700}
 #jbObj{font-size:13px;font-weight:700;margin-top:2px}
 #jobhud .jm{display:flex;justify-content:center;gap:14px;margin-top:2px}
 #jobhud .jm b{font-size:18px}#jobhud .jm b:empty{display:none}
@@ -1629,7 +1631,7 @@ palmFrond.computeVertexNormals();
 const inTown=(x,z)=>x>548&&x<772&&z>-132&&z<202;
 function pine(x,z,y,s){vegPine(x,z,y,s)}
 function olive(x,z,y,s){vegOlive(x,z,y,s)}
-function palm(x,z,y,s){const t=tileOf(x,z).solid,a=rnd(x,z)*TAU,dx=Math.sin(a),dz=Math.cos(a);
+function palm(x,z,y,s,out){const t=out||tileOf(x,z).solid,a=rnd(x,z)*TAU,dx=Math.sin(a),dz=Math.cos(a);
   let px=x,pz=z,py=y;
   for(let k=0;k<5;k++){const lean=.05+k*.06,L=1.9*s;const cx=px+dx*Math.sin(lean)*L/2,cz=pz+dz*Math.sin(lean)*L/2,cy=py+Math.cos(lean)*L/2;
     t.push({g:GEO.palmSeg,m:mat(cx,cy,cz,a,s,L,s,lean),c:0x8a6c4a});px+=dx*Math.sin(lean)*L;pz+=dz*Math.sin(lean)*L;py+=Math.cos(lean)*L}
@@ -1918,7 +1920,9 @@ function buildHouse(){
   selSpot=new THREE.SpotLight(0xfff1d6,1.1,22,.5,.6);scene.add(selSpot);scene.add(selSpot.target);
   SPOTS.forEach((s,i)=>{const hit=new THREE.Mesh(B(3.4,2.4,5.6),new THREE.MeshBasicMaterial({visible:false}));hit.position.copy(gW(s[0],s[1],1.1));hit.rotation.y=gYaw+Math.PI+s[2];hit.userData.slot=i;scene.add(hit);pickers.push(hit)});
   // palms around the house, collision for the whole building and the pool
-  [[-28,-4],[-40,-4],[28,-6],[-30,26]].forEach(([x,z])=>{const p=gW(x,z);palm(p.x,p.z,gY,1.1)});
+  const hPalms=[];
+  [[-28,-4],[-40,-4],[28,-6],[-30,26]].forEach(([x,z])=>{const p=gW(x,z);palm(p.x,p.z,gY,1.1,hPalms)});
+  if(hPalms.length){const pm=new THREE.Mesh(merge(hPalms),new THREE.MeshLambertMaterial({vertexColors:true}));pm.castShadow=true;pm.receiveShadow=true;scene.add(pm)}
   const c=gW(0,15);addBox(c.x,c.z,23.6,15.6,gYaw);
   const pl=gW(-34,12);addBox(pl.x,pl.z,9,4.5,gYaw);
 }
@@ -3896,10 +3900,16 @@ function rivalModel(cd,key){
   while(AIC.size>6){const[id,old]=AIC.entries().next().value;if(AIM.includes(old))break;AIC.delete(id);disposeHeroCar(old)}
   return m;
 }
+// medals by the time shown, to the hundredth: a time shown as the gold time is gold
+const hund=v=>Math.round(v*100);
+const medalOf=(t,G)=>hund(t)<=hund(G.gold)?0:hund(t)<=hund(G.silver)?1:hund(t)<=hund(G.bronze)?2:3;
+// the ghost of the record standing now: one kept from a record since beaten (or replaced from the cloud) isn't raced
+function ghostFor(E){const g=save.ghost&&save.ghost[E.id],r=save.rec[E.id];return g&&(!(r>0)||Math.abs(g.t-r)<.005)?g:null}
 function startEvent(E,cup){
+  locked=true;
   P.damage=P.damageT=0;repairWarnLevel=0;
   const R=E.route,me=curCar(),idx=CARS.indexOf(me);
-  ev={E,R,lanes:null,t:-3,phase:"count",cp:0,hint:0,s:14,sNow:14,d:99,ai:[],done:false,wrongT:0,last:4,px:null,pz:null,gate:gateOf(R,E.cps[0]),reT:0,missT:0,diff:E.type==="race"?save.diff:1,obs:[],cup:cup||null,tg:cup&&E.type==="tt"?cupTimes(E,cup.cls):E,rec:E.type==="tt"?[]:null,ghost:E.type==="tt"&&save.ghost[E.id]?save.ghost[E.id]:null};
+  ev={E,R,lanes:null,t:-3,phase:"count",cp:0,hint:0,s:14,sNow:14,d:99,ai:[],done:false,wrongT:0,last:4,px:null,pz:null,gate:gateOf(R,E.cps[0]),reT:0,missT:0,diff:E.type==="race"?save.diff:1,obs:[],cup:cup||null,tg:cup&&E.type==="tt"?cupTimes(E,cup.cls):E,rec:E.type==="tt"?[]:null,ghost:E.type==="tt"?ghostFor(E):null};
   const p=edgePos(R,14);
   // the grid: you on the outer side of the road, rivals beside and behind (mirrored when driving on the left)
   const S=SIDE(),L1=1.9*S,L2=-1.7*S;
@@ -3925,7 +3935,7 @@ function updateEvent(dt){
   const R=ev.R,E=ev.E;
   ev.t+=dt;
   // over the line: the car brakes to a stop (stepPlayer), then the result shows; at most 4 s
-  if(ev.phase==="finish"){ev.fin.T+=dt;locked=true;if(kphNow()<5||ev.fin.T>4){showResult();return}}
+  if(ev.phase==="finish"){ev.fin.T+=dt;locked=true;if(Math.hypot(P.vx,P.vz)*3.6<5||ev.fin.T>4){showResult();return}}
   if(ev.phase==="count"){
     locked=true;P.vx*=.9;P.vz*=.9;
     const c=Math.ceil(-ev.t);$("count").classList.remove("hide");$("count").textContent=c>0?c:"GO";
@@ -4040,7 +4050,7 @@ function updateEvent(dt){
   else ghostHide();
   // over the line, the panel holds the time and place you finished with
   const tt=ev.fin?ev.fin.t:ev.t;
-  $("evPos").textContent=E.type==="race"?(ev.fin?ev.fin.pos:pos)+"/"+(ev.ai.length+1):(tt<ev.tg.gold?"GOLD":tt<ev.tg.silver?"SILVER":tt<ev.tg.bronze?"BRONZE":"--");
+  $("evPos").textContent=E.type==="race"?(ev.fin?ev.fin.pos:pos)+"/"+(ev.ai.length+1):["GOLD","SILVER","BRONZE","--"][medalOf(tt,ev.tg)];
   $("evTime").textContent=fmtT(Math.max(0,tt));
   $("evCp").textContent=ev.cp+"/"+cps.length;
 }
@@ -4051,7 +4061,7 @@ function finishEvent(tx){
     title=["1ST PLACE","2ND PLACE","3RD PLACE","4TH PLACE"][pos-1];rew=raceRewards(E,ev.diff)[pos-1]||0;
     rows.push(["Position",pos+" of 4"],["Difficulty",DIFFS[ev.diff].n]);
   }else{
-    const G=ev.tg;medal=t<G.gold?0:t<G.silver?1:t<G.bronze?2:3;title=["GOLD","SILVER","BRONZE","NO MEDAL"][medal];rew=E.rewards[medal]||0;
+    const G=ev.tg;medal=medalOf(t,G);title=["GOLD","SILVER","BRONZE","NO MEDAL"][medal];rew=E.rewards[medal]||0;
     rows.push(["Gold time",fmtT(G.gold)]);
   }
   const cupRows=ev.cup?cupScore(ev.cup,E.type==="race"?pos-1:medal):null;
@@ -5185,7 +5195,7 @@ function placeOnRoad(nr,dirSign){
 function fadeThen(ms,fn){
   if(tabIdle)return;
   setState("FADE");$("fade").style.opacity=1;
-  setTimeout(()=>{if(tabIdle)return;fn();$("fade").style.opacity=0;if(state==="FADE")setState("DRIVE")},ms);
+  setTimeout(()=>{if(tabIdle)return;fn();$("fade").style.opacity=0;if(state==="FADE"){setState("DRIVE");if(document.hidden)pauseOn()}},ms);
 }
 function resetToRoad(fade){
   const go=()=>{const nr=nearestRoadGlobal(P.x,P.z,true);if(!nr)return;const f=fwdOf(P.h);placeOnRoad(nr,f.x*nr.dx+f.z*nr.dz>=0?1:-1);snapCam()};
@@ -5383,7 +5393,7 @@ function custOpen(){
   goRelease();goSpin(false);goStage(true);
 }
 function custRender(){
-  const L=$("cuList"),d=cuDraft,top=L.scrollTop;L.innerHTML="";
+  const L=$("cuList"),d=cuDraft,top=L.scrollTop,fo=/** @type {HTMLElement} */ (document.activeElement),was=fo&&L.contains(fo)&&fo.tagName==="BUTTON"?fo.getAttribute("aria-label"):null;L.innerHTML="";
   for(const k of CU_ORDER){
     const O=MOD_OPTS[k];if((k==="livC"||k==="num")&&!(d.liv>0))continue;if(k==="num"&&d.liv!==3)continue;
     const sec=document.createElement("div");sec.className="cus";sec.dataset.k=k;
@@ -5402,7 +5412,8 @@ function custRender(){
       b.setAttribute("aria-label",O.n.toLowerCase()+": "+name.toLowerCase());b.setAttribute("aria-pressed",on?"true":"false");
       b.onclick=()=>{d[k]=i;custChange()};row.appendChild(b)});
     L.appendChild(sec)}
-  L.scrollTop=top;custFooter()}
+  L.scrollTop=top;custFooter();
+  if(was){const b=[...L.querySelectorAll("button")].find(x=>x.getAttribute("aria-label")===was);if(b)try{b.focus({preventScroll:true})}catch(e){}}}
 // the total, the message and APPLY, from the draft
 function custFooter(){const d=cuDraft,cost=modCost(cuBase,d),short=cost>save.cr;
   $("cuTotal").textContent=cost?fmtCr(cost)+" CR":"NO CHANGES";
@@ -6041,7 +6052,8 @@ function clPickShow(){if(!CL.pick)return;
   $("cpkP").textContent=ot?"This device's progress was last backed up to another Google account. Use it for this account too, or start new here. Starting new doesn't touch the other account's backup.":
     "This device and your Google account have different progress. The one you don't keep is replaced. Credits aren't added together.";
   $("cpkKeepDev").textContent=ot?"USE THIS DEVICE'S":"KEEP THIS DEVICE'S";$("cpkKeepAcc").textContent=ot?"START NEW":"KEEP THE ACCOUNT'S";
-  $("cpkDev").innerHTML=clRow(save,0);$("cpkAcc").innerHTML=ot?"<li>No progress saved yet</li>":clRow(CL.pick.cloud,clAt(CL.pick.doc));show("cloud",false);show("cloudPick",true)}
+  $("cpkDev").innerHTML=clRow(save,0);$("cpkAcc").innerHTML=ot?"<li>No progress saved yet</li>":clRow(CL.pick.cloud,clAt(CL.pick.doc));show("cloud",false);show("cloudPick",true);
+  try{$("cpkKeepDev").focus({preventScroll:true})}catch(e){}}
 // a new game in this account: this device's save goes (its progress stays in the other account, up to its last backup)
 function clStartNew(doc){CL.applying=true;clearTimeout(CL.timer);CL.timer=0;
   try{localStorage.removeItem(SAVE_KEY)}catch(e){CL.applying=false;CL.pick={doc,cloud:null};clSet("error","This browser won't let the game start new progress.");return}
@@ -6089,7 +6101,8 @@ let hudT=0,waterT=0;
 let padRevShown=false;
 function updateHUD(dt){
   const damage=$("damageHud"),amount=damagePct(),label="DAMAGE "+amount+"% · REPAIR";
-  if(damage.textContent!==label){damage.textContent=label;show("damageHud",amount>0);
+  show("damageHud",amount>0);
+  if(damage.textContent!==label){damage.textContent=label;
     damage.classList.toggle("high",amount>=60);damage.classList.toggle("critical",amount>=90);
     damage.setAttribute("aria-label","Vehicle damage "+amount+" percent. Open repair options.");}
   const cd=curCar(),vF=speedF(),kph=Math.abs(vF)*3.6,gi=gearInfo(kph,cd.top,vF<-.5);
