@@ -140,7 +140,7 @@ Accounts are optional. If you choose SAVE MY PROGRESS and sign in with Google, t
 
 **External connections:** three.js r128 (`vendor/`, MIT) and the Barlow fonts (`fonts/`, SIL OFL 1.1) come with the game, as does the soundtrack, served from this site's own `audio/` folder. On the official site, eligible visits load Cloudflare's analytics script and send aggregate analytics; requests are suppressed when Global Privacy Control or Do Not Track is detected. Google sign-in and Firestore require additional Google/Firebase requests **only if cloud saves are used**; the Firebase client scripts are downloaded on first use. The Content Security Policy in `index.html` lists the network origins permitted for those capabilities. An origin being permitted does not mean it is contacted on every visit.
 
-When Google Fonts load, Google can receive the visitor's IP address as part of the request. To disable Google Fonts in a self-hosted copy, remove the Google Fonts stylesheet links in the `<head>` of `index.html`; the game then falls back to system fonts.
+The fonts are served from this site's own `fonts/` folder, so no font request reaches Google. To use system fonts instead in a self-hosted copy, remove the `fonts/fonts.css` link in the `<head>` of `index.html`.
 
 ## Music
 

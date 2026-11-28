@@ -82,7 +82,7 @@ Automated mobile cases use emulated viewports and touch events, **not physical m
 
 ## Known constraints
 
-The game relies on WebGL and a modern browser; a low-power device may need the SMOOTH graphics setting. The CDN-hosted renderer requires connectivity at load time. Browser local storage can be cleared, and guest progress does not sync across devices. Automation does not currently exercise actual mobile Safari or Firefox, and GPU-less CI performance is not representative of physical devices.
+The game relies on WebGL and a modern browser; a low-power device may need the SMOOTH graphics setting. three.js and the fonts are served with the game, so it starts without reaching any other site. Browser local storage can be cleared, and guest progress does not sync across devices. Automation does not currently exercise actual mobile Safari or Firefox, and GPU-less CI performance is not representative of physical devices.
 
 ## AI-assisted development and human direction
 
