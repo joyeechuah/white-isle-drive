@@ -328,6 +328,21 @@ test.describe("cloud save", () => {
     await expect(page.locator("#cloudPick")).toBeVisible();
   });
 
+  test("an account backup that can't be read is never written over: BACK UP NOW reads it again first", async ({ game, page }) => {
+    await page.addInitScript(FAKE_CLOUD);
+    await game.open();
+    await setCloud(game, `s.docs.u1={save:"{not a save",rev:3,at:Date.now()};`);
+    await signIn(page, game);
+    await expect.poll(() => status(game).then((s) => s.st)).toBe("error");
+    await expect(page.locator("#clStat")).toContainText("could not be read");
+    // its revision matched: BACK UP NOW used to upload straight over it
+    await game.eval(() => { __T.CL.meta.rev = 3; __T.CL.meta.full = ""; });
+    await game.eval(() => __T.clSync());
+    await expect.poll(() => status(game).then((s) => s.st)).toBe("error");
+    const c = await cloud(game);
+    expect({ puts: c.puts, save: c.docs.u1.save, rev: c.docs.u1.rev }).toEqual({ puts: 0, save: "{not a save", rev: 3 });
+  });
+
   test("if the service didn't load when the panel opened, SIGN IN only loads it; the next tap opens Google's window", async ({ game, page }) => {
     await page.addInitScript(FAKE_CLOUD);
     await page.addInitScript(() => {
