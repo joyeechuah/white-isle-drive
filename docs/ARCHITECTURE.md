@@ -21,7 +21,7 @@ The sizeable `index.html` contains the production game, not a framework applicat
 
 ## Boot and the main loop
 
-The page loads the three.js library from cdnjs with a Subresource Integrity hash. Startup checks for WebGL support, restores and sanitises saved progress, then `boot()` executes the staged `STEPS` initialisation. These stages construct road networks, terrain, scenery, landmarks, events, traffic and parked vehicles. The `requestAnimationFrame(frame)` loop drives the simulation.
+The page loads three.js r128 from `vendor/three.min.js` (the same file cdnjs serves, checked against the same Subresource Integrity hash) and the Barlow fonts from `fonts/`; only Firebase still comes from cdnjs, and only for cloud saves. Startup checks for WebGL support, restores and sanitises saved progress, then `boot()` executes the staged `STEPS` initialisation. These stages construct road networks, terrain, scenery, landmarks, events, traffic and parked vehicles. The `requestAnimationFrame(frame)` loop drives the simulation.
 
 `frame(ts)` clamps the elapsed time, applies day/night and environment updates, delegates based on the current game state, and renders. Representative states are `LOAD`, `GARAGE`, `EXIT`, `DRIVE`, `DEALER`, `MAP`, `PHOTO`, `PAUSE` and `FADE`. `setState()` coordinates state transitions and interaction availability. Photo mode pauses world clocks; a tab that is no longer the active session skips its frame work.
 
@@ -82,7 +82,7 @@ Automated mobile cases use emulated viewports and touch events, **not physical m
 
 ## Known constraints
 
-The game relies on WebGL and a modern browser; a low-power device may need the SMOOTH graphics setting. The CDN-hosted renderer requires connectivity at load time. Browser local storage can be cleared, and guest progress does not sync across devices. Automation does not currently exercise actual mobile Safari or Firefox, and GPU-less CI performance is not representative of physical devices.
+The game relies on WebGL and a modern browser; a low-power device may need the SMOOTH graphics setting. three.js and the fonts are served with the game, so it starts without reaching any other site. Browser local storage can be cleared, and guest progress does not sync across devices. Automation does not currently exercise actual mobile Safari or Firefox, and GPU-less CI performance is not representative of physical devices.
 
 ## AI-assisted development and human direction
 

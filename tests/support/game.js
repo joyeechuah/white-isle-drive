@@ -1,10 +1,9 @@
 // Shared test fixture: opens the game in a fresh page and gives the tests helpers to drive it.
 //
 // Every page gets:
-//   - three.js r128 from the npm package instead of cdnjs (same file: the page's Subresource Integrity hash is
-//     still checked by the browser, so a different copy would fail to load)
 //   - Firebase 10.12.2 (for the cloud save) from the npm package in the same way
-//   - an empty stylesheet for Google Fonts, so no test waits on Google; the game falls back to system fonts
+//   - an empty stylesheet for the game's own fonts (fonts/fonts.css), so the layouts the tests measure stay those of
+//     the system fonts they were written against; tests/local-assets.spec.js loads the real ones
 //   - every other request to another site blocked and recorded (the game makes none on its own)
 // and, unless a test asks for the untouched page, the instrumented copy from instrument.js.
 //
@@ -12,8 +11,6 @@
 const { test: base, expect } = require("@playwright/test");
 const { instrumentedPage } = require("./instrument");
 
-const THREE_URL = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
-const THREE_FILE = require.resolve("three/build/three.min.js");
 // the Firebase scripts the cloud save loads, from the npm package of the same pinned version (again the page's hashes
 // are checked by the browser). Only the cloud tests that open SAVE MY PROGRESS load them
 const FIREBASE_URL = /^https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/firebase\/10\.12\.2\/(firebase-(?:app|auth|firestore)-compat\.js)$/;
@@ -70,7 +67,8 @@ class Game {
   //   render     (false) draw the 3D scene; logic tests never draw it, which makes them many times faster. Tests
   //                      that draw belong in the "webgl" project (put @webgl in their title, see playwright.config.js)
   //   save               a save (object or raw string) put in localStorage before the game loads
-  async open({ instrument = true, autostart = true, render = false, save, path = "/index.html" } = {}) {
+  //   realFonts  (false) load the game's own fonts (fonts/fonts.css); otherwise the system fonts the layouts were measured with
+  async open({ instrument = true, autostart = true, render = false, realFonts = false, save, path = "/index.html" } = {}) {
     const page = this.page;
     if (!this._wired) {
       this._wired = true;
@@ -86,14 +84,11 @@ class Game {
           return r.abort("blockedbyclient");
         }
       );
-      await page.route(THREE_URL, (r) =>
-        r.fulfill({ path: THREE_FILE, contentType: "text/javascript", headers: { "access-control-allow-origin": "*" } })
-      );
       await page.route(FIREBASE_URL, (r) =>
         r.fulfill({ path: FIREBASE_DIR + "/" + FIREBASE_URL.exec(r.request().url())[1], contentType: "text/javascript", headers: { "access-control-allow-origin": "*" } })
       );
-      await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, (r) =>
-        r.fulfill({ status: 200, contentType: "text/css", body: "", headers: { "access-control-allow-origin": "*" } })
+      if (!realFonts) await page.route((u) => u.href.startsWith("http://127.0.0.1") && u.pathname === "/fonts/fonts.css", (r) =>
+        r.fulfill({ status: 200, contentType: "text/css", body: "" })
       );
     }
     if (instrument && !this._instrumented) {
@@ -289,4 +284,4 @@ const test = base.extend({
   },
 });
 
-module.exports = { test, expect, Game, SAVE_KEY, THREE_URL };
+module.exports = { test, expect, Game, SAVE_KEY };
