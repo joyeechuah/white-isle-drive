@@ -129,7 +129,7 @@ body.touch #lhint{display:none}
 #streak .bar i{display:block;height:100%;background:var(--acc)}
 #evhud{position:absolute;top:calc(14px + var(--st));left:50%;transform:translateX(-50%);display:flex;gap:4px;filter:drop-shadow(0 3px 10px rgba(0,0,0,.5))}
 #evhud>div{background:var(--panel2);padding:6px 12px;text-align:center;min-width:76px}
-#evhud span{display:block;font-size:10.5px;letter-spacing:.22em;color:var(--mute);font-weight:700}
+#evhud span{display:block;font-size:10px;letter-spacing:.18em;color:var(--mute);font-weight:700}
 #evhud b{font-family:var(--f-num);font-size:22px;font-variant-numeric:tabular-nums}
 #evGap.ahead{color:#7be08f}#evGap.behind{color:#ff8a7a}
 #wrong{position:absolute;top:30%;left:50%;transform:translateX(-50%);background:var(--bad);color:#fff;font-weight:800;letter-spacing:.4em;padding:10px 26px;font-size:14px}
@@ -293,7 +293,8 @@ body.touch #keys,body.touch #prompt kbd,body.touch #mapClose kbd{display:none}
 @media (max-width:640px){#cust{left:8px;right:8px;width:auto;top:auto;bottom:8px;height:48%;padding:12px 14px}#cust h2{font-size:20px}#cuMin{display:block}#cust.mini{height:auto}}
 @media (max-height:520px) and (min-width:641px){#cust{top:8px;bottom:8px;width:min(340px,48%)}}
 .swb{width:19px;height:19px;border-radius:50%;border:2px solid rgba(255,255,255,.28);cursor:pointer;padding:0;flex:none}
-@media (pointer:coarse){.sw{gap:8px}.swb{width:30px;height:30px}.co,#cuViews .co{min-height:36px;padding:8px 11px}}
+/* larger on touch screens, the ten colours still on one row (at 30 px they took two, as in Port Meridien) */
+@media (pointer:coarse){.sw{gap:7px;max-width:320px}.swb{width:25px;height:25px}.co,#cuViews .co{min-height:36px;padding:8px 11px}}
 .swb:hover{border-color:rgba(255,255,255,.7)}
 .swb.on{border-color:#fff;box-shadow:0 0 0 2px rgba(0,0,0,.55),0 0 0 4px rgba(255,255,255,.9)}
 #mapZoom{position:absolute;right:calc(16px + var(--sr));bottom:calc(16px + var(--sb));display:flex;flex-direction:column;gap:6px}
