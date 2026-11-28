@@ -206,6 +206,9 @@ a.mbtn{color:inherit;text-decoration:none;box-sizing:border-box}
 #mapSide .lg i{width:14px;height:14px;border-radius:50%;display:inline-block;flex:none}
 #mapSide p{color:var(--mute);margin:10px 0 0;line-height:1.4}
 #mapClose{position:absolute;top:calc(16px + var(--st));right:calc(16px + var(--sr))}
+/* MAP KEY: on a narrow screen the legend and the passport are behind it (they were hidden there, out of reach) */
+#mapKey{display:none;position:absolute;top:calc(16px + var(--st));left:calc(16px + var(--sl));min-height:44px;background:var(--panel2);border-color:rgba(255,255,255,.32)}
+#mapKey[aria-expanded="true"]{border-color:var(--acc);color:var(--acc)}
 #mapPop{position:absolute;background:var(--panel2);border:1px solid rgba(255,255,255,.3);border-radius:6px;padding:12px 14px;width:220px;font-size:12px}
 #mapPop b{display:block;font-size:14px;margin-bottom:2px}
 #mapPop span{color:var(--mute)}
@@ -242,7 +245,9 @@ body.touch #keys,body.touch #prompt kbd,body.touch #mapClose kbd{display:none}
   .stats{min-width:0;max-width:none;flex-basis:100%}
   #dList{top:calc(76px + var(--st));bottom:auto;left:0;right:0;width:auto;max-height:none;flex-direction:row;overflow-x:auto;padding:0 16px}
   .di{flex:none;width:200px}
-  #mapSide{display:none}
+  #mapSide{display:none;top:calc(68px + var(--st));max-width:calc(100vw - 32px);max-height:calc(100% - 84px - var(--st) - var(--sb));overflow:auto}
+  #mapKey[aria-expanded="true"] + #mapSide{display:block}
+  #map #mapKey{display:block}
   #streak{min-width:0} #streak .pts{font-size:30px}
 }
 /* narrow portrait phones: the top bar takes two rows (chips, then money / level / place),
@@ -525,6 +530,7 @@ if(location.hostname==="joyeechuah.github.io"&&!navigator.globalPrivacyControl&&
 
 <div id="map" class="hide">
   <canvas id="mapc"></canvas>
+  <button class="btn ghost" id="mapKey" aria-controls="mapSide" aria-expanded="false">MAP KEY</button>
   <div id="mapSide">
     <h3>ISLAND OF IBIZA</h3>
     <div class="lg"><i style="background:#fff"></i>Your house</div>
@@ -4547,18 +4553,33 @@ function songFailed(S){
   S.st="failed";S.bytes=null;
   S.retryDelay=Math.min(30,(S.retryDelay||1)*3);
   S.retryAt=performance.now()+S.retryDelay*1000;
+  if(S.online){S.online=false;S.retryDelay=0;S.retryAt=performance.now()}
 }
 function songFetch(n){const S=SONGS[n];
   if(S.st&&!(S.st==="failed"&&S.retryAt!=null&&performance.now()>=S.retryAt))return;
   if(location.protocol==="file:"){S.st="failed";return}   // opened from disk: browsers won't fetch files, use the backup music
   S.st="loading";S.askT=AC?AC.currentTime:null;
-  const controller=new AbortController();
-  const timeout=setTimeout(()=>controller.abort(),120000);
-  fetch(S.url,{signal:controller.signal})
-    .then(r=>{if(!r.ok)throw new Error(String(r.status));return r.arrayBuffer()})
+  // A connection can hang without failing. A download that stops moving for 12 s (no answer, or no new data) is given
+  // up and tried again later; the clock restarts with every piece that arrives, so a slow but steady download still
+  // finishes (a fixed two minutes waited that long on a dead connection). As in Port Meridien
+  const controller=new AbortController();let timer=0;
+  const watch=()=>{clearTimeout(timer);timer=setTimeout(()=>controller.abort(),12000)};watch();
+  fetch(S.url,{signal:controller.signal}).then(r=>{if(!r.ok)throw new Error(String(r.status));
+      if(!r.body||!r.body.getReader){
+        // without progress to watch, the whole response gets two minutes, as before
+        clearTimeout(timer);timer=setTimeout(()=>controller.abort(),120000);return r.arrayBuffer()
+      }
+      const rd=r.body.getReader(),parts=[];let got=0;
+      const next=()=>rd.read().then(({done,value})=>{if(done){const b=new Uint8Array(got);let o=0;for(const p of parts){b.set(p,o);o+=p.length}return b.buffer}
+        watch();parts.push(value);got+=value.length;return next()});
+      return next()})
     .then(b=>{S.bytes=b;S.st="fetched"})
     .catch(()=>songFailed(S))
-    .finally(()=>clearTimeout(timeout))}
+    .finally(()=>clearTimeout(timer))}
+// back online: a song that failed is tried again at the next ask, its wait started afresh; one whose request was
+// still out when the connection came back starts afresh if that request fails
+addEventListener("online",()=>{for(const n of Object.keys(SONGS)){const S=SONGS[n];
+  if(S.st==="failed"){S.retryDelay=0;S.retryAt=performance.now()}else if(S.st==="loading")S.online=true}});
 function songDecode(n){const S=SONGS[n];if(S.st!=="fetched")return;S.st="decoding";
   AC.decodeAudioData(S.bytes.slice(0),buf=>{S.buf=buf;S.st="ready";S.retryDelay=0;S.retryAt=null;S.idle=AC.currentTime},()=>songFailed(S))}
 const equalPower=(up)=>{const c=new Float32Array(64);for(let i=0;i<64;i++){const t=i/63;c[i]=up?Math.sin(t*Math.PI/2):Math.cos(t*Math.PI/2)}return c};
@@ -5677,7 +5698,9 @@ $("pTilt").onclick=()=>{
 $("pGhost").onclick=()=>{save.ghostOn=!save.ghostOn;syncPause();persist();if(!save.ghostOn)ghostHide()};
 $("pSnd").onclick=()=>{save.sound=!save.sound;if(save.sound)audioInit();syncPause();persist()};
 $("pMus").onclick=$("gMus").onclick=()=>{save.music=!save.music;if(!save.music)titleUntil=0;audioInit();musicInit();syncPause();persist()};
-function openMap(){if(state!=="DRIVE")return;setState("MAP");clearInput();audioOn(false);show("map",true);show("mapPop",false);MV.z=1;MV.cx=0;MV.cz=0}
+const mapKey=$("mapKey");
+mapKey.onclick=()=>{mapKey.setAttribute("aria-expanded",String(mapKey.getAttribute("aria-expanded")!=="true"));show("mapPop",false)};
+function openMap(){if(state!=="DRIVE")return;mapKey.setAttribute("aria-expanded","false");setState("MAP");clearInput();audioOn(false);show("map",true);show("mapPop",false);MV.z=1;MV.cx=0;MV.cz=0}
 function closeMap(){if(state!=="MAP")return;
   // A release after reopening belongs to the old visit and must not set a waypoint.
   for(const id of mptr.keys()){if(mapc.hasPointerCapture(id))mapc.releasePointerCapture(id)}
@@ -5772,7 +5795,8 @@ addEventListener("keydown",e=>{
   else if(state==="PHOTO"){
     if(!$("phShot").classList.contains("hide")){if(k==="escape")photoShotClose()}
     else if(k==="escape"||k==="v")photoExit();else if(k==="enter")photoCapture();else if(k==="r")photoReset();else if(k>="1"&&k<="4"&&k.length===1)photoLookSet(+k-1)}
-  else if(state==="MAP"){if(k==="escape"||k==="m")closeMap();else if(k==="+"||k==="=")$("mapIn").onclick();else if(k==="-")$("mapOut").onclick()}
+  // (Escape closes an open MAP KEY first, on a narrow screen)
+  else if(state==="MAP"){if(k==="escape"&&mapKey.offsetWidth&&mapKey.getAttribute("aria-expanded")==="true"){mapKey.click();mapKey.focus()}else if(k==="escape"||k==="m")closeMap();else if(k==="+"||k==="=")$("mapIn").onclick();else if(k==="-")$("mapOut").onclick()}
   else if(state==="GARAGE"){if(k==="arrowleft"||k==="a")$("gprev").onclick();else if(k==="arrowright"||k==="d")$("gnext").onclick();else if(k==="enter")goDrive()}
   else if(state==="DEALER"){if(k==="arrowup"||k==="arrowleft"){e.preventDefault();dPick(dSel-1)}else if(k==="arrowdown"||k==="arrowright"){e.preventDefault();dPick(dSel+1)}else if(k==="escape")closeDealer()}
   else if(state==="INTRO"){if(k==="enter")$("iGo").onclick();else if(k==="escape")$("iNo").onclick();else if(k==="arrowleft"||k==="a")setDiff(save.diff-1);else if(k==="arrowright"||k==="d")setDiff(save.diff+1)}
