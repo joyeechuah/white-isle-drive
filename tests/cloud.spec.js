@@ -303,12 +303,14 @@ test.describe("cloud save", () => {
     await page.addInitScript(FAKE_CLOUD);
     await game.open();
     await setCloud(game, `const sv=JSON.parse(JSON.stringify(__T.save));sv.cr=500000;delete sv.ghost;s.docs.u1={save:JSON.stringify(sv),rev:3,at:Date.now()};`);
-    // the next write of the game's save fails (storage full)
+    // the next two writes of the game's save fail (storage full): the account's progress, and the same again without
+    // this device's ghost laps (saveWrite, as in Port Meridien)
     await game.eval(() => {
       const set = Storage.prototype.setItem;
+      let refuse = 2;
       Storage.prototype.setItem = function (k, v) {
-        if (k === __T.SAVE_KEY) {
-          Storage.prototype.setItem = set;
+        if (k === __T.SAVE_KEY && refuse > 0) {
+          if (--refuse === 0) Storage.prototype.setItem = set;
           throw new Error("QuotaExceededError");
         }
         return set.call(this, k, v);
